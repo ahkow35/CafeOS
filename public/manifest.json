@@ -1,0 +1,22 @@
+{
+    "name": "CafeOS - Team Management",
+    "short_name": "CafeOS",
+    "description": "Your cafe's digital operations hub for managing staff tasks and leave",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity"
+    ]
+}
