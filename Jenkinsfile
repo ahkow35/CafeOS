@@ -29,7 +29,13 @@ pipeline {
                 sh '''
                     echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" > .env.local
                     echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" >> .env.local
+                    
+                    # Build standalone app
                     npm run build
+                    
+                    # Copy public and static assets to standalone folder
+                    cp -r public .next/standalone/public
+                    cp -r .next/static .next/standalone/.next/static
                 '''
             }
         }
@@ -38,10 +44,11 @@ pipeline {
             steps {
                 sh '''
                     # Stop existing process if running
-                    pkill -f "next start" || true
+                    pkill -f "server.js" || true
                     
-                    # Start the application in the background
-                    nohup npm start > /var/log/cafeos/app.log 2>&1 &
+                    # Start the standalone server
+                    cd .next/standalone
+                    nohup node server.js > /var/log/cafeos/app.log 2>&1 &
                     
                     # Wait for server to start
                     sleep 5
@@ -56,6 +63,8 @@ pipeline {
     post {
         success {
             echo 'Deployment successful! CafeOS is now running.'
+            // Archive the standalone build for troubleshooting if needed
+            archiveArtifacts artifacts: '.next/standalone/**, .next/static/**', allowEmptyArchive: true
         }
         failure {
             echo 'Deployment failed. Check logs for details.'
