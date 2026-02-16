@@ -10,7 +10,8 @@ pipeline {
     agent {
         docker {
             image 'docker:latest'
-            args '--volume /var/run/docker.sock:/var/run/docker.sock'
+            // Fix: Override entrypoint to allow Jenkins to start the container, and mount docker socket
+            args '--entrypoint="" --volume /var/run/docker.sock:/var/run/docker.sock'
         }
     }
 
@@ -48,18 +49,11 @@ pipeline {
                     echo "Successfully built image."
 
                     echo "Pushing image to secure registry..."
-                    docker.withRegistry('https://registry.fukie.io', 'registry-credentials-id') { 
-                        // Note: You might need to add credentials ID here if your registry requires auth
-                        // Assuming 'registry-credentials-id' - please replace if you have a specific ID, 
-                        // or remove the withRegistry block if auth is handled globally/differently.
-                        // Based on the reference, no specific credentials ID was passed to docker.image().push(), 
-                        // so it might be using the node's docker config or a transparent auth.
-                        // I will stick to the reference pattern for now which didn't use withRegistry explicitly 
-                        // or assumed the agent has access.
+                    // Removed withRegistry block to match reference implementation
+                    // Assuming node has permissions or config to push to registry.fukie.io
+                    docker.image(imageTag).push()
+                    docker.image(imageLatest).push()
 
-                        docker.image(imageTag).push()
-                        docker.image(imageLatest).push()
-                    }
                     echo "Successfully pushed image."
                 }
             }
