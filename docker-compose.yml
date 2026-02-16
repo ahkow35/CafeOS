@@ -1,0 +1,9 @@
+services:
+  cafeos:
+    image: registry.fukie.io/cafeos:latest
+    container_name: cafeos
+    restart: unless-stopped
+    ports:
+      - "9193:3000"
+    environment:
+      - NODE_ENV=production
