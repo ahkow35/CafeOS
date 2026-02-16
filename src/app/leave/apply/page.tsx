@@ -39,9 +39,11 @@ function LeaveApplicationForm() {
     const calculateDays = () => {
         if (!startDate || !endDate) return 0;
 
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        // Create dates at noon to avoid timezone/DST issues
+        const start = new Date(startDate + 'T12:00:00');
+        const end = new Date(endDate + 'T12:00:00');
 
+        // Reset to simple date comparison if needed, but T12:00:00 usually suffices
         if (end < start) return 0;
 
         let days = 0;
