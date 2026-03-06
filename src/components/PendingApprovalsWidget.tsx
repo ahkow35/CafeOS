@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { LeaveRequest, User } from '@/lib/database.types';
 import { Check, X, Loader2 } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 interface LeaveRequestWithUser extends LeaveRequest {
     requester?: User;
@@ -16,6 +17,7 @@ interface PendingApprovalsWidgetProps {
 
 export default function PendingApprovalsWidget({ userRole, userId }: PendingApprovalsWidgetProps) {
     const supabase = createClient();
+    const toast = useToast();
     const [pendingRequests, setPendingRequests] = useState<LeaveRequestWithUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
         } catch (error: unknown) {
             console.error('Error approving request:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            alert(`Failed to approve: ${errorMessage}`);
+            toast(`Failed to approve: ${errorMessage}`, 'error');
         } finally {
             setActionLoading(null);
         }
@@ -143,7 +145,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
         } catch (error: unknown) {
             console.error('Error rejecting request:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            alert(`Failed to reject: ${errorMessage}`);
+            toast(`Failed to reject: ${errorMessage}`, 'error');
         } finally {
             setActionLoading(null);
         }

@@ -9,6 +9,7 @@ import BottomNav from '@/components/BottomNav';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
 import DecisionTicket from '@/components/DecisionTicket';
 import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 // Extend the interface to handle the joined profile data
 interface LeaveRequestWithProfile extends LeaveRequest {
@@ -18,6 +19,7 @@ interface LeaveRequestWithProfile extends LeaveRequest {
 export default function AdminLeavePage() {
     const router = useRouter();
     const supabase = createClient();
+    const toast = useToast();
 
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [selectedRequest, setSelectedRequest] = useState<LeaveRequestWithProfile | null>(null);
@@ -183,7 +185,7 @@ export default function AdminLeavePage() {
                     .update({ [balanceField]: newBalance })
                     .eq('id', request.user_id);
 
-                if (balanceError) alert(`Status updated but balance failed: ${balanceError.message}`);
+                if (balanceError) toast(`Status updated but balance failed: ${balanceError.message}`, 'error');
             }
 
             // Sync with server silently
@@ -191,7 +193,7 @@ export default function AdminLeavePage() {
 
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-            alert(`Error: ${errorMessage}`);
+            toast(`Error: ${errorMessage}`, 'error');
             await fetchLeavesOnly(); // Revert UI on error
         } finally {
             setProcessing(null);
@@ -216,7 +218,7 @@ export default function AdminLeavePage() {
             await fetchLeavesOnly();
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-            alert(`Error: ${errorMessage}`);
+            toast(`Error: ${errorMessage}`, 'error');
             await fetchLeavesOnly();
         } finally {
             setProcessing(null);

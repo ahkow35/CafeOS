@@ -8,11 +8,13 @@ import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Users, Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 export default function AdminStaffPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
     const supabase = createClient();
+    const toast = useToast();
 
     const [staff, setStaff] = useState<User[]>([]);
     const [staffLoading, setStaffLoading] = useState(true);
@@ -109,7 +111,7 @@ export default function AdminStaffPage() {
                     : s
             ));
         } else {
-            alert(`Failed to ${action} user: ${error.message}`);
+            toast(`Failed to ${action} user: ${error.message}`, 'error');
         }
         setUpdating(null);
     };
@@ -129,9 +131,9 @@ export default function AdminStaffPage() {
 
         if (!error) {
             setStaff(staff.filter(s => s.id !== userId));
-            alert(`${userName} has been removed from the system.`);
+            toast(`${userName} has been removed from the system.`, 'success');
         } else {
-            alert(`Failed to remove user: ${error.message}`);
+            toast(`Failed to remove user: ${error.message}`, 'error');
         }
         setUpdating(null);
     };
