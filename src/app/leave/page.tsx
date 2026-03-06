@@ -11,11 +11,13 @@ import BottomNav from '@/components/BottomNav';
 import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
 import { Palmtree, BarChart3, Plus, Clock, History, Inbox } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 export default function LeavePage() {
     const { user, profile, loading, refreshProfile } = useAuth();
     const router = useRouter();
     const supabase = createClient();
+    const toast = useToast();
 
     const [requests, setRequests] = useState<LeaveRequest[]>([]);
     const [requestsLoading, setRequestsLoading] = useState(true);
@@ -57,7 +59,7 @@ export default function LeavePage() {
         if (!error) {
             fetchLeaveRequests();
         } else {
-            alert('Failed to delete request');
+            toast('Failed to delete request', 'error');
         }
     };
 

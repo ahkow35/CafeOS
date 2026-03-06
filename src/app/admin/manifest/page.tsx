@@ -8,11 +8,13 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { User } from '@/lib/database.types';
+import { useToast } from '@/context/ToastContext';
 
 export default function StaffManifestPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
     const supabase = createClient();
+    const toast = useToast();
 
     const [staff, setStaff] = useState<User[]>([]);
     // Track local edits: { userId: { field: value } }
@@ -41,7 +43,7 @@ export default function StaffManifestPage() {
 
             if (error) {
                 console.error('Error fetching staff:', error);
-                alert(`Error fetching staff: ${error.message}`);
+                toast(`Error fetching staff: ${error.message}`, 'error');
                 return;
             }
 
@@ -50,7 +52,7 @@ export default function StaffManifestPage() {
             }
         } catch (err) {
             console.error('Unexpected error:', err);
-            alert('Unexpected error fetching staff');
+            toast('Unexpected error fetching staff', 'error');
         } finally {
             setLoadingData(false);
         }
@@ -92,7 +94,7 @@ export default function StaffManifestPage() {
                 return newEdits;
             });
         } else {
-            alert('Failed to save changes');
+            toast('Failed to save changes', 'error');
         }
         setSaving(null);
     };

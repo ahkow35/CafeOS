@@ -8,11 +8,13 @@ import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Shield, ShieldAlert, Users, ArrowLeft, Check, UserX, Trash2, UserCheck, Edit } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
 
 export default function ManageTeamPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const supabase = createClient();
+    const toast = useToast();
 
     const [profiles, setProfiles] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function ManageTeamPage() {
 
     const handleRoleChange = async (targetUserId: string, newRole: 'staff' | 'manager') => {
         if (targetUserId === user?.id) {
-            alert("You cannot change your own role.");
+            toast("You cannot change your own role.", 'error');
             return;
         }
 
@@ -100,11 +102,11 @@ export default function ManageTeamPage() {
                 p.id === targetUserId ? { ...p, role: newRole } : p
             ));
 
-            alert(`Role updated to ${newRole.toUpperCase()}!`);
+            toast(`Role updated to ${newRole.toUpperCase()}!`, 'success');
         } catch (error: unknown) {
             console.error('Error updating role:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            alert(`Failed to update role: ${errorMessage}`);
+            toast(`Failed to update role: ${errorMessage}`, 'error');
         } finally {
             setUpdating(null);
         }
@@ -125,9 +127,9 @@ export default function ManageTeamPage() {
             setProfiles(prev => prev.map(p =>
                 p.id === userId ? { ...p, is_active: !currentStatus } : p
             ));
-            alert(`User ${action}d successfully!`);
+            toast(`User ${action}d successfully!`, 'success');
         } else {
-            alert(`Failed to ${action} user: ${error.message}`);
+            toast(`Failed to ${action} user: ${error.message}`, 'error');
         }
         setUpdating(null);
     };
@@ -144,9 +146,9 @@ export default function ManageTeamPage() {
 
         if (!error) {
             setProfiles(prev => prev.filter(p => p.id !== userId));
-            alert(`${userName} has been removed from the system.`);
+            toast(`${userName} has been removed from the system.`, 'success');
         } else {
-            alert(`Failed to remove user: ${error.message}`);
+            toast(`Failed to remove user: ${error.message}`, 'error');
         }
         setUpdating(null);
     };
