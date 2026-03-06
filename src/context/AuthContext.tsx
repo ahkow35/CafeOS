@@ -126,6 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             async (event, session) => {
                 if (!mounted) return;
 
+                // INITIAL_SESSION is already handled by initAuth above; skip to avoid double fetch
+                if (event === 'INITIAL_SESSION') return;
+
                 setSession(session);
                 setUser(session?.user ?? null);
 
