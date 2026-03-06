@@ -1,7 +1,7 @@
 // Jenkinsfile for CafeOS - HTTPS Registry and Portainer Stack API Deployment
 // Configuration variables for easy reusability
 def imageName = "cafeos"
-def stackId = "REPLACE_WITH_STACK_ID" // TODO: Update this with your actual Portainer Stack ID
+def stackId = "36"
 def endpointId = "3"
 def portainerUrl = "https://portainer.fukie.io"
 def portainerTokenName = "portainer-api-key-admin"
