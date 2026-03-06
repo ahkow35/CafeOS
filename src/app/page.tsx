@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 import { createClient } from '@/lib/supabase';
-import { Task, User } from '@/lib/database.types';
+import { Task } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
@@ -16,10 +16,9 @@ import { Palmtree, ClipboardList, Settings, Plus, PartyPopper } from 'lucide-rea
 export default function HomePage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth(); // Use global auth state
+  const { user, profile, loading: authLoading } = useAuth(); // profile already fetched by AuthContext
 
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [localProfile, setLocalProfile] = useState<User | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -42,26 +41,15 @@ export default function HomePage() {
       const today = new Date();
       today.setHours(23, 59, 59, 999);
 
-      // Parallel Fetch
-      const [profileResult, tasksResult] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('tasks')
-          .select('*')
-          .eq('status', 'pending')
-          .lte('deadline', today.toISOString())
-          .order('deadline', { ascending: true })
-          .limit(5)
-      ]);
+      const { data } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('status', 'pending')
+        .lte('deadline', today.toISOString())
+        .order('deadline', { ascending: true })
+        .limit(5);
 
-      if (profileResult.error) {
-        console.error('Profile load error', profileResult.error);
-      } else {
-        setLocalProfile(profileResult.data as User);
-      }
-
-      if (tasksResult.data) {
-        setTasks(tasksResult.data as Task[]);
-      }
+      if (data) setTasks(data as Task[]);
 
     } catch (error) {
       console.error('Dashboard load error', error);
@@ -71,7 +59,6 @@ export default function HomePage() {
   };
 
   const fetchTodaysTasks = async () => {
-    // Re-fetch only tasks
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
@@ -94,24 +81,38 @@ export default function HomePage() {
   };
 
   const getFirstName = () => {
-    // Use full_name (the real column) AND add a ? before .split just in case it's empty
-    return localProfile?.full_name?.split(' ')[0] || 'there';
+    return profile?.full_name?.split(' ')[0] || 'there';
   };
 
-  // Check logic handled in loadDashboardData. 
-  // If loading is false and we are here, we theoretically have a profile or are redirecting.
-
-  // Combined loading state
+  // Combined loading state — show skeleton instead of blank spinner
   if (authLoading || dataLoading) {
     return (
-      <div className="loading" style={{ minHeight: '100vh' }}>
-        <div className="spinner" />
-      </div>
+      <>
+        <Header />
+        <main className="page">
+          <div className="container">
+            <section className="section">
+              <div className="skeleton" style={{ height: 28, width: '60%', marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 16, width: '40%' }} />
+            </section>
+            <section className="section">
+              <div className="skeleton" style={{ height: 20, width: '30%', marginBottom: 12 }} />
+              <div className="skeleton" style={{ height: 80, borderRadius: 8 }} />
+            </section>
+            <section className="section">
+              <div className="skeleton" style={{ height: 20, width: '35%', marginBottom: 12 }} />
+              <div className="skeleton" style={{ height: 64, borderRadius: 8, marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
+            </section>
+          </div>
+        </main>
+        <BottomNav />
+      </>
     );
   }
 
-  // If localProfile is missing after loading, it means error or no user
-  if (!localProfile) {
+  // If profile is missing after loading, it means error or no user
+  if (!profile) {
     return (
       <div className="empty-state animate-in" style={{ padding: '2rem', textAlign: 'center' }}>
         <div className="empty-state-title" style={{ color: '#ef4444' }}>Profile Not Found</div>
@@ -126,15 +127,6 @@ export default function HomePage() {
         >
           Retry
         </button>
-      </div>
-    );
-  }
-
-  if (!localProfile) {
-    return (
-      <div className="empty-state">
-        <div className="empty-state-title">Profile Not Found</div>
-        <p>Please contact your administrator.</p>
       </div>
     );
   }
@@ -157,8 +149,8 @@ export default function HomePage() {
               <span>Leave Balance</span>
             </h2>
             <LeaveBalanceCard
-              annualBalance={localProfile.annual_leave_balance}
-              medicalBalance={localProfile.medical_leave_balance}
+              annualBalance={profile.annual_leave_balance}
+              medicalBalance={profile.medical_leave_balance}
             />
           </section>
 
@@ -168,11 +160,6 @@ export default function HomePage() {
               <ClipboardList size={20} />
               <span>Today&apos;s Priorities</span>
             </h2>
-
-            {/* Tasks List (already sorted) */}
-            {/* We can use 'tasks' array directly */}
-
-            {/* Tasks List (already sorted) */}
 
             {tasks.length > 0 ? (
               <>
@@ -196,7 +183,7 @@ export default function HomePage() {
           </section>
 
           {/* Manager/Owner Quick Actions & Pending Approvals */}
-          {(localProfile.role === 'manager' || localProfile.role === 'owner') && (
+          {(profile.role === 'manager' || profile.role === 'owner') && (
             <>
               <section className="section animate-in">
                 <h2 className="section-title">
@@ -204,7 +191,7 @@ export default function HomePage() {
                   <span>Pending Approvals</span>
                 </h2>
                 <PendingApprovalsWidget
-                  userRole={localProfile.role as 'manager' | 'owner'}
+                  userRole={profile.role as 'manager' | 'owner'}
                   userId={user!.id}
                 />
               </section>
