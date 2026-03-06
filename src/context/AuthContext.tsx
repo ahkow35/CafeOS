@@ -93,8 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Handle invalid refresh token error
                 if (error) {
                     console.warn("Session restoration failed:", error.message);
-                    // Clear any invalid session data
-                    await supabase.auth.signOut();
+                    // Don't await signOut — on Safari, ITP can block this network call
+                    // and cause loading to hang. Just clear local state immediately.
+                    supabase.auth.signOut();
                     setSession(null);
                     setUser(null);
                     setProfile(null);
@@ -110,8 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error("Auth Init Error:", error);
-                // Clear session on any error
-                await supabase.auth.signOut();
+                // Don't await signOut — same Safari ITP hang risk
+                supabase.auth.signOut();
                 setSession(null);
                 setUser(null);
                 setProfile(null);
