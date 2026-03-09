@@ -14,6 +14,8 @@ interface AuthContextType {
     signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
     signOut: () => Promise<void>;
     refreshProfile: () => Promise<void>;
+    resetPassword: (email: string) => Promise<{ error: Error | null }>;
+    updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,6 +80,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setProfile(null);
         setSession(null);
+    };
+
+    const resetPassword = async (email: string) => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/reset-password`,
+        });
+        return { error: error as Error | null };
+    };
+
+    const updatePassword = async (newPassword: string) => {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        return { error: error as Error | null };
     };
 
     // 3. The Effect Hook (MUST BE INSIDE)
@@ -162,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 signUp,
                 signOut,
                 refreshProfile,
+                resetPassword,
+                updatePassword,
             }}
         >
             {children}
