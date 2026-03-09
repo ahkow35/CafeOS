@@ -36,7 +36,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
             .from('leave_requests')
             .select(`
                 *,
-                requester:profiles!leave_requests_user_id_fkey(*)
+                requester:profiles(*)
             `)
             .eq('status', statusFilter)
             .order('created_at', { ascending: true })
