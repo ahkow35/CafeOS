@@ -50,11 +50,7 @@ function LeaveApplicationForm() {
         const current = new Date(start);
 
         while (current <= end) {
-            const dayOfWeek = current.getDay();
-            // Count weekdays only (Monday = 1, Friday = 5)
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                days++;
-            }
+            days++;
             current.setDate(current.getDate() + 1);
         }
 
@@ -414,7 +410,7 @@ function LeaveApplicationForm() {
                                         </div>
                                     </div>
                                     <div className="leave-days">
-                                        {daysRequested} <span>working day{daysRequested !== 1 ? 's' : ''}</span>
+                                        {daysRequested} <span>day{daysRequested !== 1 ? 's' : ''}</span>
                                     </div>
                                     {daysRequested > availableBalance && (
                                 <div className="form-error mt-md">
