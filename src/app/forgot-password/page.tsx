@@ -1,40 +1,58 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Coffee } from 'lucide-react';
+import { Coffee, Mail } from 'lucide-react';
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [sent, setSent] = useState(false);
 
-    const { signIn } = useAuth();
-    const router = useRouter();
+    const { resetPassword } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
-        const { error } = await signIn(email, password);
+        const { error } = await resetPassword(email);
 
         if (error) {
             setError(error.message);
             setLoading(false);
         } else {
-            router.push('/');
+            setSent(true);
         }
     };
+
+    if (sent) {
+        return (
+            <div className="auth-page">
+                <div className="auth-card animate-in">
+                    <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
+                    <div className="text-center">
+                        <div style={{ marginBottom: '1rem' }}><Mail size={64} /></div>
+                        <h2 style={{ marginBottom: '0.5rem' }}>Check your email</h2>
+                        <p className="text-muted" style={{ marginBottom: '1.5rem' }}>
+                            If an account exists for <strong>{email}</strong>, a password reset link has been sent. Check your inbox.
+                        </p>
+                        <Link href="/login" className="btn btn-primary btn-block btn-lg">
+                            Back to Login
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="auth-page">
             <div className="auth-card animate-in">
                 <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
-                <p className="auth-subtitle">Welcome back! Sign in to continue.</p>
+                <p className="auth-subtitle">Enter your email and we'll send you a reset link.</p>
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
@@ -50,29 +68,8 @@ export default function LoginPage() {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             autoComplete="email"
+                            autoFocus
                         />
-                    </div>
-
-                    <div className="form-group">
-                        <label htmlFor="password" className="form-label">
-                            Password
-                        </label>
-                        <input
-                            id="password"
-                            type="password"
-                            className="form-input"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            autoComplete="current-password"
-                        />
-                    </div>
-
-                    <div style={{ textAlign: 'right', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-                        <Link href="/forgot-password" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-                            Forgot password?
-                        </Link>
                     </div>
 
                     {error && (
@@ -86,13 +83,13 @@ export default function LoginPage() {
                         className="btn btn-primary btn-block btn-lg"
                         disabled={loading}
                     >
-                        {loading ? 'Signing in...' : 'Sign In'}
+                        {loading ? 'Sending...' : 'Send Reset Link'}
                     </button>
                 </form>
 
                 <div className="auth-footer">
-                    Don't have an account?{' '}
-                    <Link href="/signup">Sign up</Link>
+                    Remember your password?{' '}
+                    <Link href="/login">Sign in</Link>
                 </div>
             </div>
         </div>
