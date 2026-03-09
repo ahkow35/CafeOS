@@ -160,14 +160,7 @@ export default function AdminLeavePage() {
                 // OWNER: Final Approval & Deduct Balance
                 const requestUser = request.profiles;
                 if (!requestUser) throw new Error('User profile not found.');
-
-                // Dynamic Key Access Fix
-                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                // Force Type Cast to allow dynamic access
-                const currentBalance = (requestUser as any)[balanceField] || 0;
-                const newBalance = currentBalance - request.days_requested;
-
-                // 1. Update Status
+                // 1. Update Status (Balance is already deducted at submission time)
                 const { error: statusError } = await supabase
                     .from('leave_requests')
                     .update({
@@ -178,14 +171,6 @@ export default function AdminLeavePage() {
                     .eq('id', request.id);
 
                 if (statusError) throw statusError;
-
-                // 2. Update Balance
-                const { error: balanceError } = await supabase
-                    .from('profiles')
-                    .update({ [balanceField]: newBalance })
-                    .eq('id', request.user_id);
-
-                if (balanceError) toast(`Status updated but balance failed: ${balanceError.message}`, 'error');
             }
 
             // Sync with server silently

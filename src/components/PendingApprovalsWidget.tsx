@@ -83,23 +83,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
 
             if (updateError) throw updateError;
 
-            // If owner approves, deduct balance
-            if (userRole === 'owner') {
-                const balanceField = request.leave_type === 'annual'
-                    ? 'annual_leave_balance'
-                    : 'medical_leave_balance';
-
-                const currentBalance = request.leave_type === 'annual'
-                    ? request.requester?.annual_leave_balance ?? 0
-                    : request.requester?.medical_leave_balance ?? 0;
-
-                await supabase
-                    .from('profiles')
-                    .update({
-                        [balanceField]: currentBalance - request.days_requested
-                    })
-                    .eq('id', request.user_id);
-            }
+            // Note: Balance is already deducted at submission time. No need to deduct here.
 
             // Refresh list
             await loadPendingRequests();
