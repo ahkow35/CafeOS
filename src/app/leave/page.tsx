@@ -49,17 +49,51 @@ export default function LeavePage() {
     };
 
     const handleDelete = async (requestId: string) => {
-        if (!confirm('Scrap this request?')) return;
+        // Find the request so we know how many days to restore
+        const requestToCancel = requests.find(r => r.id === requestId);
+        if (!requestToCancel) return;
 
+        const daysToRestore = requestToCancel.days_requested;
+        const leaveType = requestToCancel.leave_type;
+
+        if (!confirm(
+            `Cancel this leave request? Your ${daysToRestore} day${daysToRestore !== 1 ? 's' : ''} will be returned to your ${leaveType} leave balance.`
+        )) return;
+
+        // Restore balance before deleting (balance was deducted at submission time)
+        const balanceField = leaveType === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+        const currentBalance = leaveType === 'annual'
+            ? profile?.annual_leave_balance ?? 0
+            : profile?.medical_leave_balance ?? 0;
+
+        const { error: balanceError } = await supabase
+            .from('profiles')
+            .update({ [balanceField]: currentBalance + daysToRestore })
+            .eq('id', user!.id);
+
+        if (balanceError) {
+            console.error('Failed to restore leave balance:', balanceError);
+            alert('Failed to restore your leave balance. Please contact your manager.');
+            return;
+        }
+
+        // Now delete the request
         const { error } = await supabase
             .from('leave_requests')
             .delete()
             .eq('id', requestId);
 
         if (!error) {
+            await refreshProfile(); // Refresh balance card immediately
             fetchLeaveRequests();
         } else {
-            toast('Failed to delete request', 'error');
+            // Undo the balance restore if delete failed
+            await supabase
+                .from('profiles')
+                .update({ [balanceField]: currentBalance })
+                .eq('id', user!.id);
+            await refreshProfile();
+            toast('Failed to cancel request. Please try again.', 'error');
         }
     };
 

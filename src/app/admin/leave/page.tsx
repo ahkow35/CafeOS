@@ -215,6 +215,20 @@ export default function AdminLeavePage() {
             const { error } = await supabase.from('leave_requests').update(updateData).eq('id', request.id);
             if (error) throw error;
 
+            // Restore the employee's balance (was deducted at submission time)
+            const requestUser = request.profiles;
+            if (requestUser) {
+                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+                const currentBalance = (requestUser as any)[balanceField] ?? 0;
+                const { error: balanceError } = await supabase
+                    .from('profiles')
+                    .update({ [balanceField]: currentBalance + request.days_requested })
+                    .eq('id', request.user_id);
+                if (balanceError) {
+                    console.error('Balance restore failed after rejection:', balanceError);
+                }
+            }
+
             await fetchLeavesOnly();
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'An error occurred';

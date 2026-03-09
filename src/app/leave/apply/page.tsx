@@ -70,6 +70,12 @@ function LeaveApplicationForm() {
         e.preventDefault();
         setError('');
 
+        // --- Session guard ---
+        if (!user?.id) {
+            setError('Your session has expired. Please log out and log in again.');
+            return;
+        }
+
         if (!startDate || !endDate) {
             setError('Please select both start and end dates');
             return;
@@ -80,8 +86,13 @@ function LeaveApplicationForm() {
             return;
         }
 
+        // --- Insufficient balance: show explicit error, not just a disabled button ---
         if (daysRequested > availableBalance) {
-            setError(`Insufficient ${leaveType} leave balance. You have ${availableBalance} days available.`);
+            setError(
+                `Insufficient ${leaveType === 'annual' ? 'annual' : 'medical'} leave balance. ` +
+                `You requested ${daysRequested} day${daysRequested !== 1 ? 's' : ''} but only have ` +
+                `${availableBalance} day${availableBalance !== 1 ? 's' : ''} remaining.`
+            );
             return;
         }
 
@@ -89,7 +100,7 @@ function LeaveApplicationForm() {
         const { data: existingLeaves, error: checkError } = await supabase
             .from('leave_requests')
             .select('start_date, end_date, leave_type, status')
-            .eq('user_id', user?.id)
+            .eq('user_id', user.id)
             .in('status', ['pending_manager', 'pending_owner', 'approved'])
             .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
 
@@ -121,7 +132,7 @@ function LeaveApplicationForm() {
             setUploading(true);
             try {
                 const fileExt = file.name.split('.').pop();
-                const fileName = `${user?.id}_${Date.now()}.${fileExt}`;
+                const fileName = `${user.id}_${Date.now()}.${fileExt}`;
                 const { error: uploadError } = await supabase.storage
                     .from('medical_certificates')
                     .upload(fileName, file);
@@ -154,40 +165,57 @@ function LeaveApplicationForm() {
             initialStatus = 'approved';
         }
 
-        const { error: submitError } = await supabase
-            .from('leave_requests')
-            .insert({
-                user_id: user?.id,
-                leave_type: leaveType,
-                start_date: startDate,
-                end_date: endDate,
-                days_requested: daysRequested,
-                status: initialStatus,
-                reason: leaveType === 'medical' ? reason : null,
-                attachment_url: attachmentUrl,
-                // For owner auto-approve, set owner action fields
-                ...(profile?.role === 'owner' && {
-                    owner_action_by: user?.id,
-                    owner_action_at: new Date().toISOString(),
-                }),
-            });
+        try {
+            const { error: submitError } = await supabase
+                .from('leave_requests')
+                .insert({
+                    user_id: user.id,
+                    leave_type: leaveType,
+                    start_date: startDate,
+                    end_date: endDate,
+                    days_requested: daysRequested,
+                    status: initialStatus,
+                    reason: leaveType === 'medical' ? reason : null,
+                    attachment_url: attachmentUrl,
+                    ...(profile?.role === 'owner' && {
+                        owner_action_by: user.id,
+                        owner_action_at: new Date().toISOString(),
+                    }),
+                });
 
-        if (submitError) {
-            setError(submitError.message);
-            setSubmitting(false);
-        } else {
-            // If owner auto-approved, also deduct balance
-            if (profile?.role === 'owner') {
-                const balanceField = leaveType === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                const currentBalance = leaveType === 'annual'
-                    ? profile.annual_leave_balance
-                    : profile.medical_leave_balance;
-                await supabase
-                    .from('profiles')
-                    .update({ [balanceField]: (currentBalance ?? 0) - daysRequested })
-                    .eq('id', user?.id);
+            if (submitError) {
+                // Surface RLS / auth errors with a human-readable message
+                if (submitError.code === 'PGRST301' || submitError.message?.includes('policy')) {
+                    throw new Error('Permission denied. Your account may not have the right permissions. Please contact your manager.');
+                }
+                if (submitError.code === '42501') {
+                    throw new Error('Permission denied by the database. Please try logging out and back in.');
+                }
+                throw new Error(submitError.message);
             }
+
+            // Deduct balance immediately on successful submission
+            // (for all roles — owner self-approval, manager escalation, and staff pending)
+            const balanceField = leaveType === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+            const currentBalance = leaveType === 'annual'
+                ? profile?.annual_leave_balance ?? 0
+                : profile?.medical_leave_balance ?? 0;
+
+            const { error: balanceError } = await supabase
+                .from('profiles')
+                .update({ [balanceField]: currentBalance - daysRequested })
+                .eq('id', user.id);
+
+            if (balanceError) {
+                console.error('Balance update failed after successful submission:', balanceError);
+                // Don't block the user — leave was submitted, just log the error
+            }
+
             router.push('/leave');
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+            setError(errorMessage);
+            setSubmitting(false);
         }
     };
 
@@ -389,10 +417,10 @@ function LeaveApplicationForm() {
                                         {daysRequested} <span>working day{daysRequested !== 1 ? 's' : ''}</span>
                                     </div>
                                     {daysRequested > availableBalance && (
-                                        <div className="form-error mt-md">
-                                            ⚠️ Insufficient balance
-                                        </div>
-                                    )}
+                                <div className="form-error mt-md">
+                                    ⚠️ You only have {availableBalance} day{availableBalance !== 1 ? 's' : ''} left but requested {daysRequested}. Please shorten your dates.
+                                </div>
+                            )}
                                 </div>
                             </section>
                         )}
@@ -408,6 +436,7 @@ function LeaveApplicationForm() {
                                 type="submit"
                                 className="btn btn-primary btn-block btn-lg"
                                 disabled={submitting || daysRequested === 0 || daysRequested > availableBalance}
+                                title={daysRequested > availableBalance ? `Insufficient balance (${availableBalance} days available)` : undefined}
                             >
                                 {submitting ? (uploading ? 'Uploading Proof...' : 'Submitting...') : '📤 Submit Request'}
                             </button>

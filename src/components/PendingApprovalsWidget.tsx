@@ -118,7 +118,6 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
         }
 
         setActionLoading(request.id);
-
         try {
             const updateData: Partial<LeaveRequest> = {
                 status: 'rejected',
@@ -139,6 +138,19 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                 .eq('id', request.id);
 
             if (error) throw error;
+
+            // Restore the employee's balance (was deducted at submission time)
+            if (request.requester) {
+                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+                const currentBalance = request.leave_type === 'annual'
+                    ? request.requester.annual_leave_balance ?? 0
+                    : request.requester.medical_leave_balance ?? 0;
+
+                await supabase
+                    .from('profiles')
+                    .update({ [balanceField]: currentBalance + request.days_requested })
+                    .eq('id', request.user_id);
+            }
 
             // Refresh list
             await loadPendingRequests();
