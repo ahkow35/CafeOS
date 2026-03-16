@@ -10,6 +10,7 @@ interface AuthContextType {
     profile: User | null;
     session: Session | null;
     loading: boolean;
+    profileLoading: boolean;
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
     signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
     signOut: () => Promise<void>;
@@ -21,18 +22,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    // 1. Define State and Client INSIDE the component
     const [user, setUser] = useState<SupabaseUser | null>(null);
     const [profile, setProfile] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [profileLoading, setProfileLoading] = useState(false);
 
     const supabase = createClient();
 
     // 2. Helper Functions
     const fetchProfile = async (userId: string) => {
         try {
-            const { data, error, status } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email,
             password,
             options: {
-                data: { full_name: name }, // Ensure we save the name to metadata
+                data: { full_name: name },
             },
         });
         return { error: error as Error | null };
@@ -94,11 +95,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error as Error | null };
     };
 
-    // 3. The Effect Hook (MUST BE INSIDE)
+    // 3. The Effect Hook
     useEffect(() => {
         let mounted = true;
+        const AUTH_TIMEOUT_MS = 6000;
 
         const initAuth = async () => {
+            // Timeout safety net — if initAuth hangs, unblock UI after 6s
+            const timeoutId = setTimeout(() => {
+                if (mounted) {
+                    console.warn('[AuthContext] Auth init timed out — clearing state');
+                    setSession(null);
+                    setUser(null);
+                    setProfile(null);
+                    setLoading(false);
+                    setProfileLoading(false);
+                }
+            }, AUTH_TIMEOUT_MS);
+
             try {
                 const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -106,32 +120,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // Handle invalid refresh token error
                 if (error) {
-                    console.warn("Session restoration failed:", error.message);
+                    console.warn('Session restoration failed:', error.message);
                     // Don't await signOut — on Safari, ITP can block this network call
                     // and cause loading to hang. Just clear local state immediately.
                     supabase.auth.signOut();
                     setSession(null);
                     setUser(null);
                     setProfile(null);
+                    setLoading(false);        // explicit unlock before early return
+                    setProfileLoading(false);
                     return;
                 }
 
                 setSession(session);
                 setUser(session?.user ?? null);
 
+                // ✅ Unblock UI — auth state is now known, profile loads in background
+                if (mounted) setLoading(false);
+
                 if (session?.user) {
+                    setProfileLoading(true);
                     const profileData = await fetchProfile(session.user.id);
-                    if (mounted) setProfile(profileData);
+                    if (mounted) {
+                        setProfile(profileData);
+                        setProfileLoading(false);
+                    }
                 }
-            } catch (error) {
-                console.error("Auth Init Error:", error);
+            } catch (err) {
+                console.error('Auth Init Error:', err);
                 // Don't await signOut — same Safari ITP hang risk
                 supabase.auth.signOut();
                 setSession(null);
                 setUser(null);
                 setProfile(null);
             } finally {
-                if (mounted) setLoading(false);
+                clearTimeout(timeoutId);
+                // Safety net — ensures loading is always cleared even on unexpected throws
+                if (mounted) {
+                    setLoading(false);
+                    setProfileLoading(false);
+                }
             }
         };
 
@@ -148,13 +176,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(session?.user ?? null);
 
                 if (session?.user) {
+                    setProfileLoading(true);
                     const profileData = await fetchProfile(session.user.id);
-                    if (mounted) setProfile(profileData);
+                    if (mounted) {
+                        setProfile(profileData);
+                        setProfileLoading(false);
+                    }
                 } else {
-                    if (mounted) setProfile(null);
+                    if (mounted) {
+                        setProfile(null);
+                        setProfileLoading(false);
+                    }
                 }
-
-                if (mounted) setLoading(false);
             }
         );
 
@@ -172,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 profile,
                 session,
                 loading,
+                profileLoading,
                 signIn,
                 signUp,
                 signOut,
