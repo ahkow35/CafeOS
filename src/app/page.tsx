@@ -16,14 +16,14 @@ import { Palmtree, ClipboardList, Settings, Plus, PartyPopper } from 'lucide-rea
 export default function HomePage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user, profile, loading: authLoading } = useAuth(); // profile already fetched by AuthContext
+  const { user, profile, loading: authLoading, profileLoading } = useAuth();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    // Wait for global auth to finish
-    if (authLoading) return;
+    // Wait for auth and profile to resolve before acting
+    if (authLoading || profileLoading) return;
 
     if (!user) {
       router.push('/login');
@@ -31,7 +31,7 @@ export default function HomePage() {
     }
 
     loadDashboardData();
-  }, [user, authLoading, router]);
+  }, [user, authLoading, profileLoading, router]);
 
   const loadDashboardData = async () => {
     if (!user) return;
@@ -58,21 +58,6 @@ export default function HomePage() {
     }
   };
 
-  const fetchTodaysTasks = async () => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('deadline', today.toISOString())
-      .order('deadline', { ascending: true })
-      .limit(5);
-
-    if (data) setTasks(data as Task[]);
-  };
-
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -85,7 +70,7 @@ export default function HomePage() {
   };
 
   // Combined loading state — show skeleton instead of blank spinner
-  if (authLoading || dataLoading) {
+  if (authLoading || profileLoading || dataLoading) {
     return (
       <>
         <Header />
@@ -167,7 +152,7 @@ export default function HomePage() {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    onComplete={fetchTodaysTasks}
+                    onComplete={loadDashboardData}
                   />
                 ))}
               </>
