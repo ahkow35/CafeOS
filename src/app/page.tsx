@@ -19,7 +19,7 @@ export default function HomePage() {
   const { user, profile, loading: authLoading, profileLoading } = useAuth();
 
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
     // Wait for auth and profile to resolve before acting
