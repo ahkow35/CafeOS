@@ -96,8 +96,10 @@ export default function HomePage() {
     );
   }
 
-  // If profile is missing after loading, it means error or no user
-  if (!profile) {
+  // If profile is missing after loading, it means error or no user.
+  // Guard includes authLoading/profileLoading so Safari doesn't flash this
+  // during the brief window after login where profile is still resolving.
+  if (!authLoading && !profileLoading && !profile) {
     return (
       <div className="empty-state animate-in" style={{ padding: '2rem', textAlign: 'center' }}>
         <div className="empty-state-title" style={{ color: '#ef4444' }}>Profile Not Found</div>
@@ -115,6 +117,8 @@ export default function HomePage() {
       </div>
     );
   }
+  // Narrow type for TypeScript — compound condition above handles the real guard
+  if (!profile) return null;
 
   return (
     <>
