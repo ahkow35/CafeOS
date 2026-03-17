@@ -198,11 +198,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const handlePageShow = (e: PageTransitionEvent) => {
             if (e.persisted) {
-                // Page restored from bfcache — re-check auth state
-                createClient().auth.getSession().then(({ data: { session } }) => {
+                // Page restored from bfcache — re-check auth state and re-fetch profile
+                supabase.auth.getSession().then(async ({ data: { session } }) => {
                     setSession(session);
                     setUser(session?.user ?? null);
-                    if (!session?.user) setProfile(null);
+                    if (session?.user) {
+                        const profileData = await fetchProfile(session.user.id);
+                        setProfile(profileData);
+                    } else {
+                        setProfile(null);
+                    }
                 });
             }
         };
