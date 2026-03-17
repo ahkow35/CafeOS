@@ -99,16 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 3. The Effect Hook
     useEffect(() => {
         let mounted = true;
-        const AUTH_TIMEOUT_MS = 6000;
+        const AUTH_TIMEOUT_MS = 15000;
 
         const initAuth = async () => {
-            // Timeout safety net — if initAuth hangs, unblock UI after 6s
+            // Timeout safety net — if initAuth hangs, unblock UI after 15s
             const timeoutId = setTimeout(() => {
                 if (mounted) {
-                    console.warn('[AuthContext] Auth init timed out — clearing state');
-                    setSession(null);
-                    setUser(null);
-                    setProfile(null);
+                    console.warn('[AuthContext] Auth init timed out — unblocking loading without clearing session');
                     setLoading(false);
                     setProfileLoading(false);
                 }
@@ -196,6 +193,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             mounted = false;
             subscription.unsubscribe();
         };
+    }, []);
+
+    useEffect(() => {
+        const handlePageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) {
+                // Page restored from bfcache — re-check auth state
+                createClient().auth.getSession().then(({ data: { session } }) => {
+                    setSession(session);
+                    setUser(session?.user ?? null);
+                    if (!session?.user) setProfile(null);
+                });
+            }
+        };
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
     }, []);
 
     // 4. Return the Provider
