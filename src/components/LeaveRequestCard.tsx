@@ -75,6 +75,11 @@ export default function LeaveRequestCard({
                         <Stethoscope size={20} className="leave-type-icon" />
                     )}
                     <span>{request.leave_type === 'annual' ? 'Annual Leave' : 'Medical Leave'}</span>
+                    {request.is_retrospective && (
+                        <span className="badge badge-neutral" style={{ fontSize: '0.65rem', marginLeft: '0.25rem' }}>
+                            Retrospective
+                        </span>
+                    )}
                 </div>
                 <span className={`badge ${statusDisplay.className}`}>
                     {statusDisplay.label}
