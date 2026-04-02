@@ -51,6 +51,7 @@ export interface Database {
           days_requested: number;
           reason: string | null;
           attachment_url: string | null;
+          is_retrospective: boolean;
           status: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
           manager_action_by: string | null;
           manager_action_at: string | null;
@@ -68,6 +69,7 @@ export interface Database {
           days_requested: number;
           reason?: string | null;
           attachment_url?: string | null;
+          is_retrospective?: boolean;
           status?: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
           manager_action_by?: string | null;
           manager_action_at?: string | null;
@@ -85,6 +87,7 @@ export interface Database {
           days_requested?: number;
           reason?: string | null;
           attachment_url?: string | null;
+          is_retrospective?: boolean;
           status?: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
           manager_action_by?: string | null;
           manager_action_at?: string | null;
