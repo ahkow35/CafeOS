@@ -82,6 +82,11 @@ function LeaveApplicationForm() {
             return;
         }
 
+        if (new Date(startDate).getFullYear() !== currentYear || new Date(endDate).getFullYear() !== currentYear) {
+            setError('Leave dates must fall within the current calendar year.');
+            return;
+        }
+
         // --- Insufficient balance: show explicit error, not just a disabled button ---
         if (daysRequested > availableBalance) {
             setError(
@@ -170,6 +175,7 @@ function LeaveApplicationForm() {
                     start_date: startDate,
                     end_date: endDate,
                     days_requested: daysRequested,
+                    is_retrospective: startDate < today,
                     status: initialStatus,
                     reason: leaveType === 'medical' ? reason : null,
                     attachment_url: attachmentUrl,
@@ -216,6 +222,10 @@ function LeaveApplicationForm() {
     };
 
     const today = new Date().toISOString().split('T')[0];
+    const currentYear = new Date().getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+    const yearEnd = `${currentYear}-12-31`;
+    const isRetrospective = !!startDate && startDate < today;
 
     return (
         <>
@@ -288,7 +298,8 @@ function LeaveApplicationForm() {
                                             }, 150);
                                         }
                                     }}
-                                    min={today}
+                                    min={yearStart}
+                                    max={yearEnd}
                                     style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
                                     required
                                 />
@@ -316,12 +327,30 @@ function LeaveApplicationForm() {
                                             }, 200);
                                         }
                                     }}
-                                    min={startDate || today}
+                                    min={startDate || yearStart}
+                                    max={yearEnd}
                                     style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
                                     required
                                 />
                             </div>
                         </section>
+
+                        {/* Retrospective Notice */}
+                        {isRetrospective && (
+                            <section className="section animate-in">
+                                <div className="card" style={{ border: '2px solid var(--color-warning, #f59e0b)', background: 'var(--color-warning-light, #fffbeb)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                        <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>📅</span>
+                                        <div>
+                                            <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Retrospective Request</div>
+                                            <div className="text-muted" style={{ fontSize: '0.875rem' }}>
+                                                These dates are in the past. Your request will go through the standard approval process.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
 
                         {/* Medical Leave Extra Fields */}
                         {leaveType === 'medical' && (
