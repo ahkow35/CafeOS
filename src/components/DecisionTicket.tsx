@@ -50,15 +50,28 @@ export default function DecisionTicket({
                 letterSpacing: '1px'
             }}>
                 <span>TICKET #{request.id.slice(0, 6)}</span>
-                <span style={{
-                    background: isMedical ? 'var(--color-neon-orange)' : 'var(--color-neon-green)',
-                    color: 'var(--color-black)',
-                    padding: '2px 8px',
-                    fontSize: '0.8rem',
-                    fontWeight: 'bold'
-                }}>
-                    {request.leave_type}
-                </span>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    {request.is_retrospective && (
+                        <span style={{
+                            background: 'var(--color-warning, #f59e0b)',
+                            color: 'var(--color-black)',
+                            padding: '2px 8px',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold'
+                        }}>
+                            RETRO
+                        </span>
+                    )}
+                    <span style={{
+                        background: isMedical ? 'var(--color-neon-orange)' : 'var(--color-neon-green)',
+                        color: 'var(--color-black)',
+                        padding: '2px 8px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold'
+                    }}>
+                        {request.leave_type}
+                    </span>
+                </div>
             </div>
 
             {/* Ticket Body - Density */}

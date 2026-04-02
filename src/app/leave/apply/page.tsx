@@ -82,7 +82,7 @@ function LeaveApplicationForm() {
             return;
         }
 
-        if (new Date(startDate).getFullYear() !== currentYear || new Date(endDate).getFullYear() !== currentYear) {
+        if (parseInt(startDate.slice(0, 4), 10) !== currentYear || parseInt(endDate.slice(0, 4), 10) !== currentYear) {
             setError('Leave dates must fall within the current calendar year.');
             return;
         }
