@@ -38,7 +38,7 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
                         e.currentTarget.style.boxShadow = 'none';
                     }}
                 >
-                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem' }}>Annual Leave</div>
+                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>Annual Leave</div>
                     <div className="stat-value" style={{
                         background: 'black',
                         color: '#CCFF00',
@@ -73,7 +73,7 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
                         e.currentTarget.style.boxShadow = 'none';
                     }}
                 >
-                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem' }}>Medical Leave</div>
+                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>Medical Leave</div>
                     <div className={`stat-value`} style={{
                         background: 'black',
                         color: 'white',
