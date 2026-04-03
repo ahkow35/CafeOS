@@ -193,14 +193,7 @@ export default function AdminLeavePage() {
             setRequests(prev => prev.filter(r => r.id !== request.id));
             setSelectedRequest(null);
 
-            const updateData = isOwner
-                ? { status: 'rejected', owner_action_by: currentUser.id, owner_action_at: new Date().toISOString() }
-                : { status: 'rejected', manager_action_by: currentUser.id, manager_action_at: new Date().toISOString() };
-
-            const { error } = await supabase.from('leave_requests').update(updateData).eq('id', request.id);
-            if (error) throw error;
-
-            // Restore the employee's balance (was deducted at submission time)
+            // 1. Restore balance FIRST — if this fails we haven't touched the status yet
             const requestUser = request.profiles;
             if (requestUser) {
                 const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
@@ -209,9 +202,34 @@ export default function AdminLeavePage() {
                     .from('profiles')
                     .update({ [balanceField]: currentBalance + request.days_requested })
                     .eq('id', request.user_id);
+
                 if (balanceError) {
-                    console.error('Balance restore failed after rejection:', balanceError);
+                    // Balance restore failed — abort before touching status
+                    throw new Error(`Balance restore failed: ${balanceError.message}`);
                 }
+            }
+
+            // 2. Update status to rejected — balance is already safe
+            const updateData = isOwner
+                ? { status: 'rejected', owner_action_by: currentUser.id, owner_action_at: new Date().toISOString() }
+                : { status: 'rejected', manager_action_by: currentUser.id, manager_action_at: new Date().toISOString() };
+
+            const { error: statusError } = await supabase
+                .from('leave_requests')
+                .update(updateData)
+                .eq('id', request.id);
+
+            if (statusError) {
+                // Status update failed — roll back the balance restore
+                if (requestUser) {
+                    const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+                    const originalBalance = (requestUser as any)[balanceField] ?? 0;
+                    await supabase
+                        .from('profiles')
+                        .update({ [balanceField]: originalBalance })
+                        .eq('id', request.user_id);
+                }
+                throw statusError;
             }
 
             await fetchLeavesOnly();
