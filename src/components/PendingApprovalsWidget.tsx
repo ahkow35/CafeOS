@@ -39,8 +39,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                 requester:profiles(*)
             `)
             .eq('status', statusFilter)
-            .order('created_at', { ascending: true })
-            .limit(3);
+            .order('created_at', { ascending: true });
 
         if (error) {
             console.error('Error loading pending requests:', error);

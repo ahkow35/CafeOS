@@ -15,6 +15,16 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
         return 'success';
     };
 
+    const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.currentTarget.style.transform = 'scale(1.02)';
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+    };
+
+    const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        e.currentTarget.style.boxShadow = 'none';
+    };
+
     return (
         <div className="stats-grid">
             <Link
@@ -29,14 +39,8 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
                         cursor: 'pointer',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.02)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = 'none';
-                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                 >
                     <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>Annual Leave</div>
                     <div className="stat-value" style={{
@@ -64,14 +68,8 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
                         cursor: 'pointer',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.02)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.boxShadow = 'none';
-                    }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
                 >
                     <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>Medical Leave</div>
                     <div className={`stat-value`} style={{
