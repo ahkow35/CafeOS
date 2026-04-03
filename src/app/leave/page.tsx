@@ -38,7 +38,7 @@ export default function LeavePage() {
     const fetchLeaveRequests = async () => {
         const { data, error } = await supabase
             .from('leave_requests')
-            .select('*')
+            .select('id, user_id, leave_type, start_date, end_date, days_requested, status, reason, attachment_url, is_retrospective, created_at')
             .eq('user_id', user?.id)
             .order('created_at', { ascending: false });
 
