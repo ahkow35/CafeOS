@@ -45,28 +45,21 @@ export default function AdminTasksPage() {
     }, [profile, isManagerOrOwner]);
 
     const fetchData = async () => {
-        // Fetch staff for assignment dropdown
-        const { data: staffData } = await supabase
-            .from('profiles')
-            .select('*')
-            .order('full_name', { ascending: true });
+        const [{ data: staffData }, { data: tasksData }] = await Promise.all([
+            supabase
+                .from('profiles')
+                .select('id, full_name')
+                .order('full_name', { ascending: true }),
+            supabase
+                .from('tasks')
+                .select('*')
+                .eq('status', 'done')
+                .order('completed_at', { ascending: false })
+                .limit(10),
+        ]);
 
-        if (staffData) {
-            setStaff(staffData as User[]);
-        }
-
-        // Fetch recent completed tasks
-        const { data: tasksData } = await supabase
-            .from('tasks')
-            .select('*')
-            .eq('status', 'done')
-            .order('completed_at', { ascending: false })
-            .limit(10);
-
-        if (tasksData) {
-            setRecentTasks(tasksData as Task[]);
-        }
-
+        if (staffData) setStaff(staffData as User[]);
+        if (tasksData) setRecentTasks(tasksData as Task[]);
         setTasksLoading(false);
     };
 

@@ -44,29 +44,29 @@ export default function AdminPage() {
     }, [profile, isManagerOrOwner]);
 
     const fetchStats = async () => {
-        // Pending leave requests for manager
-        const { count: managerLeaveCount } = await supabase
-            .from('leave_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending_manager');
-
-        // Pending leave requests for owner
-        const { count: ownerLeaveCount } = await supabase
-            .from('leave_requests')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending_owner');
-
-        // Pending tasks
-        const { count: taskCount } = await supabase
-            .from('tasks')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending');
-
-        // Staff count
-        const { count: staffCount } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('role', 'staff');
+        const [
+            { count: managerLeaveCount },
+            { count: ownerLeaveCount },
+            { count: taskCount },
+            { count: staffCount },
+        ] = await Promise.all([
+            supabase
+                .from('leave_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending_manager'),
+            supabase
+                .from('leave_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending_owner'),
+            supabase
+                .from('tasks')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending'),
+            supabase
+                .from('profiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('role', 'staff'),
+        ]);
 
         setStats({
             pendingManagerLeave: managerLeaveCount ?? 0,
