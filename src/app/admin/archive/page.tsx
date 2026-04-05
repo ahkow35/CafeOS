@@ -3,9 +3,10 @@
 import { createClient } from '@/lib/supabase';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { useEffect, useState } from 'react';
 import { LeaveRequest, User } from '@/lib/database.types';
 
@@ -21,6 +22,8 @@ export default function AdminArchivePage() {
     const [leaves, setLeaves] = useState<LeaveWithProfile[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [filter, setFilter] = useState<'all' | 'approved' | 'rejected'>('all');
+    const isOwner = profile?.role === 'owner';
+    const toast = useToast();
 
     useEffect(() => {
         if (!loading && !user) router.push('/login');
@@ -66,6 +69,23 @@ export default function AdminArchivePage() {
             console.error('Unexpected error:', err);
         } finally {
             setLoadingData(false);
+        }
+    };
+
+    const handleDelete = async (leaveId: string) => {
+        if (!confirm('Permanently delete this leave record? This cannot be undone.')) return;
+
+        // Optimistic removal
+        setLeaves(prev => prev.filter(l => l.id !== leaveId));
+
+        const { error } = await supabase
+            .from('leave_requests')
+            .delete()
+            .eq('id', leaveId);
+
+        if (error) {
+            toast(`Failed to delete record: ${error.message}`, 'error');
+            fetchLeaveHistory(); // revert optimistic removal
         }
     };
 
@@ -176,7 +196,19 @@ export default function AdminArchivePage() {
                                                 {leave.profiles?.role} • {leave.leave_type === 'annual' ? '🏖️ Annual' : '🏥 Medical'}
                                             </div>
                                         </div>
-                                        {getStatusBadge(leave.status)}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            {getStatusBadge(leave.status)}
+                                            {isOwner && (
+                                                <button
+                                                    onClick={() => handleDelete(leave.id)}
+                                                    className="btn btn-ghost btn-sm"
+                                                    style={{ color: 'var(--color-danger)', padding: '4px 8px' }}
+                                                    title="Delete record"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div style={{
