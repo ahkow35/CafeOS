@@ -8,7 +8,7 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
 import DecisionTicket from '@/components/DecisionTicket';
-import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 // Extend the interface to handle the joined profile data
@@ -242,6 +242,62 @@ export default function AdminLeavePage() {
         }
     };
 
+    const handleDelete = async (request: LeaveRequestWithProfile) => {
+        if (!currentUser) return;
+
+        const confirmMessage = `Delete this pending request? ${request.days_requested} day${request.days_requested !== 1 ? 's' : ''} will be returned to ${request.profiles?.full_name || 'the employee'}'s ${request.leave_type} leave balance.`;
+        if (!confirm(confirmMessage)) return;
+
+        setProcessing(request.id);
+
+        try {
+            // Optimistic UI
+            setRequests(prev => prev.filter(r => r.id !== request.id));
+
+            // 1. Restore balance FIRST — abort if this fails (record untouched)
+            const requestUser = request.profiles;
+            if (requestUser) {
+                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+                const currentBalance = (requestUser as any)[balanceField] ?? 0;
+                const { error: balanceError } = await supabase
+                    .from('profiles')
+                    .update({ [balanceField]: currentBalance + request.days_requested })
+                    .eq('id', request.user_id);
+
+                if (balanceError) {
+                    throw new Error(`Balance restore failed: ${balanceError.message}`);
+                }
+            }
+
+            // 2. Delete the record — balance is already safe
+            const { error: deleteError } = await supabase
+                .from('leave_requests')
+                .delete()
+                .eq('id', request.id);
+
+            if (deleteError) {
+                // Roll back balance restore
+                if (requestUser) {
+                    const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+                    const originalBalance = (requestUser as any)[balanceField] ?? 0;
+                    await supabase
+                        .from('profiles')
+                        .update({ [balanceField]: originalBalance })
+                        .eq('id', request.user_id);
+                }
+                throw deleteError;
+            }
+
+            await fetchLeavesOnly();
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+            toast(`Error: ${errorMessage}`, 'error');
+            await fetchLeavesOnly();
+        } finally {
+            setProcessing(null);
+        }
+    };
+
     const pageTitle = isOwner ? 'DECISION DESK' : 'Leave Requests';
     const pageSubtitle = isOwner ? 'Final Approval Queue' : 'Review & Escalate';
 
@@ -302,13 +358,33 @@ export default function AdminLeavePage() {
                                 return (
                                     <div key={request.id} style={{ opacity: processing === request.id ? 0.5 : 1 }}>
                                         {isOwner ? (
-                                            <DecisionTicket
-                                                request={request}
-                                                userName={displayName}
-                                                onApprove={() => handleApprove(request)}
-                                                onReject={() => handleReject(request)}
-                                                processing={processing === request.id}
-                                            />
+                                            <>
+                                                <DecisionTicket
+                                                    request={request}
+                                                    userName={displayName}
+                                                    onApprove={() => handleApprove(request)}
+                                                    onReject={() => handleReject(request)}
+                                                    processing={processing === request.id}
+                                                />
+                                                <button
+                                                    onClick={() => handleDelete(request)}
+                                                    className="btn btn-ghost btn-sm btn-block"
+                                                    style={{
+                                                        color: 'var(--color-danger)',
+                                                        marginTop: '-0.75rem',
+                                                        marginBottom: 'var(--spacing-lg)',
+                                                        fontSize: '0.8rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.4rem',
+                                                    }}
+                                                    disabled={!!processing}
+                                                >
+                                                    <Trash2 size={14} />
+                                                    <span>Delete Record</span>
+                                                </button>
+                                            </>
                                         ) : (
                                             <LeaveRequestCard
                                                 request={request}
