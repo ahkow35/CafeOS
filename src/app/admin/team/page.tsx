@@ -322,6 +322,14 @@ export default function ManageTeamPage() {
                                                                             >
                                                                                 Manager
                                                                             </button>
+                                                                            <button
+                                                                                onClick={() => handleRoleChange(profile.id, 'part_timer')}
+                                                                                disabled={profile.role === 'part_timer' || !!updating || isMe}
+                                                                                className={`btn btn-xs ${profile.role === 'part_timer' ? 'btn-ghost' : 'btn-outline'}`}
+                                                                                style={{ fontSize: '0.7rem', whiteSpace: 'nowrap', padding: '0.35rem 0.6rem' }}
+                                                                            >
+                                                                                Part-timer
+                                                                            </button>
                                                                         </>
                                                                     )}
                                                                     {!isMe && (
