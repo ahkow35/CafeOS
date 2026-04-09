@@ -4,24 +4,25 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(2);
-  return `${dd}/${mm}/${yy}`;
+function fmt12(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2,'0')} ${period}`;
 }
 
-function getDayName(dateStr: string): string {
-  return DAYS[new Date(dateStr + 'T00:00:00').getDay()];
-}
-
-function formatMonthYear(monthYear: string): string {
-  const [year, month] = monthYear.split('-');
-  return `${MONTH_NAMES[parseInt(month) - 1].toUpperCase()}${year.slice(2)}`;
+function setCell(ws: XLSX.WorkSheet, col: number, row: number, value: string | number) {
+  const ref = XLSX.utils.encode_cell({ c: col, r: row });
+  const existing = ws[ref];
+  if (existing) {
+    existing.v = value;
+    existing.t = typeof value === 'number' ? 'n' : 's';
+  } else {
+    ws[ref] = { v: value, t: typeof value === 'number' ? 'n' : 's' };
+  }
 }
 
 export async function GET(
@@ -30,7 +31,6 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Use service role to bypass RLS for admin export
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -47,129 +47,83 @@ export async function GET(
   const staffName: string = profile.full_name ?? profile.email ?? 'Unknown';
   const contactNo: string = profile.phone ?? '';
   const hourlyRate: number | null = profile.hourly_rate ?? null;
-  const monthYear: string = formatMonthYear((ts as any).month_year);
+  const [year, monthIdx] = (ts as any).month_year.split('-').map(Number);
+  const monthLabel = `${MONTH_NAMES[monthIdx - 1]} ${year}`;
+
+  // Build entry lookup by day number
+  const entryByDay: Record<number, any> = {};
+  for (const e of (entries ?? []) as any[]) {
+    const day = parseInt(e.entry_date.split('-')[2]);
+    entryByDay[day] = e;
+  }
+
   const totalHours: number = (entries ?? []).reduce((sum: number, e: any) => sum + (e.total_hours ?? 0), 0);
 
-  const wb = XLSX.utils.book_new();
-  const wsData: (string | number | null)[][] = [];
+  // ── Load template ──────────────────────────────────────────────────────────
+  const templatePath = path.join(process.cwd(), 'docs', 'RoundboyRoasters Timesheet.xls');
+  const templateBuf = fs.readFileSync(templatePath);
+  const wb = XLSX.read(templateBuf, { type: 'buffer', cellStyles: true });
+  const ws = wb.Sheets[wb.SheetNames[0]]; // Sheet1
 
-  // Row 1: Name
-  wsData.push(['NAME OF STAFF :', staffName, '', '', '', '', '']);
-  // Row 2: Month-Year
-  wsData.push(['MONTH-YEAR (MMMYY) :', monthYear, '', '', '', '', '']);
-  // Row 3: Contact
-  wsData.push(['Contact No:', contactNo, '', '', '', '', '']);
-  // Row 4: blank
-  wsData.push(['', '', '', '', '', '', '']);
+  // ── Header fields ──────────────────────────────────────────────────────────
+  // Row 3 (0-indexed r=2): H column (c=7) → MONTH
+  setCell(ws, 7, 2, monthLabel);
 
-  // Header row
-  wsData.push(['DATE\n(DD/MM/YY)', 'DAY\n(Mon, Tue, etc)', 'START Time\n(am/pm)', 'END Time\n(am/pm)', 'BREAK\n(No of Hours)', 'Total Hours\nless Break time', 'REMARKS']);
+  // Row 6 (r=5): A (c=0) → NAME OF CONTRACT STAFF
+  setCell(ws, 1, 5, staffName);
 
-  // Entry rows
-  for (const entry of (entries ?? []) as any[]) {
-    wsData.push([
-      formatDate(entry.entry_date),
-      getDayName(entry.entry_date),
-      entry.start_time ?? '',
-      entry.end_time ?? '',
-      entry.break_hours ?? 0,
-      entry.total_hours ?? 0,
-      entry.remarks ?? '',
-    ]);
+  // Row 7 (r=6): A (c=0) → NAME OF COMPANY; H (c=7) → Contact No
+  setCell(ws, 1, 6, 'Roundboy Roasters');
+  setCell(ws, 7, 6, contactNo);
+
+  // ── Day rows (template rows 12-42 = 0-indexed r=11..41, days 1-31) ────────
+  const daysInMonth = new Date(year, monthIdx, 0).getDate();
+
+  for (let day = 1; day <= 31; day++) {
+    const r = 11 + (day - 1); // 0-indexed row
+    const entry = entryByDay[day];
+
+    if (day > daysInMonth) {
+      // Clear day number for months shorter than 31 days
+      setCell(ws, 0, r, '');
+      continue;
+    }
+
+    // Day number is already in template col A; write the day name alongside
+    const dateObj = new Date(year, monthIdx - 1, day);
+    const dayName = DAYS[dateObj.getDay()];
+    // Keep day number in A, annotate with day name in B if no entry
+    if (!entry) {
+      setCell(ws, 0, r, `${day} ${dayName}`);
+      continue;
+    }
+
+    // col A: day + day name
+    setCell(ws, 0, r, `${day} ${dayName}`);
+    // col B (c=1): start time
+    if (entry.start_time) setCell(ws, 1, r, fmt12(entry.start_time));
+    // col C (c=2): end time
+    if (entry.end_time) setCell(ws, 2, r, fmt12(entry.end_time));
+    // col D (c=3): break hours
+    if (entry.break_hours != null) setCell(ws, 3, r, entry.break_hours);
+    // col E (c=4): normal hours (total)
+    if (entry.total_hours != null) setCell(ws, 4, r, entry.total_hours);
+    // col J (c=9): remarks
+    if (entry.remarks) setCell(ws, 9, r, entry.remarks);
   }
 
-  // Empty rows to fill up to at least 20 data rows
-  const dataRowCount = (entries ?? []).length;
-  for (let i = dataRowCount; i < 20; i++) {
-    wsData.push(['', '', '', '', '', '', '']);
-  }
+  // ── Total row (row 43 = r=42) ──────────────────────────────────────────────
+  // Template already has "TOTAL" label in A; put total hours in col E
+  setCell(ws, 4, 42, totalHours);
 
-  // Total row
-  wsData.push(['TOTAL', '', '', '', '', totalHours, '']);
-
-  // Comments row
-  wsData.push(['COMMENTS :', '', '', '', '', '', '']);
-
-  // Blank
-  wsData.push(['', '', '', '', '', '', '']);
-
-  // Signature line
-  wsData.push(['HEAD OF CAFÉ SIGNATURE / COMPANY STAMP & DATE', '', '', '', '', '', '']);
-
-  // Salary calc if available
+  // ── Salary calc in remarks area if rate available ──────────────────────────
   if (hourlyRate !== null) {
-    wsData.push(['', '', '', '', '', '', `${totalHours}HRS x $${hourlyRate} = $${(totalHours * hourlyRate).toFixed(2)}`]);
+    const salaryNote = `${totalHours} hrs × $${hourlyRate.toFixed(2)}/hr = $${(totalHours * hourlyRate).toFixed(2)}`;
+    setCell(ws, 9, 42, salaryNote);
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  // Column widths
-  ws['!cols'] = [
-    { wch: 14 }, // Date
-    { wch: 10 }, // Day
-    { wch: 12 }, // Start
-    { wch: 12 }, // End
-    { wch: 12 }, // Break
-    { wch: 14 }, // Total
-    { wch: 40 }, // Remarks
-  ];
-
-  // Style header row (row index 4, 0-based)
-  const headerRowIdx = 4;
-  const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-  cols.forEach(col => {
-    const cell = ws[`${col}${headerRowIdx + 1}`];
-    if (cell) {
-      cell.s = {
-        font: { bold: true },
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-        fill: { fgColor: { rgb: 'D9D9D9' } },
-        border: {
-          top: { style: 'thin' }, bottom: { style: 'thin' },
-          left: { style: 'thin' }, right: { style: 'thin' },
-        },
-      };
-    }
-  });
-
-  // Style total row
-  const totalRowIdx = headerRowIdx + 1 + Math.max((entries ?? []).length, 20);
-  const totalCell = ws[`F${totalRowIdx + 1}`];
-  if (totalCell) {
-    totalCell.s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-  }
-  const totalLabelCell = ws[`A${totalRowIdx + 1}`];
-  if (totalLabelCell) {
-    totalLabelCell.s = { font: { bold: true } };
-  }
-
-  // Try to embed RBR logo as image (xlsx-js-style supports this)
-  try {
-    const logoPath = path.join(process.cwd(), 'public', 'rbr-logo.png');
-    if (fs.existsSync(logoPath)) {
-      const logoData = fs.readFileSync(logoPath);
-      const logoBase64 = logoData.toString('base64');
-      if (!ws['!images']) ws['!images'] = [];
-      (ws['!images'] as any[]).push({
-        name: 'rbr-logo.png',
-        data: logoBase64,
-        opts: { base64: true },
-        position: {
-          type: 'twoCellAnchor',
-          attrs: { editAs: 'oneCell' },
-          from: { col: 5, row: 0, colOff: 0, rowOff: 0 },
-          to: { col: 7, row: 3, colOff: 0, rowOff: 0 },
-        },
-      });
-    }
-  } catch {
-    // Logo embedding optional — continue without it
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
-
+  // ── Write output ───────────────────────────────────────────────────────────
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-
   const filename = `${staffName.replace(/\s+/g, '-')}-${(ts as any).month_year}.xlsx`;
 
   return new NextResponse(buf, {
