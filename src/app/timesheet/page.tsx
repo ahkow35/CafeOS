@@ -223,7 +223,7 @@ function NewTimesheetModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={onClose}>
-      <div style={{ background: '#fff', width: '100%', borderRadius: '1rem 1rem 0 0', padding: '1.5rem' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', width: '100%', borderRadius: '1rem 1rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + 80px)' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>New Timesheet</h3>
 
         <label style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4 }}>
