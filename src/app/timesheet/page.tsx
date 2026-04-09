@@ -152,6 +152,21 @@ export default function TimesheetPage() {
   );
 }
 
+const MONTH_OPTIONS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 function NewTimesheetModal({
   userId,
   existingMonths,
@@ -164,20 +179,32 @@ function NewTimesheetModal({
   onCreated: (ts: Timesheet) => void;
 }) {
   const supabase = createClient();
-  const [monthYear, setMonthYear] = useState('');
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  // Default to current month
-  useEffect(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    setMonthYear(`${y}-${m}`);
-  }, []);
+  const monthYear = `${selectedYear}-${selectedMonth}`;
+
+  const yearOptions = [
+    String(now.getFullYear() - 1),
+    String(now.getFullYear()),
+    String(now.getFullYear() + 1),
+  ];
+
+  const selectStyle = {
+    flex: 1,
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: '0.75rem',
+    fontSize: '1rem',
+    background: '#fff',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as const,
+  };
 
   async function create() {
-    if (!monthYear) return;
     if (existingMonths.includes(monthYear)) {
       setError('A timesheet for this month already exists.');
       return;
@@ -195,25 +222,31 @@ function NewTimesheetModal({
   }
 
   return (
-    <div className="fixed inset-0" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={onClose}>
       <div style={{ background: '#fff', width: '100%', borderRadius: '1rem 1rem 0 0', padding: '1.5rem' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>New Timesheet</h3>
 
         <label style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4 }}>
-          Select Month
+          Select Month &amp; Year
         </label>
-        <input
-          type="month"
-          value={monthYear}
-          onChange={e => setMonthYear(e.target.value)}
-          style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem', fontSize: '1rem', marginBottom: '1rem' }}
-        />
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={selectStyle}>
+            {MONTH_OPTIONS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+          <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} style={{ ...selectStyle, flex: '0 0 auto', width: 90 }}>
+            {yearOptions.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
 
         {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button onClick={onClose} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
-          <button onClick={create} disabled={creating || !monthYear} className="btn btn-primary" style={{ flex: 1 }}>
+          <button onClick={create} disabled={creating} className="btn btn-primary" style={{ flex: 1 }}>
             {creating ? 'Creating...' : 'Create'}
           </button>
         </div>
