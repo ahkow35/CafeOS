@@ -20,6 +20,14 @@ export default function HomePage() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [slowLoad, setSlowLoad] = useState(false);
+
+  // Show retry prompt if loading takes more than 5s
+  useEffect(() => {
+    if (!authLoading && !profileLoading) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 5000);
+    return () => clearTimeout(t);
+  }, [authLoading, profileLoading]);
 
   useEffect(() => {
     // Wait for auth and profile to resolve before acting
@@ -89,6 +97,20 @@ export default function HomePage() {
               <div className="skeleton" style={{ height: 64, borderRadius: 8, marginBottom: 8 }} />
               <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
             </section>
+            {slowLoad && (
+              <section className="section" style={{ textAlign: 'center', paddingTop: '0.5rem' }}>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+                  Taking longer than usual...
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.875rem' }}
+                >
+                  Tap to retry
+                </button>
+              </section>
+            )}
           </div>
         </main>
         <BottomNav />

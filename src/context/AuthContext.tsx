@@ -33,14 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Helper Functions
     const fetchProfile = async (userId: string) => {
         try {
-            const { data, error } = await supabase
+            const fetchPromise = supabase
                 .from('profiles')
                 .select('id, email, full_name, role, annual_leave_balance, medical_leave_balance, is_active, phone, hourly_rate, created_at')
                 .eq('id', userId)
                 .single();
 
+            // Race against a 5s timeout so a sleeping Supabase instance can't hang the UI
+            const timeoutPromise = new Promise<{ data: null; error: Error }>(resolve =>
+                setTimeout(() => resolve({ data: null, error: new Error('Profile fetch timed out') }), 5000)
+            );
+
+            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
             if (error) {
-                console.error('[DEBUG] Profile fetch error:', error.message, error.code, error.details);
+                console.error('[DEBUG] Profile fetch error:', error.message);
                 return null;
             }
             return data;
@@ -99,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 3. The Effect Hook
     useEffect(() => {
         let mounted = true;
-        const AUTH_TIMEOUT_MS = 15000;
+        const AUTH_TIMEOUT_MS = 8000;
 
         const initAuth = async () => {
             // Timeout safety net — if initAuth hangs, unblock UI after 15s

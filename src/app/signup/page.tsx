@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Coffee, Mail } from 'lucide-react';
+import { Coffee } from 'lucide-react';
 
 export default function SignUpPage() {
     const [name, setName] = useState('');
@@ -13,7 +13,6 @@ export default function SignUpPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
 
     const { signUp } = useAuth();
     const router = useRouter();
@@ -40,29 +39,9 @@ export default function SignUpPage() {
             setError(error.message);
             setLoading(false);
         } else {
-            setSuccess(true);
+            router.push('/login');
         }
     };
-
-    if (success) {
-        return (
-            <div className="auth-page">
-                <div className="auth-card animate-in">
-                    <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
-                    <div className="text-center">
-                        <div style={{ marginBottom: '1rem' }}><Mail size={64} /></div>
-                        <h2 style={{ marginBottom: '0.5rem' }}>Check your email</h2>
-                        <p className="text-muted">
-                            We've sent you a confirmation link. Please check your email to complete signup.
-                        </p>
-                        <Link href="/login" className="btn btn-primary btn-block mt-lg">
-                            Back to Login
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="auth-page">
