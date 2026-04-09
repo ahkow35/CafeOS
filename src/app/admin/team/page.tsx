@@ -298,9 +298,18 @@ export default function ManageTeamPage() {
                                                                     fontSize: '0.75rem',
                                                                     fontWeight: 'bold',
                                                                     textTransform: 'uppercase',
-                                                                    backgroundColor: profile.role === 'owner' ? '#fef3c7' : profile.role === 'manager' ? '#f3e8ff' : '#dcfce7',
-                                                                    color: profile.role === 'owner' ? '#b45309' : profile.role === 'manager' ? '#7e22ce' : '#15803d'
-                                                                }}>{profile.role}</span>
+                                                                    backgroundColor: profile.role === 'owner' ? '#fef3c7' : profile.role === 'manager' ? '#f3e8ff' : profile.role === 'part_timer' ? '#e0f2fe' : '#dcfce7',
+                                                                    color: profile.role === 'owner' ? '#b45309' : profile.role === 'manager' ? '#7e22ce' : profile.role === 'part_timer' ? '#0369a1' : '#15803d'
+                                                                }}>{profile.role === 'part_timer' ? 'Part-timer' : profile.role}</span>
+                                                                {profile.role === 'part_timer' && (
+                                                                    <div style={{ marginTop: '0.4rem' }}>
+                                                                        <HourlyRateField
+                                                                            currentRate={profile.hourly_rate ?? null}
+                                                                            disabled={!!updating}
+                                                                            onSave={(rate) => handleHourlyRateChange(profile.id, rate)}
+                                                                        />
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             <td style={{ padding: '1rem' }}>
                                                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', opacity: updating === profile.id ? 0.5 : 1 }}>
