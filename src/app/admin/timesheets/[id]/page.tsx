@@ -7,10 +7,11 @@ import { createClient } from '@/lib/supabase';
 import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { ArrowLeft, CheckCircle, XCircle, Download } from 'lucide-react';
+import SignatureModal from '@/components/SignatureModal';
+import { ArrowLeft, CheckCircle, XCircle, Download, Pencil } from 'lucide-react';
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function formatMonthYear(monthYear: string) {
   const [year, month] = monthYear.split('-');
@@ -24,6 +25,13 @@ function formatDate(dateStr: string) {
 
 function getDayName(dateStr: string) {
   return DAYS[new Date(dateStr + 'T00:00:00').getDay()];
+}
+
+function fmt12(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2,'0')} ${period}`;
 }
 
 type FullTimesheet = Timesheet & {
@@ -44,6 +52,7 @@ export default function AdminTimesheetDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [showManagerSignModal, setShowManagerSignModal] = useState(false);
 
   const totalHours = entries.reduce((sum, e) => sum + e.total_hours, 0);
 
@@ -92,6 +101,17 @@ export default function AdminTimesheetDetailPage() {
     setShowRejectModal(false);
   }
 
+  async function handleManagerSign(dataUrl: string) {
+    if (!timesheet) return;
+    const { error: err } = await supabase
+      .from('timesheets')
+      .update({ manager_signature: dataUrl })
+      .eq('id', timesheet.id);
+    if (err) { setError(err.message); return; }
+    setTimesheet(prev => prev ? { ...prev, manager_signature: dataUrl } : prev);
+    setShowManagerSignModal(false);
+  }
+
   async function exportExcel() {
     setExporting(true);
     try {
@@ -131,9 +151,11 @@ export default function AdminTimesheetDetailPage() {
       <Header />
       <main className="page">
         <div className="container">
+
+          {/* Header */}
           <section className="section animate-in">
-            <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-muted)', marginBottom: '0.75rem', padding: 0 }}>
-              <ArrowLeft size={18} /> Back
+            <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray)', marginBottom: '0.75rem', padding: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)' }}>
+              <ArrowLeft size={18} /> BACK
             </button>
             <h1 className="page-title">{timesheet.profiles?.full_name ?? timesheet.profiles?.email}</h1>
             <p className="page-subtitle">{formatMonthYear(timesheet.month_year)}</p>
@@ -145,9 +167,11 @@ export default function AdminTimesheetDetailPage() {
           {/* Salary preview */}
           {salary !== null && (
             <section className="section animate-in">
-              <div className="card" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: 4 }}>Salary Calculation</div>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#15803d' }}>
+              <div className="card">
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Salary Calculation
+                </div>
+                <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
                   {totalHours.toFixed(2)} hrs × S${hourlyRate!.toFixed(2)}/hr = S${salary.toFixed(2)}
                 </div>
               </div>
@@ -156,50 +180,46 @@ export default function AdminTimesheetDetailPage() {
 
           {!hourlyRate && (
             <section className="section animate-in">
-              <div className="card" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-                <p style={{ fontSize: '0.875rem', color: '#92400e' }}>
-                  Hourly rate not set for this staff member. Set it in <strong>Manage Team</strong> to see salary calculation.
+              <div className="card" style={{ borderColor: 'var(--color-gray)' }}>
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)' }}>
+                  Hourly rate not set. Set it in <strong>Manage Team</strong> to see salary calculation.
                 </p>
               </div>
             </section>
           )}
 
-          {/* Entries */}
+          {/* Entries table */}
           <section className="section animate-in">
             <h2 className="section-title">Timesheet Entries</h2>
             {entries.length === 0 ? (
               <div className="empty-state"><p>No entries submitted.</p></div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Date</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Day</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>In</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Out</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Brk</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Hrs</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>Remarks</th>
+                    <tr style={{ borderBottom: '2px solid var(--color-black)', textAlign: 'left' }}>
+                      {['Date','Day','In','Out','Brk','Hrs','Remarks'].map(h => (
+                        <th key={h} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {entries.map(entry => (
-                      <tr key={entry.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>{formatDate(entry.entry_date)}</td>
-                        <td style={{ padding: '8px 6px' }}>{getDayName(entry.entry_date)}</td>
-                        <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>{entry.start_time ?? '-'}</td>
-                        <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>{entry.end_time ?? '-'}</td>
-                        <td style={{ padding: '8px 6px' }}>{entry.break_hours}</td>
-                        <td style={{ padding: '8px 6px', fontWeight: 600 }}>{entry.total_hours}</td>
-                        <td style={{ padding: '8px 6px', color: '#6b7280' }}>{entry.remarks ?? ''}</td>
+                      <tr key={entry.id} style={{ borderBottom: '1px solid var(--color-concrete)' }}>
+                        <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{formatDate(entry.entry_date)}</td>
+                        <td style={{ padding: '6px 4px' }}>{getDayName(entry.entry_date)}</td>
+                        <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{entry.start_time ? fmt12(entry.start_time) : '—'}</td>
+                        <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{entry.end_time ? fmt12(entry.end_time) : '—'}</td>
+                        <td style={{ padding: '6px 4px', textAlign: 'center' }}>{entry.break_hours}</td>
+                        <td style={{ padding: '6px 4px', fontWeight: 700 }}>{entry.total_hours}</td>
+                        <td style={{ padding: '6px 4px', color: 'var(--color-gray)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.remarks ?? ''}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr style={{ borderTop: '2px solid #e5e7eb' }}>
-                      <td colSpan={5} style={{ padding: '8px 6px', fontWeight: 700 }}>TOTAL</td>
-                      <td style={{ padding: '8px 6px', fontWeight: 700, fontSize: '1rem' }}>{totalHours.toFixed(2)}</td>
+                    <tr style={{ borderTop: '2px solid var(--color-black)' }}>
+                      <td colSpan={5} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 700 }}>{totalHours.toFixed(2)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -208,40 +228,94 @@ export default function AdminTimesheetDetailPage() {
             )}
           </section>
 
-          {/* Rejection reason display */}
+          {/* Signatures section */}
+          <section className="section animate-in">
+            <h2 className="section-title">Signatures</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
+
+              {/* Employee signature */}
+              <div className="card" style={{ padding: 'var(--space-md)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-sm)' }}>
+                  Employee
+                </div>
+                {timesheet.employee_signature ? (
+                  <img
+                    src={timesheet.employee_signature}
+                    alt="Employee signature"
+                    style={{ width: '100%', border: '1px solid var(--color-concrete)', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-concrete)', color: 'var(--color-gray)', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
+                    Not signed
+                  </div>
+                )}
+              </div>
+
+              {/* Manager signature */}
+              <div className="card" style={{ padding: 'var(--space-md)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-sm)' }}>
+                  Manager
+                </div>
+                {timesheet.manager_signature ? (
+                  <img
+                    src={timesheet.manager_signature}
+                    alt="Manager signature"
+                    style={{ width: '100%', border: '1px solid var(--color-concrete)', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-concrete)', color: 'var(--color-gray)', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
+                    Not signed
+                  </div>
+                )}
+                {isSubmitted && (
+                  <button
+                    onClick={() => setShowManagerSignModal(true)}
+                    className="btn btn-outline btn-sm"
+                    style={{ marginTop: 'var(--space-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                  >
+                    <Pencil size={12} />
+                    {timesheet.manager_signature ? 'RE-SIGN' : 'SIGN'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Rejection reason */}
           {timesheet.status === 'rejected' && timesheet.rejection_reason && (
             <section className="section animate-in">
-              <div className="card" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
-                <div style={{ fontWeight: 600, color: '#dc2626', marginBottom: 4 }}>Rejection Reason</div>
-                <p style={{ fontSize: '0.9rem', color: '#7f1d1d' }}>{timesheet.rejection_reason}</p>
+              <div className="card" style={{ borderColor: 'var(--color-rust)', borderLeftWidth: 6 }}>
+                <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-rust)', marginBottom: 4, fontSize: 'var(--font-size-sm)', textTransform: 'uppercase' }}>
+                  Rejection Reason
+                </div>
+                <p style={{ fontSize: 'var(--font-size-sm)' }}>{timesheet.rejection_reason}</p>
               </div>
             </section>
           )}
 
-          {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', padding: '0 1rem 0.5rem' }}>{error}</p>}
+          {error && <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)', padding: '0 0 0.5rem' }}>{error}</p>}
 
           {/* Actions */}
-          <section className="section animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {/* Export always available if entries exist */}
+          <section className="section animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {entries.length > 0 && (
-              <button onClick={exportExcel} disabled={exporting} className="btn btn-outline"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%' }}>
+              <button onClick={exportExcel} disabled={exporting} className="btn btn-outline btn-block"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <Download size={18} />
-                {exporting ? 'Exporting...' : 'Export Excel'}
+                {exporting ? 'EXPORTING...' : 'EXPORT EXCEL'}
               </button>
             )}
 
             {isSubmitted && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
                 <button onClick={() => setShowRejectModal(true)} disabled={saving}
-                  className="btn btn-outline"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: '#dc2626', color: '#dc2626' }}>
-                  <XCircle size={18} /> Reject
+                  className="btn btn-danger"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <XCircle size={16} /> REJECT
                 </button>
                 <button onClick={approve} disabled={saving}
-                  className="btn btn-primary"
+                  className="btn btn-success"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <CheckCircle size={18} /> {saving ? '...' : 'Approve'}
+                  <CheckCircle size={16} /> {saving ? '...' : 'APPROVE'}
                 </button>
               </div>
             )}
@@ -250,28 +324,37 @@ export default function AdminTimesheetDetailPage() {
       </main>
       <BottomNav />
 
+      {/* Reject modal */}
       {showRejectModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={() => setShowRejectModal(false)}>
-          <div style={{ background: '#fff', width: '100%', borderRadius: '1rem 1rem 0 0', padding: '1.5rem' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>Reject Timesheet</h3>
-            <label style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 6 }}>Reason (required)</label>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={() => setShowRejectModal(false)}>
+          <div style={{ background: 'var(--color-white)', width: '100%', borderTop: '2px solid var(--color-black)', padding: 'var(--space-lg)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-md)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Reject Timesheet</h3>
+            <label className="form-label">Reason (required)</label>
             <textarea
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
               placeholder="Explain why this timesheet is being rejected..."
               rows={3}
-              style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.625rem', fontSize: '1rem', resize: 'none' }}
+              className="form-input form-textarea"
+              style={{ marginBottom: 'var(--space-md)' }}
             />
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-              <button onClick={() => setShowRejectModal(false)} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
-              <button onClick={reject} disabled={saving || !rejectionReason.trim()}
-                className="btn btn-primary"
-                style={{ flex: 1, background: '#dc2626', borderColor: '#dc2626' }}>
-                {saving ? 'Rejecting...' : 'Confirm Reject'}
+            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+              <button onClick={() => setShowRejectModal(false)} className="btn btn-outline" style={{ flex: 1 }}>CANCEL</button>
+              <button onClick={reject} disabled={saving || !rejectionReason.trim()} className="btn btn-danger" style={{ flex: 1 }}>
+                {saving ? 'REJECTING...' : 'CONFIRM REJECT'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manager signature modal */}
+      {showManagerSignModal && (
+        <SignatureModal
+          title="Manager Signature"
+          onConfirm={handleManagerSign}
+          onClose={() => setShowManagerSignModal(false)}
+        />
       )}
     </>
   );

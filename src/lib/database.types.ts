@@ -174,6 +174,8 @@ export interface Timesheet {
   rejection_reason: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  employee_signature: string | null;
+  manager_signature: string | null;
   created_at: string;
   updated_at: string;
 }
