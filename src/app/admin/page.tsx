@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight } from 'lucide-react';
+import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock } from 'lucide-react';
 
 export default function AdminPage() {
     const { user, profile, loading } = useAuth();
@@ -179,7 +179,7 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href="/admin/archive" className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href="/admin/archive" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <CheckSquare size={28} />
@@ -187,6 +187,19 @@ export default function AdminPage() {
                                     <div style={{ flex: 1 }}>
                                         <div className="card-title">ARCHIVE</div>
                                         <div className="card-subtitle">Read-Only History</div>
+                                    </div>
+                                    <ChevronRight size={20} className="text-muted" />
+                                </div>
+                            </Link>
+
+                            <Link href="/admin/timesheets" className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                                <div className="flex items-center gap-md">
+                                    <div className="stat-icon">
+                                        <Clock size={28} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div className="card-title">TIMESHEETS</div>
+                                        <div className="card-subtitle">Part-timer timesheet approval</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
                                 </div>

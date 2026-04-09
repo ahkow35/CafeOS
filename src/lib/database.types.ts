@@ -14,30 +14,36 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: 'staff' | 'manager' | 'owner';
+          role: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance: number;
           medical_leave_balance: number;
           is_active: boolean;
+          phone: string | null;
+          hourly_rate: number | null;
           created_at: string;
         };
         Insert: {
           id: string;
           email: string;
           full_name: string;
-          role?: 'staff' | 'manager' | 'owner';
+          role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
           is_active?: boolean;
+          phone?: string | null;
+          hourly_rate?: number | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           email?: string;
           full_name?: string;
-          role?: 'staff' | 'manager' | 'owner';
+          role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
           is_active?: boolean;
+          phone?: string | null;
+          hourly_rate?: number | null;
           created_at?: string;
         };
       };
@@ -157,3 +163,34 @@ export type Task = Database['public']['Tables']['tasks']['Row'];
 
 export type UserRole = User['role'];
 export type LeaveStatus = LeaveRequest['status'];
+export type TimesheetStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+
+export interface Timesheet {
+  id: string;
+  user_id: string;
+  month_year: string; // 'YYYY-MM'
+  status: TimesheetStatus;
+  comments: string | null;
+  rejection_reason: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimesheetEntry {
+  id: string;
+  timesheet_id: string;
+  entry_date: string; // 'YYYY-MM-DD'
+  start_time: string | null; // 'HH:MM'
+  end_time: string | null;   // 'HH:MM'
+  break_hours: number;
+  total_hours: number;
+  remarks: string | null;
+  created_at: string;
+}
+
+export interface TimesheetWithEntries extends Timesheet {
+  entries: TimesheetEntry[];
+  profile?: Pick<User, 'full_name' | 'email' | 'phone' | 'hourly_rate'>;
+}

@@ -131,17 +131,19 @@ export default function HomePage() {
             <p className="page-subtitle">Welcome to your dashboard — {new Date().toLocaleDateString()}</p>
           </section>
 
-          {/* Leave Balance */}
-          <section className="section animate-in">
-            <h2 className="section-title">
-              <Palmtree size={20} />
-              <span>Leave Balance</span>
-            </h2>
-            <LeaveBalanceCard
-              annualBalance={profile.annual_leave_balance}
-              medicalBalance={profile.medical_leave_balance}
-            />
-          </section>
+          {/* Leave Balance — hidden for part-timers */}
+          {profile.role !== 'part_timer' && (
+            <section className="section animate-in">
+              <h2 className="section-title">
+                <Palmtree size={20} />
+                <span>Leave Balance</span>
+              </h2>
+              <LeaveBalanceCard
+                annualBalance={profile.annual_leave_balance}
+                medicalBalance={profile.medical_leave_balance}
+              />
+            </section>
+          )}
 
           {/* Today's Tasks */}
           <section className="section animate-in">

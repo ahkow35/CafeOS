@@ -3,20 +3,25 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Home, CheckSquare, Calendar, Settings } from 'lucide-react';
+import { Home, CheckSquare, Calendar, Settings, Clock } from 'lucide-react';
 
 export default function BottomNav() {
     const pathname = usePathname();
     const { profile } = useAuth();
 
-    // Show admin tab for managers and owners
     const isManagerOrOwner = profile?.role === 'manager' || profile?.role === 'owner';
+    const isPartTimer = profile?.role === 'part_timer';
 
     const navItems = [
         { href: '/', label: 'Home', icon: Home },
         { href: '/tasks', label: 'Tasks', icon: CheckSquare },
-        { href: '/leave', label: 'Leave', icon: Calendar },
     ];
+
+    if (isPartTimer) {
+        navItems.push({ href: '/timesheet', label: 'Timesheet', icon: Clock });
+    } else {
+        navItems.push({ href: '/leave', label: 'Leave', icon: Calendar });
+    }
 
     if (isManagerOrOwner) {
         navItems.push({ href: '/admin', label: 'Admin', icon: Settings });
