@@ -21,6 +21,7 @@ export default function LeavePage() {
 
     const [requests, setRequests] = useState<LeaveRequest[]>([]);
     const [requestsLoading, setRequestsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -36,16 +37,22 @@ export default function LeavePage() {
     }, [user]);
 
     const fetchLeaveRequests = async () => {
-        const { data, error } = await supabase
-            .from('leave_requests')
-            .select('id, user_id, leave_type, start_date, end_date, days_requested, status, reason, attachment_url, is_retrospective, created_at')
-            .eq('user_id', user?.id)
-            .order('created_at', { ascending: false });
+        setFetchError(null);
+        try {
+            const { data, error } = await supabase
+                .from('leave_requests')
+                .select('id, user_id, leave_type, start_date, end_date, days_requested, status, reason, attachment_url, is_retrospective, created_at')
+                .eq('user_id', user?.id)
+                .order('created_at', { ascending: false });
 
-        if (!error && data) {
-            setRequests(data as LeaveRequest[]);
+            if (error) throw error;
+            setRequests((data as LeaveRequest[]) ?? []);
+        } catch (err) {
+            console.error('Failed to load leave requests:', err);
+            setFetchError('Failed to load your leave requests. Please try again.');
+        } finally {
+            setRequestsLoading(false);
         }
-        setRequestsLoading(false);
     };
 
     const handleDelete = async (requestId: string) => {
@@ -97,7 +104,7 @@ export default function LeavePage() {
         }
     };
 
-    if (loading || !user || !profile) {
+    if (loading || !user) {
         return (
             <div className="loading" style={{ minHeight: '100vh' }}>
                 <div className="spinner" />
@@ -125,8 +132,8 @@ export default function LeavePage() {
                             <span>Your Balance</span>
                         </h2>
                         <LeaveBalanceCard
-                            annualBalance={profile.annual_leave_balance}
-                            medicalBalance={profile.medical_leave_balance}
+                            annualBalance={profile?.annual_leave_balance ?? 0}
+                            medicalBalance={profile?.medical_leave_balance ?? 0}
                         />
                     </section>
 
@@ -162,7 +169,13 @@ export default function LeavePage() {
                             <span>Request History</span>
                         </h2>
 
-                        {requestsLoading ? (
+                        {fetchError ? (
+                            <div className="empty-state">
+                                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load requests</div>
+                                <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
+                                <button className="btn btn-primary" onClick={fetchLeaveRequests}>Try again</button>
+                            </div>
+                        ) : requestsLoading ? (
                             <div className="loading">
                                 <div className="spinner" />
                             </div>

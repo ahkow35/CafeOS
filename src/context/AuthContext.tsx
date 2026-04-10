@@ -210,11 +210,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setSession(session);
                     setUser(session?.user ?? null);
                     if (session?.user) {
-                        const profileData = await fetchProfile(session.user.id);
-                        setProfile(profileData);
+                        setProfileLoading(true);
+                        try {
+                            const profileData = await fetchProfile(session.user.id);
+                            setProfile(profileData);
+                        } finally {
+                            setProfileLoading(false);
+                        }
                     } else {
                         setProfile(null);
+                        setProfileLoading(false);
                     }
+                }).catch(() => {
+                    setProfileLoading(false);
                 });
             }
         };

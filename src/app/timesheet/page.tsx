@@ -32,6 +32,7 @@ export default function TimesheetPage() {
 
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
 
   useEffect(() => {
@@ -44,13 +45,21 @@ export default function TimesheetPage() {
   async function loadTimesheets() {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('timesheets')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('month_year', { ascending: false });
-    setTimesheets((data as Timesheet[]) ?? []);
-    setLoading(false);
+    setFetchError(null);
+    try {
+      const { data, error } = await supabase
+        .from('timesheets')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('month_year', { ascending: false });
+      if (error) throw error;
+      setTimesheets((data as Timesheet[]) ?? []);
+    } catch (err) {
+      console.error('Failed to load timesheets:', err);
+      setFetchError('Failed to load timesheets. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (authLoading || loading) {
@@ -85,7 +94,13 @@ export default function TimesheetPage() {
           </section>
 
           <section className="section animate-in">
-            {timesheets.length === 0 ? (
+            {fetchError ? (
+              <div className="empty-state">
+                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load timesheets</div>
+                <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
+                <button className="btn btn-primary" onClick={loadTimesheets}>Try again</button>
+              </div>
+            ) : timesheets.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon"><FileText size={48} /></div>
                 <div className="empty-state-title">No timesheets yet</div>

@@ -32,6 +32,7 @@ export default function AdminTimesheetsPage() {
 
   const [timesheets, setTimesheets] = useState<TimesheetWithUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('submitted');
 
   useEffect(() => {
@@ -43,12 +44,20 @@ export default function AdminTimesheetsPage() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
-      .from('timesheets')
-      .select('*, profiles(full_name, email)')
-      .order('updated_at', { ascending: false });
-    setTimesheets((data as TimesheetWithUser[]) ?? []);
-    setLoading(false);
+    setFetchError(null);
+    try {
+      const { data, error } = await supabase
+        .from('timesheets')
+        .select('*, profiles(full_name, email)')
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      setTimesheets((data as TimesheetWithUser[]) ?? []);
+    } catch (err) {
+      console.error('Failed to load timesheets:', err);
+      setFetchError('Failed to load timesheets. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const filtered = filter === 'all' ? timesheets : timesheets.filter(t => t.status === filter);
@@ -92,7 +101,13 @@ export default function AdminTimesheetsPage() {
               ))}
             </div>
 
-            {filtered.length === 0 ? (
+            {fetchError ? (
+              <div className="empty-state">
+                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load timesheets</div>
+                <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
+                <button className="btn btn-primary" onClick={load}>Try again</button>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon"><Clock size={40} /></div>
                 <div className="empty-state-title">No timesheets</div>

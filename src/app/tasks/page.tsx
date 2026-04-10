@@ -18,6 +18,7 @@ export default function TasksPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
     const [tasksLoading, setTasksLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [showCompleted, setShowCompleted] = useState(false);
 
     useEffect(() => {
@@ -33,34 +34,38 @@ export default function TasksPage() {
     }, [user]);
 
     const fetchTasks = async () => {
-        // Fetch pending tasks
-        const { data: pendingData, error: pendingError } = await supabase
-            .from('tasks')
-            .select('*')
-            .eq('status', 'pending')
-            .order('deadline', { ascending: true });
+        setFetchError(null);
+        try {
+            // Fetch pending tasks
+            const { data: pendingData, error: pendingError } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('status', 'pending')
+                .order('deadline', { ascending: true });
 
-        if (!pendingError && pendingData) {
-            setTasks(pendingData as Task[]);
+            if (pendingError) throw pendingError;
+            setTasks((pendingData as Task[]) ?? []);
+
+            // Fetch completed tasks (last 7 days)
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+
+            const { data: completedData, error: completedError } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('status', 'done')
+                .gte('completed_at', weekAgo.toISOString())
+                .order('completed_at', { ascending: false })
+                .limit(10);
+
+            if (completedError) throw completedError;
+            setCompletedTasks((completedData as Task[]) ?? []);
+        } catch (err) {
+            console.error('Failed to load tasks:', err);
+            setFetchError('Failed to load tasks. Please try again.');
+        } finally {
+            setTasksLoading(false);
         }
-
-        // Fetch completed tasks (last 7 days)
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-
-        const { data: completedData, error: completedError } = await supabase
-            .from('tasks')
-            .select('*')
-            .eq('status', 'done')
-            .gte('completed_at', weekAgo.toISOString())
-            .order('completed_at', { ascending: false })
-            .limit(10);
-
-        if (!completedError && completedData) {
-            setCompletedTasks(completedData as Task[]);
-        }
-
-        setTasksLoading(false);
     };
 
     const groupTasksByDate = (tasks: Task[]) => {
@@ -94,7 +99,7 @@ export default function TasksPage() {
         return { overdue, todayTasks, tomorrowTasks, upcoming };
     };
 
-    if (loading || !user || !profile) {
+    if (loading || !user) {
         return (
             <div className="loading" style={{ minHeight: '100vh' }}>
                 <div className="spinner" />
@@ -114,7 +119,13 @@ export default function TasksPage() {
                         <p className="page-subtitle">{tasks.length} pending task{tasks.length !== 1 ? 's' : ''}</p>
                     </section>
 
-                    {tasksLoading ? (
+                    {fetchError ? (
+                        <div className="empty-state animate-in">
+                            <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load tasks</div>
+                            <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
+                            <button className="btn btn-primary" onClick={fetchTasks}>Try again</button>
+                        </div>
+                    ) : tasksLoading ? (
                         <div className="loading">
                             <div className="spinner" />
                         </div>
