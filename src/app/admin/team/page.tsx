@@ -21,6 +21,7 @@ export default function ManageTeamPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [updating, setUpdating] = useState<string | null>(null);
+    const [currentUserRole, setCurrentUserRole] = useState<string>('manager');
 
     useEffect(() => {
         if (!authLoading) {
@@ -55,6 +56,8 @@ export default function ManageTeamPage() {
                 router.push('/');
                 return;
             }
+
+            setCurrentUserRole(currentUserProfile.role);
 
             const { data: allProfiles, error: fetchError } = await supabase
                 .from('profiles')
@@ -257,6 +260,7 @@ export default function ManageTeamPage() {
                                         member={profile}
                                         updating={updating}
                                         isMe={profile.id === user?.id}
+                                        currentUserRole={currentUserRole}
                                         onToggleActive={toggleUserStatus}
                                         onChangeRole={handleRoleChange}
                                         onUpdateHourlyRate={handleHourlyRateChange}

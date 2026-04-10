@@ -8,6 +8,7 @@ interface TeamMemberCardProps {
     member: User;
     updating: string | null;
     isMe: boolean;
+    currentUserRole: string;
     onToggleActive: (id: string, isActive: boolean) => Promise<void>;
     onChangeRole: (id: string, newRole: string) => Promise<void>;
     onUpdateHourlyRate: (id: string, rate: number) => Promise<void>;
@@ -73,6 +74,7 @@ export default function TeamMemberCard({
     member,
     updating,
     isMe,
+    currentUserRole,
     onToggleActive,
     onChangeRole,
     onUpdateHourlyRate,
@@ -80,6 +82,7 @@ export default function TeamMemberCard({
 }: TeamMemberCardProps) {
     const isOwner = member.role === 'owner';
     const isDisabled = member.is_active === false;
+    const canDelete = currentUserRole === 'owner';
 
     return (
         <div
@@ -171,15 +174,17 @@ export default function TeamMemberCard({
                             }
                             {isDisabled ? 'Enable' : 'Disable'}
                         </button>
-                        <button
-                            onClick={() => onDelete(member.id, member.full_name)}
-                            className="btn btn-sm"
-                            style={{ flex: 1, fontSize: '0.8rem', backgroundColor: '#ef4444', color: 'white' }}
-                            disabled={!!updating}
-                        >
-                            <Trash2 size={14} style={{ marginRight: '4px' }} />
-                            Delete
-                        </button>
+                        {canDelete && (
+                            <button
+                                onClick={() => onDelete(member.id, member.full_name)}
+                                className="btn btn-sm"
+                                style={{ flex: 1, fontSize: '0.8rem', backgroundColor: '#ef4444', color: 'white' }}
+                                disabled={!!updating}
+                            >
+                                <Trash2 size={14} style={{ marginRight: '4px' }} />
+                                Delete
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
