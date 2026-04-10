@@ -162,6 +162,22 @@ export default function AdminTimesheetDetailPage() {
             {timesheet.profiles?.phone && (
               <p className="page-subtitle">Contact: {timesheet.profiles.phone}</p>
             )}
+            <div style={{ marginTop: 'var(--space-sm)' }}>
+              <span style={{
+                display: 'inline-block',
+                fontFamily: 'var(--font-heading)',
+                fontSize: 'var(--font-size-xs)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '3px 10px',
+                border: '2px solid',
+                borderColor: timesheet.status === 'approved' ? 'var(--color-success, #22c55e)' : timesheet.status === 'rejected' ? 'var(--color-rust)' : timesheet.status === 'submitted' ? 'var(--color-black)' : 'var(--color-gray)',
+                color: timesheet.status === 'approved' ? 'var(--color-success, #22c55e)' : timesheet.status === 'rejected' ? 'var(--color-rust)' : timesheet.status === 'submitted' ? 'var(--color-black)' : 'var(--color-gray)',
+                background: timesheet.status === 'submitted' ? 'var(--color-neon)' : 'transparent',
+              }}>
+                {timesheet.status.toUpperCase()}
+              </span>
+            </div>
           </section>
 
           {/* Salary preview */}
@@ -326,21 +342,56 @@ export default function AdminTimesheetDetailPage() {
 
       {/* Reject modal */}
       {showRejectModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={() => setShowRejectModal(false)}>
-          <div style={{ background: 'var(--color-white)', width: '100%', borderTop: '2px solid var(--color-black)', padding: 'var(--space-lg)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-md)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Reject Timesheet</h3>
-            <label className="form-label">Reason (required)</label>
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
+          onClick={() => setShowRejectModal(false)}
+        >
+          <div
+            style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-black)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Reject Timesheet
+            </h3>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
+              This will notify the employee. They can resubmit after correcting.
+            </p>
+            <label style={{ display: 'block', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              Reason (required)
+            </label>
             <textarea
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
-              placeholder="Explain why this timesheet is being rejected..."
-              rows={3}
-              className="form-input form-textarea"
-              style={{ marginBottom: 'var(--space-md)' }}
+              placeholder="e.g. Missing entries for 3rd and 5th, please correct and resubmit."
+              rows={4}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '2px solid var(--color-black)',
+                padding: '10px 12px',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--font-size-sm)',
+                resize: 'vertical',
+                outline: 'none',
+                marginBottom: 'var(--space-md)',
+                background: 'var(--color-white)',
+                color: 'var(--color-black)',
+              }}
             />
             <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-              <button onClick={() => setShowRejectModal(false)} className="btn btn-outline" style={{ flex: 1 }}>CANCEL</button>
-              <button onClick={reject} disabled={saving || !rejectionReason.trim()} className="btn btn-danger" style={{ flex: 1 }}>
+              <button
+                onClick={() => { setShowRejectModal(false); setRejectionReason(''); }}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={reject}
+                disabled={saving || !rejectionReason.trim()}
+                className="btn btn-danger"
+                style={{ flex: 1 }}
+              >
                 {saving ? 'REJECTING...' : 'CONFIRM REJECT'}
               </button>
             </div>
