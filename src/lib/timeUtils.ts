@@ -67,8 +67,12 @@ export function fmt12(hhmm: string): string {
  * Handles overnight shifts. Break is subtracted in hours.
  */
 export function computeHours(start: string, end: string, brk: number): number {
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
+  const startParts = start.split(':').map(Number);
+  const endParts = end.split(':').map(Number);
+  if (startParts.length !== 2 || endParts.length !== 2) return 0;
+  const [sh, sm] = startParts;
+  const [eh, em] = endParts;
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return 0;
   let mins = (eh * 60 + em) - (sh * 60 + sm);
   if (mins < 0) mins += 24 * 60;
   const rounded = Math.round((mins / 60) / 0.25) * 0.25;
@@ -78,6 +82,7 @@ export function computeHours(start: string, end: string, brk: number): number {
 /** Return all YYYY-MM-DD strings for every day in a "YYYY-MM" month. */
 export function getDaysInMonth(monthYear: string): string[] {
   const [y, m] = monthYear.split('-').map(Number);
+  // Day 0 of "next" month (m is already 1-indexed, so it acts as next month in JS's 0-indexed API)
   const count = new Date(y, m, 0).getDate();
   return Array.from({ length: count }, (_, i) =>
     `${y}-${String(m).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`
@@ -92,5 +97,5 @@ export function isWeekend(dateStr: string): boolean {
 
 /** True if the date string (YYYY-MM-DD) is today's local date. */
 export function isToday(dateStr: string): boolean {
-  return new Date().toISOString().slice(0,10) === dateStr;
+  return new Date().toLocaleDateString('en-CA') === dateStr;
 }
