@@ -209,7 +209,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                     onClick={() => handleApprove(request)}
                                     className="btn btn-sm"
                                     style={{
-                                        backgroundColor: '#16a34a',
+                                        backgroundColor: 'var(--color-stali-green)',
                                         color: 'white',
                                         padding: '0.5rem 0.75rem',
                                         fontSize: '0.8rem',
@@ -222,7 +222,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                     onClick={() => handleReject(request)}
                                     className="btn btn-sm"
                                     style={{
-                                        backgroundColor: '#ef4444',
+                                        backgroundColor: 'var(--color-rust)',
                                         color: 'white',
                                         padding: '0.5rem 0.75rem',
                                         fontSize: '0.8rem',
