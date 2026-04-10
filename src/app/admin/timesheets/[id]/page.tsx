@@ -9,14 +9,10 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import SignatureModal from '@/components/SignatureModal';
 import { ArrowLeft, CheckCircle, XCircle, Download, Pencil } from 'lucide-react';
+import { fmt12 } from '@/lib/timeUtils';
+import { formatMonthYear } from '@/lib/dateUtils';
 
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-function formatMonthYear(monthYear: string) {
-  const [year, month] = monthYear.split('-');
-  return `${MONTH_NAMES[parseInt(month) - 1]} ${year}`;
-}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -25,13 +21,6 @@ function formatDate(dateStr: string) {
 
 function getDayName(dateStr: string) {
   return DAYS[new Date(dateStr + 'T00:00:00').getDay()];
-}
-
-function fmt12(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${String(m).padStart(2,'0')} ${period}`;
 }
 
 type FullTimesheet = Timesheet & {

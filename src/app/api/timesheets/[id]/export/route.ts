@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
 import * as path from 'path';
+import { fmt12 } from '@/lib/timeUtils';
 
 // ─── Timesheet sheet layout (exceljs 1-indexed rows, letter columns) ──────────
 //   Row 3  B3:C3  "NAME OF STAFF :"  → value in D3
@@ -18,13 +19,6 @@ import * as path from 'path';
 
 const MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-function fmt12(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${String(m).padStart(2,'0')} ${period}`;
-}
 
 function fmtDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
