@@ -8,13 +8,7 @@ import { Timesheet, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
-
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function formatMonthYear(monthYear: string) {
-  const [year, month] = monthYear.split('-');
-  return `${MONTH_NAMES[parseInt(month) - 1]} ${year}`;
-}
+import { formatMonthYear } from '@/lib/dateUtils';
 
 type TimesheetWithUser = Timesheet & { profiles: Pick<User, 'full_name' | 'email'> };
 
