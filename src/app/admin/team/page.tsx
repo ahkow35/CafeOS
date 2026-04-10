@@ -21,7 +21,7 @@ export default function ManageTeamPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [updating, setUpdating] = useState<string | null>(null);
-    const [currentUserRole, setCurrentUserRole] = useState<string>('manager');
+    const [currentUserRole, setCurrentUserRole] = useState<string>('');
 
     useEffect(() => {
         if (!authLoading) {
@@ -47,7 +47,6 @@ export default function ManageTeamPage() {
                 .single();
 
             if (profileError) {
-                console.error('Profile Role Check Error:', profileError);
                 setError(`Role check failed: ${profileError.message}`);
                 return;
             }
@@ -65,7 +64,6 @@ export default function ManageTeamPage() {
                 .order('full_name', { ascending: true });
 
             if (fetchError) {
-                console.error('Team Fetch Error:', fetchError);
                 setError(`Team fetch failed: ${fetchError.message}`);
                 return;
             }
@@ -73,7 +71,6 @@ export default function ManageTeamPage() {
             setProfiles((allProfiles || []) as User[]);
 
         } catch (err: unknown) {
-            console.error('Unexpected Error loading team:', err);
             const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
             setError(errorMessage);
         } finally {
@@ -121,7 +118,6 @@ export default function ManageTeamPage() {
 
             toast(`Role updated to ${newRole.toUpperCase()}!`, 'success');
         } catch (error: unknown) {
-            console.error('Error updating role:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             toast(`Failed to update role: ${errorMessage}`, 'error');
         } finally {
