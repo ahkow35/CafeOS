@@ -226,7 +226,7 @@ export default function TimesheetEntryRow({
             type="text"
             value={row.remarks}
             onChange={e => onRowChange(date, { remarks: e.target.value })}
-            onBlur={() => onBlur(date, row)}
+            onBlur={e => onBlur(date, { ...row, remarks: e.target.value })}
             placeholder="Add a note for this day..."
             readOnly={!isDraft}
             style={{
