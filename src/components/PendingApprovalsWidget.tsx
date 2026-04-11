@@ -6,6 +6,26 @@ import { LeaveRequest, User } from '@/lib/database.types';
 import { Check, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
+function StageBadge({ status }: { status: string }) {
+    const isPendingManager = status === 'pending_manager';
+    return (
+        <span style={{
+            display: 'inline-block',
+            marginTop: '0.35rem',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            textTransform: 'uppercase' as const,
+            letterSpacing: '0.05em',
+            padding: '2px 6px',
+            borderRadius: '3px',
+            backgroundColor: isPendingManager ? 'var(--color-orange)' : 'var(--color-black)',
+            color: isPendingManager ? 'var(--color-white)' : 'var(--color-orange)',
+        }}>
+            {isPendingManager ? 'Awaiting Manager' : 'Owner Approval'}
+        </span>
+    );
+}
+
 interface LeaveRequestWithUser extends LeaveRequest {
     requester?: User;
 }
@@ -202,35 +222,10 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                 }}>
                                     {request.days_requested} day{request.days_requested !== 1 ? 's' : ''}
                                 </div>
-                                {request.status === 'pending_manager' ? (
-                                    <span style={{
-                                        display: 'inline-block',
-                                        marginTop: '0.35rem',
-                                        fontSize: '0.7rem',
-                                        fontWeight: 700,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em',
-                                        padding: '2px 6px',
-                                        borderRadius: '3px',
-                                        backgroundColor: '#fef3c7',
-                                        color: '#b45309',
-                                    }}>Awaiting Manager</span>
-                                ) : (
-                                    <span style={{
-                                        display: 'inline-block',
-                                        marginTop: '0.35rem',
-                                        fontSize: '0.7rem',
-                                        fontWeight: 700,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.05em',
-                                        padding: '2px 6px',
-                                        borderRadius: '3px',
-                                        backgroundColor: '#fff3e0',
-                                        color: '#c2410c',
-                                    }}>Owner Approval</span>
-                                )}
+                                <StageBadge status={request.status} />
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {/* Owners can override-reject at any stage, but cannot advance a pending_manager request (would skip manager approval) */}
                                 <button
                                     onClick={() => handleApprove(request)}
                                     className="btn btn-sm"
