@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Users, Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck } from 'lucide-react';
+import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export default function AdminStaffPage() {
@@ -77,7 +77,8 @@ export default function AdminStaffPage() {
     };
 
     const updateRole = async (userId: string, newRole: User['role']) => {
-        if (!confirm(`Are you sure you want to change this user's role to ${newRole}?`)) return;
+        const roleLabel = newRole === 'part_timer' ? 'Part-timer' : newRole.charAt(0).toUpperCase() + newRole.slice(1);
+        if (!confirm(`Are you sure you want to change this user's role to ${roleLabel}?`)) return;
         setUpdating(userId);
 
         const { error } = await supabase
@@ -284,8 +285,8 @@ export default function AdminStaffPage() {
                                                                 </button>
                                                                 <button
                                                                     onClick={() => updateRole(member.id, 'owner')}
-                                                                    disabled={!!updating}
-                                                                    className="btn btn-xs btn-outline"
+                                                                    disabled={member.role === 'owner' || !!updating}
+                                                                    className={`btn btn-xs ${member.role === 'owner' ? 'btn-ghost' : 'btn-outline'}`}
                                                                     style={{ fontSize: '0.7rem' }}
                                                                 >
                                                                     Owner
