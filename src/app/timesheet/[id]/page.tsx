@@ -32,6 +32,7 @@ export default function TimesheetDetailPage() {
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -158,6 +159,19 @@ export default function TimesheetDetailPage() {
     setSubmitting(false);
   }
 
+  async function reopenTimesheet() {
+    if (!timesheet) return;
+    setReopening(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('timesheets')
+      .update({ status: 'draft', rejection_reason: null, employee_signature: null })
+      .eq('id', timesheet.id);
+    if (err) { setError(err.message); setReopening(false); return; }
+    setTimesheet(prev => prev ? { ...prev, status: 'draft', rejection_reason: null, employee_signature: null } : prev);
+    setReopening(false);
+  }
+
   async function exportExcel() {
     setExporting(true);
     setError('');
@@ -258,6 +272,24 @@ export default function TimesheetDetailPage() {
                   <XCircle size={14} /> REJECTED
                 </div>
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-white)' }}>{timesheet.rejection_reason}</p>
+                <button
+                  onClick={reopenTimesheet}
+                  disabled={reopening}
+                  style={{
+                    marginTop: 'var(--space-sm)',
+                    background: 'var(--color-white)',
+                    color: 'var(--color-rust)',
+                    border: '2px solid var(--color-white)',
+                    padding: '6px 14px',
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: 'var(--font-size-xs)',
+                    textTransform: 'uppercase' as const,
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {reopening ? 'REOPENING...' : 'REOPEN TO EDIT'}
+                </button>
               </div>
             </div>
           )}
