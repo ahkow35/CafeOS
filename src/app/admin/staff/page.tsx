@@ -19,6 +19,8 @@ export default function AdminStaffPage() {
     const [staff, setStaff] = useState<User[]>([]);
     const [staffLoading, setStaffLoading] = useState(true);
     const [updating, setUpdating] = useState<string | null>(null);
+    const [editingRate, setEditingRate] = useState<string | null>(null); // userId being edited
+    const [rateInput, setRateInput] = useState('');
 
     const isOwner = profile?.role === 'owner';
 
@@ -74,8 +76,8 @@ export default function AdminStaffPage() {
         setUpdating(null);
     };
 
-    const updateRole = async (userId: string, newRole: 'owner' | 'manager' | 'staff') => {
-        if (!confirm(`Are you sure you want to promote this user to ${newRole}?`)) return;
+    const updateRole = async (userId: string, newRole: User['role']) => {
+        if (!confirm(`Are you sure you want to change this user's role to ${newRole}?`)) return;
         setUpdating(userId);
 
         const { error } = await supabase
@@ -138,12 +140,32 @@ export default function AdminStaffPage() {
         setUpdating(null);
     };
 
+    const saveHourlyRate = async (userId: string) => {
+        const rate = parseFloat(rateInput);
+        if (isNaN(rate) || rate <= 0) return;
+        setUpdating(userId);
+        const { error } = await supabase
+            .from('profiles')
+            .update({ hourly_rate: rate })
+            .eq('id', userId);
+        if (!error) {
+            setStaff(staff.map(s => s.id === userId ? { ...s, hourly_rate: rate } : s));
+            toast(`Hourly rate updated to S$${rate}/hr`, 'success');
+        } else {
+            toast(`Failed to update rate: ${error.message}`, 'error');
+        }
+        setEditingRate(null);
+        setUpdating(null);
+    };
+
     const getRoleBadge = (role: User['role']) => {
         switch (role) {
             case 'owner':
                 return { label: 'Owner', className: 'badge-success' };
             case 'manager':
                 return { label: 'Manager', className: 'badge-info' };
+            case 'part_timer':
+                return { label: 'Part-timer', className: 'badge-info' };
             default:
                 return { label: 'Staff', className: 'badge-neutral' };
         }
@@ -231,55 +253,110 @@ export default function AdminStaffPage() {
                                                 <div className="staff-email">{member.email}</div>
 
                                                 {/* Action Buttons */}
-                                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                                                    {/* Promotion Button */}
-                                                    {!isMemberOwner && !isCurrentUser && (
-                                                        <button
-                                                            onClick={() => updateRole(member.id, 'owner')}
-                                                            className="btn btn-xs btn-outline"
-                                                            style={{ fontSize: '0.7rem' }}
-                                                        >
-                                                            Make Owner
-                                                        </button>
-                                                    )}
-
-                                                    {/* Disable/Enable Button */}
-                                                    {!isCurrentUser && (
-                                                        <button
-                                                            onClick={() => toggleUserStatus(member.id, member.is_active)}
-                                                            className={`btn btn-xs ${isDisabled ? 'btn-success' : 'btn-outline'}`}
-                                                            style={{ fontSize: '0.7rem' }}
-                                                            disabled={updating === member.id}
-                                                        >
-                                                            {isDisabled ? (
-                                                                <>
-                                                                    <UserCheck size={12} style={{ marginRight: '4px' }} />
-                                                                    Enable
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <UserX size={12} style={{ marginRight: '4px' }} />
-                                                                    Disable
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    )}
-
-                                                    {/* Remove Button */}
-                                                    {!isCurrentUser && (
-                                                        <button
-                                                            onClick={() => removeUser(member.id, member.full_name)}
-                                                            className="btn btn-xs"
-                                                            style={{ fontSize: '0.7rem', backgroundColor: '#ef4444', color: 'white' }}
-                                                            disabled={updating === member.id}
-                                                        >
-                                                            <Trash2 size={12} style={{ marginRight: '4px' }} />
-                                                            Remove
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                {!isCurrentUser && (
+                                                    <div style={{ marginTop: '0.5rem' }}>
+                                                        {/* Role assignment — not shown for owner members or current user */}
+                                                        {!isMemberOwner && (
+                                                            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                                                                <button
+                                                                    onClick={() => updateRole(member.id, 'staff')}
+                                                                    disabled={member.role === 'staff' || !!updating}
+                                                                    className={`btn btn-xs ${member.role === 'staff' ? 'btn-ghost' : 'btn-outline'}`}
+                                                                    style={{ fontSize: '0.7rem' }}
+                                                                >
+                                                                    Staff
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => updateRole(member.id, 'manager')}
+                                                                    disabled={member.role === 'manager' || !!updating}
+                                                                    className={`btn btn-xs ${member.role === 'manager' ? 'btn-ghost' : 'btn-outline'}`}
+                                                                    style={{ fontSize: '0.7rem' }}
+                                                                >
+                                                                    Manager
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => updateRole(member.id, 'part_timer')}
+                                                                    disabled={member.role === 'part_timer' || !!updating}
+                                                                    className={`btn btn-xs ${member.role === 'part_timer' ? 'btn-ghost' : 'btn-outline'}`}
+                                                                    style={{ fontSize: '0.7rem' }}
+                                                                >
+                                                                    Part-timer
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => updateRole(member.id, 'owner')}
+                                                                    disabled={!!updating}
+                                                                    className="btn btn-xs btn-outline"
+                                                                    style={{ fontSize: '0.7rem' }}
+                                                                >
+                                                                    Owner
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                            <button
+                                                                onClick={() => toggleUserStatus(member.id, member.is_active)}
+                                                                className={`btn btn-xs ${isDisabled ? 'btn-success' : 'btn-outline'}`}
+                                                                style={{ fontSize: '0.7rem' }}
+                                                                disabled={!!updating}
+                                                            >
+                                                                {isDisabled ? (
+                                                                    <><UserCheck size={12} style={{ marginRight: '4px' }} />Enable</>
+                                                                ) : (
+                                                                    <><UserX size={12} style={{ marginRight: '4px' }} />Disable</>
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => removeUser(member.id, member.full_name)}
+                                                                className="btn btn-xs"
+                                                                style={{ fontSize: '0.7rem', backgroundColor: '#ef4444', color: 'white' }}
+                                                                disabled={!!updating}
+                                                            >
+                                                                <Trash2 size={12} style={{ marginRight: '4px' }} />
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
+
+                                        {/* Hourly rate — part-timers only */}
+                                        {member.role === 'part_timer' && (
+                                            <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-concrete)' }}>
+                                                {editingRate === member.id ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>S$</span>
+                                                        <input
+                                                            type="number"
+                                                            value={rateInput}
+                                                            onChange={e => setRateInput(e.target.value)}
+                                                            min="0"
+                                                            step="0.50"
+                                                            placeholder="e.g. 10"
+                                                            autoFocus
+                                                            style={{ width: 80, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
+                                                        />
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>/hr</span>
+                                                        <button onClick={() => saveHourlyRate(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
+                                                        <button onClick={() => setEditingRate(null)} className="btn btn-xs btn-outline">Cancel</button>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                                                        <span style={{ color: 'var(--color-gray)' }}>Hourly Rate:</span>
+                                                        <span style={{ fontWeight: 600 }}>
+                                                            {member.hourly_rate ? `S$${member.hourly_rate}/hr` : 'Not set'}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => { setRateInput(member.hourly_rate?.toString() ?? ''); setEditingRate(member.id); }}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}
+                                                            disabled={!!updating}
+                                                        >
+                                                            {member.hourly_rate ? 'Edit' : 'Set rate'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
                                         <div className="balance-controls">
                                             {/* Annual Leave */}

@@ -153,27 +153,14 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href="/admin/manifest" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href="/admin/staff" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <Users size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">LEAVE CONTROL</div>
-                                        <div className="card-subtitle">Strict Balance Control</div>
-                                    </div>
-                                    <ChevronRight size={20} className="text-muted" />
-                                </div>
-                            </Link>
-
-                            <Link href="/admin/team" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
-                                <div className="flex items-center gap-md">
-                                    <div className="stat-icon">
-                                        <Users size={28} />
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div className="card-title">MANAGE TEAM</div>
-                                        <div className="card-subtitle">Roles & Permissions</div>
+                                        <div className="card-title">STAFF MANAGEMENT</div>
+                                        <div className="card-subtitle">Roles, balances & hourly rates</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
                                 </div>
