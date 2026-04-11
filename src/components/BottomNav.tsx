@@ -1,16 +1,29 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Home, CheckSquare, Calendar, Settings, Clock } from 'lucide-react';
+
+const ROLE_CACHE_KEY = 'cafeos_role';
 
 export default function BottomNav() {
     const pathname = usePathname();
     const { profile } = useAuth();
 
-    const isManagerOrOwner = profile?.role === 'manager' || profile?.role === 'owner';
-    const isPartTimer = profile?.role === 'part_timer';
+    // Persist role to localStorage so bfcache restores use the correct tab layout
+    useEffect(() => {
+        if (profile?.role) {
+            localStorage.setItem(ROLE_CACHE_KEY, profile.role);
+        }
+    }, [profile?.role]);
+
+    // Use live profile role, fall back to cached role during bfcache hydration
+    const role = profile?.role ?? (typeof window !== 'undefined' ? localStorage.getItem(ROLE_CACHE_KEY) ?? '' : '');
+
+    const isManagerOrOwner = role === 'manager' || role === 'owner';
+    const isPartTimer = role === 'part_timer';
 
     const navItems = [
         { href: '/', label: 'Home', icon: Home },
