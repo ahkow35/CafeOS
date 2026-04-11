@@ -47,7 +47,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
             if (error) {
-                console.error('[DEBUG] Profile fetch error:', error.message);
+                // PGRST116 = no rows found — auto-create profile from auth metadata
+                if ((error as { code?: string }).code === 'PGRST116') {
+                    const { data: { user: authUser } } = await supabase.auth.getUser();
+                    if (authUser) {
+                        const { data: newProfile, error: insertError } = await supabase
+                            .from('profiles')
+                            .insert({
+                                id: userId,
+                                email: authUser.email ?? '',
+                                full_name: authUser.user_metadata?.full_name ?? authUser.email ?? 'New User',
+                                role: 'staff',
+                                is_active: true,
+                                annual_leave_balance: 14,
+                                medical_leave_balance: 14,
+                            })
+                            .select('id, email, full_name, role, annual_leave_balance, medical_leave_balance, is_active, phone, hourly_rate, created_at')
+                            .single();
+                        if (!insertError) return newProfile;
+                        console.error('[DEBUG] Profile auto-create failed:', insertError.message);
+                    }
+                } else {
+                    console.error('[DEBUG] Profile fetch error:', error.message);
+                }
                 return null;
             }
             return data;

@@ -127,7 +127,7 @@ export default function HomePage() {
         <div className="empty-state-title" style={{ color: '#ef4444' }}>Profile Not Found</div>
         <p>Your user account exists, but your profile data is missing.</p>
         <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Please ask an administrator to run the <code>sync_profiles.sql</code> script.
+          Try signing out and signing back in. If the problem persists, contact an administrator.
         </p>
         <button
           onClick={() => window.location.reload()}
