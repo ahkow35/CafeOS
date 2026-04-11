@@ -29,16 +29,15 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
     const loadPendingRequests = async () => {
         setLoading(true);
 
-        // Managers see pending_manager, Owners see pending_owner
-        const statusFilter = userRole === 'manager' ? 'pending_manager' : 'pending_owner';
-
         const { data, error } = await supabase
             .from('leave_requests')
             .select(`
                 *,
                 requester:profiles(*)
             `)
-            .eq('status', statusFilter)
+            .in('status', userRole === 'manager'
+                ? ['pending_manager']
+                : ['pending_manager', 'pending_owner'])
             .order('created_at', { ascending: true });
 
         if (error) {
@@ -203,6 +202,33 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                 }}>
                                     {request.days_requested} day{request.days_requested !== 1 ? 's' : ''}
                                 </div>
+                                {request.status === 'pending_manager' ? (
+                                    <span style={{
+                                        display: 'inline-block',
+                                        marginTop: '0.35rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        padding: '2px 6px',
+                                        borderRadius: '3px',
+                                        backgroundColor: '#fef3c7',
+                                        color: '#b45309',
+                                    }}>Awaiting Manager</span>
+                                ) : (
+                                    <span style={{
+                                        display: 'inline-block',
+                                        marginTop: '0.35rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        padding: '2px 6px',
+                                        borderRadius: '3px',
+                                        backgroundColor: '#fff3e0',
+                                        color: '#c2410c',
+                                    }}>Owner Approval</span>
+                                )}
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <button
@@ -214,7 +240,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                         padding: '0.5rem 0.75rem',
                                         fontSize: '0.8rem',
                                     }}
-                                    disabled={!!actionLoading}
+                                    disabled={!!actionLoading || (userRole === 'owner' && request.status === 'pending_manager')}
                                 >
                                     <Check size={14} />
                                 </button>
