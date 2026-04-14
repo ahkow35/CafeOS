@@ -8,7 +8,7 @@ import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import SignatureModal from '@/components/SignatureModal';
-import { ArrowLeft, CheckCircle, XCircle, Download, Pencil } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Download, Pencil, Trash2 } from 'lucide-react';
 import { fmt12 } from '@/lib/timeUtils';
 import { formatMonthYear } from '@/lib/dateUtils';
 
@@ -42,11 +42,12 @@ export default function AdminTimesheetDetailPage() {
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [showManagerSignModal, setShowManagerSignModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const totalHours = entries.reduce((sum, e) => sum + e.total_hours, 0);
 
   const load = useCallback(async () => {
-    setLoading(true);
     const [{ data: ts }, { data: ents }] = await Promise.all([
       supabase.from('timesheets').select('*, profiles(full_name, email, phone, hourly_rate)').eq('id', id).single(),
       supabase.from('timesheet_entries').select('*').eq('timesheet_id', id).order('entry_date'),
@@ -54,14 +55,48 @@ export default function AdminTimesheetDetailPage() {
     setTimesheet(ts as FullTimesheet);
     setEntries((ents as TimesheetEntry[]) ?? []);
     setLoading(false);
-  }, [id]);
+  }, [id, supabase]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
     if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push('/'); return; }
     load();
-  }, [user, profile, authLoading, load]);
+  }, [user, profile, authLoading, load, router]);
+
+  // Refetch when the tab regains focus so a part-timer's resubmission
+  // (rejected → submitted) becomes visible without a manual reload.
+  useEffect(() => {
+    if (!user) return;
+    const onFocus = () => { if (document.visibilityState === 'visible') load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [user, load]);
+
+  async function deleteTimesheet() {
+    if (!timesheet) return;
+    setDeleting(true);
+    setError('');
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) { setError('Not authenticated'); setDeleting(false); return; }
+
+    const res = await fetch(`/api/admin/timesheets/${timesheet.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? 'Delete failed');
+      setDeleting(false);
+      return;
+    }
+    router.push('/admin/timesheets');
+  }
 
   async function approve() {
     if (!timesheet || !user) return;
@@ -324,6 +359,12 @@ export default function AdminTimesheetDetailPage() {
                 </button>
               </div>
             )}
+
+            <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
+              className="btn btn-outline btn-block"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
+              <Trash2 size={16} /> DELETE TIMESHEET
+            </button>
           </section>
         </div>
       </main>
@@ -395,6 +436,44 @@ export default function AdminTimesheetDetailPage() {
           onConfirm={handleManagerSign}
           onClose={() => setShowManagerSignModal(false)}
         />
+      )}
+
+      {/* Delete confirm modal */}
+      {showDeleteModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
+          onClick={() => !deleting && setShowDeleteModal(false)}
+        >
+          <div
+            style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-rust)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-rust)' }}>
+              Delete Timesheet
+            </h3>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
+              This permanently deletes the timesheet and all its entries. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={deleteTimesheet}
+                disabled={deleting}
+                className="btn btn-danger"
+                style={{ flex: 1 }}
+              >
+                {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
