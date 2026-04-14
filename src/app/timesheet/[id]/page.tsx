@@ -150,11 +150,20 @@ export default function TimesheetDetailPage() {
     if (!timesheet) return;
     setSubmitting(true);
     setError('');
-    const { error: err } = await supabase
+    // .select() forces RLS violations to surface as 0 rows rather than a
+    // silent no-op. Without this, an RLS block would leave the DB row
+    // unchanged while the UI optimistically reports success.
+    const { data, error: err } = await supabase
       .from('timesheets')
       .update({ status: 'submitted' })
-      .eq('id', timesheet.id);
+      .eq('id', timesheet.id)
+      .select();
     if (err) { setError(err.message); setSubmitting(false); return; }
+    if (!data || data.length === 0) {
+      setError('Could not submit — permission denied. Please reload and try again.');
+      setSubmitting(false);
+      return;
+    }
     setTimesheet(prev => prev ? { ...prev, status: 'submitted' } : prev);
     setSubmitting(false);
   }
@@ -163,11 +172,17 @@ export default function TimesheetDetailPage() {
     if (!timesheet) return;
     setReopening(true);
     setError('');
-    const { error: err } = await supabase
+    const { data, error: err } = await supabase
       .from('timesheets')
       .update({ status: 'draft', rejection_reason: null, employee_signature: null })
-      .eq('id', timesheet.id);
+      .eq('id', timesheet.id)
+      .select();
     if (err) { setError(err.message); setReopening(false); return; }
+    if (!data || data.length === 0) {
+      setError('Could not reopen — permission denied. Please reload and try again.');
+      setReopening(false);
+      return;
+    }
     setTimesheet(prev => prev ? { ...prev, status: 'draft', rejection_reason: null, employee_signature: null } : prev);
     setReopening(false);
   }
