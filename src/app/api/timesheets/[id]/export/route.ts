@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import * as path from 'path';
 import { fmt12 } from '@/lib/timeUtils';
 
@@ -106,15 +107,7 @@ export async function GET(
       `${totalHours} hrs × $${hourlyRate.toFixed(2)}/hr = $${(totalHours * hourlyRate).toFixed(2)}`;
   }
 
-  // ── Logo (extracted from original template, 247×54px) ─────────────────────
-  const logoPath = path.join(process.cwd(), 'docs', 'rbr-logo-template.png');
-  const logoId = wb.addImage({ filename: logoPath, extension: 'png' });
-  // Top-right corner: cols F–I (indices 5–8), rows 1–8 (indices 0–7)
-  ws.addImage(logoId, {
-    tl: { col: 5, row: 0 },
-    br: { col: 8.5, row: 7 },
-    editAs: 'oneCell',
-  } as any);
+  // ── Logo lives in the template itself — no need to re-add here. ───────────
 
   // ── Employee signature ─────────────────────────────────────────────────────
   const employeeSig: string | null = (ts as any).employee_signature ?? null;
@@ -148,9 +141,25 @@ export async function GET(
 
   // ── Output ─────────────────────────────────────────────────────────────────
   const buf = await wb.xlsx.writeBuffer();
+
+  // exceljs declares a Default Extension="vml" entry in [Content_Types].xml
+  // even when no VML parts exist in the archive. Excel flags this as
+  // "unreadable content" on open. Strip the stray declaration.
+  const zip = await JSZip.loadAsync(buf as ArrayBuffer);
+  const ctFile = zip.file('[Content_Types].xml');
+  if (ctFile) {
+    const ct = await ctFile.async('string');
+    const patched = ct.replace(
+      /<Default Extension="vml" ContentType="application\/vnd\.openxmlformats-officedocument\.vmlDrawing"\s*\/>/,
+      '',
+    );
+    if (patched !== ct) zip.file('[Content_Types].xml', patched);
+  }
+  const outBuf = await zip.generateAsync({ type: 'nodebuffer' });
+
   const filename = `${staffName.replace(/\s+/g, '-')}-${(ts as any).month_year}.xlsx`;
 
-  return new NextResponse(new Uint8Array(buf as ArrayBuffer), {
+  return new NextResponse(new Uint8Array(outBuf), {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
