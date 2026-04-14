@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck } from 'lucide-react';
+import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck, UserPlus, Copy, X } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export default function AdminStaffPage() {
@@ -21,6 +21,18 @@ export default function AdminStaffPage() {
     const [updating, setUpdating] = useState<string | null>(null);
     const [editingRate, setEditingRate] = useState<string | null>(null); // userId being edited
     const [rateInput, setRateInput] = useState('');
+
+    // Add-staff form state
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [newStaff, setNewStaff] = useState({
+        full_name: '',
+        email: '',
+        phone: '',
+        hourly_rate: '',
+        role: 'staff' as User['role'],
+    });
+    const [createdCreds, setCreatedCreds] = useState<{ email: string; tempPassword: string } | null>(null);
 
     const isOwner = profile?.role === 'owner';
 
@@ -159,6 +171,67 @@ export default function AdminStaffPage() {
         setUpdating(null);
     };
 
+    const createStaff = async () => {
+        if (!newStaff.full_name.trim() || !newStaff.email.trim()) {
+            toast('Name and email are required', 'error');
+            return;
+        }
+        if (newStaff.role === 'part_timer' && !newStaff.hourly_rate) {
+            toast('Hourly rate is required for part-timers', 'error');
+            return;
+        }
+        setCreating(true);
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData.session?.access_token;
+            if (!token) {
+                toast('Session expired — please sign in again', 'error');
+                setCreating(false);
+                return;
+            }
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    full_name: newStaff.full_name.trim(),
+                    email: newStaff.email.trim(),
+                    phone: newStaff.phone.trim() || null,
+                    hourly_rate: newStaff.hourly_rate ? parseFloat(newStaff.hourly_rate) : null,
+                    role: newStaff.role,
+                }),
+            });
+            const payload = await res.json();
+            if (!res.ok) {
+                toast(payload.error ?? 'Failed to create user', 'error');
+                setCreating(false);
+                return;
+            }
+            setCreatedCreds({ email: payload.email, tempPassword: payload.tempPassword });
+            setNewStaff({ full_name: '', email: '', phone: '', hourly_rate: '', role: 'staff' });
+            setShowAddForm(false);
+            await fetchStaff();
+            toast('Staff account created', 'success');
+        } catch (e: unknown) {
+            toast(e instanceof Error ? e.message : 'Failed to create user', 'error');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const copyCreds = async () => {
+        if (!createdCreds) return;
+        const text = `Email: ${createdCreds.email}\nTemporary password: ${createdCreds.tempPassword}`;
+        try {
+            await navigator.clipboard.writeText(text);
+            toast('Copied to clipboard', 'success');
+        } catch {
+            toast('Copy failed', 'error');
+        }
+    };
+
     const getRoleBadge = (role: User['role']) => {
         switch (role) {
             case 'owner':
@@ -198,6 +271,127 @@ export default function AdminStaffPage() {
                         <h1 className="page-title">Staff Management</h1>
                         <p className="page-subtitle">Manage leave balances for your team</p>
                     </section>
+
+                    {/* Add Staff */}
+                    <section className="section animate-in">
+                        {!showAddForm ? (
+                            <button
+                                className="btn btn-primary btn-block"
+                                onClick={() => setShowAddForm(true)}
+                            >
+                                <UserPlus size={18} />
+                                <span>Add Staff</span>
+                            </button>
+                        ) : (
+                            <div className="card">
+                                <div className="flex items-center justify-between mb-md">
+                                    <div className="card-title">New Staff Account</div>
+                                    <button
+                                        onClick={() => setShowAddForm(false)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                                        aria-label="Close"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div>
+                                        <label className="form-label">Full name *</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={newStaff.full_name}
+                                            onChange={e => setNewStaff({ ...newStaff, full_name: e.target.value })}
+                                            placeholder="e.g. Ahkow"
+                                            disabled={creating}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Email *</label>
+                                        <input
+                                            type="email"
+                                            className="form-input"
+                                            value={newStaff.email}
+                                            onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
+                                            placeholder="staff@example.com"
+                                            disabled={creating}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Phone</label>
+                                        <input
+                                            type="tel"
+                                            className="form-input"
+                                            value={newStaff.phone}
+                                            onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
+                                            placeholder="Optional"
+                                            disabled={creating}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Role</label>
+                                        <select
+                                            className="form-input"
+                                            value={newStaff.role}
+                                            onChange={e => setNewStaff({ ...newStaff, role: e.target.value as User['role'] })}
+                                            disabled={creating}
+                                        >
+                                            <option value="staff">Staff</option>
+                                            <option value="manager">Manager</option>
+                                            <option value="part_timer">Part-timer</option>
+                                            <option value="owner">Owner</option>
+                                        </select>
+                                    </div>
+                                    {newStaff.role === 'part_timer' && (
+                                        <div>
+                                            <label className="form-label">Hourly rate (S$) *</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.50"
+                                                className="form-input"
+                                                value={newStaff.hourly_rate}
+                                                onChange={e => setNewStaff({ ...newStaff, hourly_rate: e.target.value })}
+                                                placeholder="e.g. 10"
+                                                disabled={creating}
+                                            />
+                                        </div>
+                                    )}
+                                    <button
+                                        className="btn btn-primary btn-block"
+                                        onClick={createStaff}
+                                        disabled={creating}
+                                    >
+                                        {creating ? 'Creating…' : 'Create Account'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </section>
+
+                    {/* Credentials display — shown once after creation */}
+                    {createdCreds && (
+                        <section className="section animate-in">
+                            <div className="card" style={{ border: '2px solid var(--color-primary)' }}>
+                                <div className="card-title">Account Created</div>
+                                <p className="card-subtitle mb-md">
+                                    Share these credentials with the new staff member. They will not be shown again.
+                                </p>
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+                                    <div><strong>Email:</strong> {createdCreds.email}</div>
+                                    <div><strong>Temp password:</strong> {createdCreds.tempPassword}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button className="btn btn-outline" onClick={copyCreds}>
+                                        <Copy size={14} /> <span>Copy</span>
+                                    </button>
+                                    <button className="btn btn-ghost" onClick={() => setCreatedCreds(null)}>
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                    )}
 
                     {staffLoading ? (
                         <div className="loading">
