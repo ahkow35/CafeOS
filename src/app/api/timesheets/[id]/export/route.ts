@@ -142,10 +142,19 @@ export async function GET(
   // ── Output ─────────────────────────────────────────────────────────────────
   const buf = await wb.xlsx.writeBuffer();
 
-  // exceljs declares a Default Extension="vml" entry in [Content_Types].xml
-  // even when no VML parts exist in the archive. Excel flags this as
-  // "unreadable content" on open. Strip the stray declaration.
+  // Post-process the zip to work around two exceljs bugs that make
+  // Excel flag the output as "unreadable content":
+  //
+  //  1. A stray <Default Extension="vml"> is added to [Content_Types].xml
+  //     even though no VML parts exist in the archive.
+  //  2. When addImage() is called on a worksheet whose drawing already
+  //     contains a picture, exceljs clones the template picture's
+  //     <a:extLst> metadata — including its creationId GUID — onto every
+  //     new picture. Multiple pictures sharing the same creationId make
+  //     the drawing invalid. The extLst block is optional, so the
+  //     simplest fix is to strip it from every drawing XML part.
   const zip = await JSZip.loadAsync(buf as ArrayBuffer);
+
   const ctFile = zip.file('[Content_Types].xml');
   if (ctFile) {
     const ct = await ctFile.async('string');
@@ -155,6 +164,18 @@ export async function GET(
     );
     if (patched !== ct) zip.file('[Content_Types].xml', patched);
   }
+
+  const drawingFiles = Object.keys(zip.files).filter(
+    (name) => /^xl\/drawings\/drawing\d+\.xml$/.test(name),
+  );
+  for (const name of drawingFiles) {
+    const file = zip.file(name);
+    if (!file) continue;
+    const xml = await file.async('string');
+    const patched = xml.replace(/<a:extLst>[\s\S]*?<\/a:extLst>/g, '');
+    if (patched !== xml) zip.file(name, patched);
+  }
+
   const outBuf = await zip.generateAsync({ type: 'nodebuffer' });
 
   const filename = `${staffName.replace(/\s+/g, '-')}-${(ts as any).month_year}.xlsx`;
