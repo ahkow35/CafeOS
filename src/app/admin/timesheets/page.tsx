@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase';
@@ -29,15 +29,7 @@ export default function AdminTimesheetsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('submitted');
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) { router.push('/login'); return; }
-    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push('/'); return; }
-    load();
-  }, [user, profile, authLoading]);
-
-  async function load() {
-    setLoading(true);
+  const load = useCallback(async () => {
     setFetchError(null);
     try {
       const { data, error } = await supabase
@@ -52,7 +44,27 @@ export default function AdminTimesheetsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.push('/login'); return; }
+    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push('/'); return; }
+    load();
+  }, [user, profile, authLoading, load, router]);
+
+  // Refetch when the admin returns to this tab — otherwise a part-timer's
+  // resubmission (rejected → submitted) won't appear until a manual reload.
+  useEffect(() => {
+    if (!user) return;
+    const onFocus = () => { if (document.visibilityState === 'visible') load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [user, load]);
 
   const filtered = filter === 'all' ? timesheets : timesheets.filter(t => t.status === filter);
 
