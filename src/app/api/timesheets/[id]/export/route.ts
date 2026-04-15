@@ -14,8 +14,10 @@ import { fmt12 } from '@/lib/timeUtils';
 //                 B=date DD/MM/YY  C=day  D=start  E=end  F=break  G=total  H=remarks
 //   Row 44  B44:F44  "TOTAL" → value in G44
 //   Row 46  "COMMENTS :"
+//   Rows 49-53  Signature box outlines (bordered cells):
+//                 Casual worker box B49:D53 — image anchored here
+//                 Head of café   box G49:H53 — image anchored here
 //   Row 54  B54 "CASUAL WORKER SIGNATURE"  G54 "HEAD OF CAFÉ SIGNATURE / COMPANY STAMP & DATE"
-//   Rows 55-58  Signature images placed below each label (casual left, manager right)
 
 const MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -115,10 +117,10 @@ export async function GET(
       base64: stripDataUrl(employeeSig),
       extension: 'png',
     });
-    // Below B54 "CASUAL WORKER SIGNATURE": cols B–F (0-indexed 1–5), rows 55–58 (0-indexed 54–57)
+    // Inside casual-worker box B49:D53 — 0-indexed tl (col 1, row 48) → br (col 4, row 53)
     ws.addImage(empSigId, {
-      tl: { col: 1, row: 54 },
-      br: { col: 5, row: 57 },
+      tl: { col: 1, row: 48 },
+      br: { col: 4, row: 53 },
       editAs: 'oneCell',
     } as any);
   }
@@ -130,10 +132,10 @@ export async function GET(
       base64: stripDataUrl(managerSig),
       extension: 'png',
     });
-    // Below G54 "HEAD OF CAFÉ SIGNATURE": cols G–J (0-indexed 6–9), rows 55–58 (0-indexed 54–57)
+    // Inside head-of-café box G49:H53 — 0-indexed tl (col 6, row 48) → br (col 8, row 53)
     ws.addImage(mgrSigId, {
-      tl: { col: 6, row: 54 },
-      br: { col: 9, row: 57 },
+      tl: { col: 6, row: 48 },
+      br: { col: 8, row: 53 },
       editAs: 'oneCell',
     } as any);
   }
