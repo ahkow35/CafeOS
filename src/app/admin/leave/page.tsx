@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { LeaveRequest, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -11,288 +11,117 @@ import DecisionTicket from '@/components/DecisionTicket';
 import { CheckCircle, ArrowLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
-// Extend the interface to handle the joined profile data
+type ProfileMini = Pick<
+    User,
+    'full_name' | 'phone_e164' | 'role' | 'annual_leave_balance' | 'medical_leave_balance'
+>;
+
 interface LeaveRequestWithProfile extends LeaveRequest {
-    profiles: User | null; // Supabase returns this as an object for singular relations
+    profile: ProfileMini | null;
+    profiles?: ProfileMini | null; // legacy compat for child components still expecting this shape
+}
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
 }
 
 export default function AdminLeavePage() {
     const router = useRouter();
-    const supabase = createClient();
     const toast = useToast();
+    const { user, profile, loading: authLoading } = useAuth();
 
-    const [currentUser, setCurrentUser] = useState<any>(null);
-    const [selectedRequest, setSelectedRequest] = useState<LeaveRequestWithProfile | null>(null);
     const [requests, setRequests] = useState<LeaveRequestWithProfile[]>([]);
-    const [localProfile, setLocalProfile] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Derived state
-    const isOwner = localProfile?.role === 'owner';
-    const isManager = localProfile?.role === 'manager';
+    const isOwner = profile?.role === 'owner';
+    const isAdmin = profile?.role === 'manager' || profile?.role === 'owner';
 
-    useEffect(() => {
-        loadPageData();
+    const fetchPending = useCallback(async () => {
+        const data = await jsonOrError(await fetch('/api/leave-requests?scope=pending')) as
+            { requests: LeaveRequestWithProfile[] };
+        // Mirror profile → profiles for any child components still reading the old key.
+        const normalised = data.requests.map(r => ({ ...r, profiles: r.profile }));
+        setRequests(normalised);
     }, []);
 
-    const loadPageData = async () => {
+    const loadPageData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-
-            // 1. Check Authentication
-            const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-            if (authError || !user) {
-                router.push('/login');
-                return;
-            }
-            setCurrentUser(user);
-
-            // 2. Fetch Profile & Leaves in Parallel
-            const [profileResult, leavesResult] = await Promise.all([
-                supabase.from('profiles').select('*').eq('id', user.id).single(),
-                supabase.from('leave_requests').select('*, profiles(*)').order('created_at', { ascending: true })
-            ]);
-
-            // 3. Validate Profile
-            if (profileResult.error) {
-                // If this fails, it's usually RLS permissions
-                throw new Error(`Profile Load Failed: ${profileResult.error.message}`);
-            }
-            const profileData = profileResult.data as User;
-            setLocalProfile(profileData);
-
-            // 4. Access Control
-            if (profileData.role !== 'manager' && profileData.role !== 'owner') {
-                router.push('/'); // Kick non-admins out
-                return;
-            }
-
-            // 5. Process Leaves
-            if (leavesResult.error) {
-                throw new Error(`Leaves Load Failed: ${leavesResult.error.message}`);
-            }
-
-            const allRequests = leavesResult.data as unknown as LeaveRequestWithProfile[];
-            let filteredRequests: LeaveRequestWithProfile[] = [];
-
-            if (profileData.role === 'owner') {
-                // Owners see pending_owner AND pending_manager (can handle both)
-                // Owners CAN see their own requests (self-approve allowed)
-                filteredRequests = allRequests.filter(r =>
-                    r.status === 'pending_owner' || r.status === 'pending_manager'
-                );
-            } else if (profileData.role === 'manager') {
-                // Managers only see pending_manager requests
-                // EXCLUDE their own requests (cannot self-approve)
-                filteredRequests = allRequests.filter(r =>
-                    r.status === 'pending_manager' && r.user_id !== user.id
-                );
-            }
-
-            setRequests(filteredRequests);
-
+            await fetchPending();
         } catch (err: unknown) {
             console.error('Page Load Error:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
-            setError(errorMessage);
+            setError(err instanceof Error ? err.message : 'Failed to load data');
         } finally {
-            setLoading(false); // Stop the spinner no matter what
+            setLoading(false);
         }
-    };
+    }, [fetchPending]);
 
-    const fetchLeavesOnly = async () => {
-        if (!localProfile || !currentUser) return;
-        try {
-            const { data, error } = await supabase
-                .from('leave_requests')
-                .select('*, profiles(*)')
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-
-            const allRequests = data as unknown as LeaveRequestWithProfile[];
-            // Re-apply filter (same logic as loadPageData)
-            let filtered: LeaveRequestWithProfile[];
-            if (localProfile.role === 'owner') {
-                // Owners see all pending requests (can self-approve)
-                filtered = allRequests.filter(r =>
-                    r.status === 'pending_owner' || r.status === 'pending_manager'
-                );
-            } else {
-                // Managers: exclude their own requests
-                filtered = allRequests.filter(r =>
-                    r.status === 'pending_manager' && r.user_id !== currentUser.id
-                );
-            }
-
-            setRequests(filtered);
-        } catch (err: unknown) {
-            console.error(err);
-        }
-    };
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isAdmin) { router.push('/'); return; }
+        if (isAdmin) loadPageData();
+    }, [user, profile, authLoading, isAdmin, loadPageData, router]);
 
     const handleApprove = async (request: LeaveRequestWithProfile) => {
-        if (!currentUser) return;
         setProcessing(request.id);
-
+        setRequests(prev => prev.filter(r => r.id !== request.id));
         try {
-            // Optimistic UI Update (Hide card immediately)
-            setRequests(prev => prev.filter(r => r.id !== request.id));
-            setSelectedRequest(null);
-
-            if (isManager) {
-                // MANAGER: Escalate to Owner
-                const { error } = await supabase
-                    .from('leave_requests')
-                    .update({
-                        status: 'pending_owner',
-                        manager_action_by: currentUser.id,
-                        manager_action_at: new Date().toISOString(),
-                    })
-                    .eq('id', request.id);
-                if (error) throw error;
-            }
-            else if (isOwner) {
-                // OWNER: Final Approval & Deduct Balance
-                const requestUser = request.profiles;
-                if (!requestUser) throw new Error('User profile not found.');
-                // 1. Update Status (Balance is already deducted at submission time)
-                const { error: statusError } = await supabase
-                    .from('leave_requests')
-                    .update({
-                        status: 'approved',
-                        owner_action_by: currentUser.id,
-                        owner_action_at: new Date().toISOString(),
-                    })
-                    .eq('id', request.id);
-
-                if (statusError) throw statusError;
-            }
-
-            // Sync with server silently
-            await fetchLeavesOnly();
-
+            await jsonOrError(await fetch(`/api/leave-requests/${request.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'approve' }),
+            }));
+            await fetchPending();
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-            toast(`Error: ${errorMessage}`, 'error');
-            await fetchLeavesOnly(); // Revert UI on error
+            toast(`Error: ${err instanceof Error ? err.message : 'An error occurred'}`, 'error');
+            await fetchPending();
         } finally {
             setProcessing(null);
         }
     };
 
     const handleReject = async (request: LeaveRequestWithProfile) => {
-        if (!currentUser) return;
         setProcessing(request.id);
-
+        setRequests(prev => prev.filter(r => r.id !== request.id));
         try {
-            setRequests(prev => prev.filter(r => r.id !== request.id));
-            setSelectedRequest(null);
-
-            // 1. Restore balance FIRST — if this fails we haven't touched the status yet
-            const requestUser = request.profiles;
-            if (requestUser) {
-                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                const currentBalance = (requestUser as any)[balanceField] ?? 0;
-                const { error: balanceError } = await supabase
-                    .from('profiles')
-                    .update({ [balanceField]: currentBalance + request.days_requested })
-                    .eq('id', request.user_id);
-
-                if (balanceError) {
-                    // Balance restore failed — abort before touching status
-                    throw new Error(`Balance restore failed: ${balanceError.message}`);
-                }
-            }
-
-            // 2. Update status to rejected — balance is already safe
-            const updateData = isOwner
-                ? { status: 'rejected', owner_action_by: currentUser.id, owner_action_at: new Date().toISOString() }
-                : { status: 'rejected', manager_action_by: currentUser.id, manager_action_at: new Date().toISOString() };
-
-            const { error: statusError } = await supabase
-                .from('leave_requests')
-                .update(updateData)
-                .eq('id', request.id);
-
-            if (statusError) {
-                // Status update failed — roll back the balance restore
-                if (requestUser) {
-                    const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                    const originalBalance = (requestUser as any)[balanceField] ?? 0;
-                    await supabase
-                        .from('profiles')
-                        .update({ [balanceField]: originalBalance })
-                        .eq('id', request.user_id);
-                }
-                throw statusError;
-            }
-
-            await fetchLeavesOnly();
+            await jsonOrError(await fetch(`/api/leave-requests/${request.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reject' }),
+            }));
+            await fetchPending();
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-            toast(`Error: ${errorMessage}`, 'error');
-            await fetchLeavesOnly();
+            toast(`Error: ${err instanceof Error ? err.message : 'An error occurred'}`, 'error');
+            await fetchPending();
         } finally {
             setProcessing(null);
         }
     };
 
     const handleDelete = async (request: LeaveRequestWithProfile) => {
-        if (!currentUser) return;
-
-        const confirmMessage = `Delete this pending request? ${request.days_requested} day${request.days_requested !== 1 ? 's' : ''} will be returned to ${request.profiles?.full_name || 'the employee'}'s ${request.leave_type} leave balance.`;
+        const ownerName = request.profile?.full_name || 'the employee';
+        const confirmMessage = `Delete this pending request? ${request.days_requested} day${request.days_requested !== 1 ? 's' : ''} will be returned to ${ownerName}'s ${request.leave_type} leave balance.`;
         if (!confirm(confirmMessage)) return;
 
         setProcessing(request.id);
-
+        setRequests(prev => prev.filter(r => r.id !== request.id));
         try {
-            // Optimistic UI
-            setRequests(prev => prev.filter(r => r.id !== request.id));
-
-            // 1. Restore balance FIRST — abort if this fails (record untouched)
-            const requestUser = request.profiles;
-            if (requestUser) {
-                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                const currentBalance = (requestUser as any)[balanceField] ?? 0;
-                const { error: balanceError } = await supabase
-                    .from('profiles')
-                    .update({ [balanceField]: currentBalance + request.days_requested })
-                    .eq('id', request.user_id);
-
-                if (balanceError) {
-                    throw new Error(`Balance restore failed: ${balanceError.message}`);
-                }
-            }
-
-            // 2. Delete the record — balance is already safe
-            const { error: deleteError } = await supabase
-                .from('leave_requests')
-                .delete()
-                .eq('id', request.id);
-
-            if (deleteError) {
-                // Roll back balance restore
-                if (requestUser) {
-                    const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                    const originalBalance = (requestUser as any)[balanceField] ?? 0;
-                    await supabase
-                        .from('profiles')
-                        .update({ [balanceField]: originalBalance })
-                        .eq('id', request.user_id);
-                }
-                throw deleteError;
-            }
-
-            await fetchLeavesOnly();
+            await jsonOrError(await fetch(`/api/leave-requests/${request.id}`, { method: 'DELETE' }));
+            await fetchPending();
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-            toast(`Error: ${errorMessage}`, 'error');
-            await fetchLeavesOnly();
+            toast(`Error: ${err instanceof Error ? err.message : 'An error occurred'}`, 'error');
+            await fetchPending();
         } finally {
             setProcessing(null);
         }
@@ -353,7 +182,7 @@ export default function AdminLeavePage() {
                     ) : (
                         <section className="section animate-in">
                             {requests.map(request => {
-                                const displayName = request.profiles?.full_name || 'Unknown';
+                                const displayName = request.profile?.full_name || 'Unknown';
 
                                 return (
                                     <div key={request.id} style={{ opacity: processing === request.id ? 0.5 : 1 }}>

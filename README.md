@@ -19,7 +19,7 @@ approval workflow.
 
 ### Tech Stack
 
-- **Frontend**: Next.js 15 (App Router), React, TypeScript
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript
 - **Backend**: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
 - **Styling**: Tailwind CSS
 - **Email**: Resend API

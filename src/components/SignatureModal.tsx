@@ -15,6 +15,8 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
   const [hasDrawn, setHasDrawn] = useState(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -27,6 +29,15 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }, []);
+
+  useEffect(() => {
+    panelRef.current?.focus();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   function getPos(e: React.MouseEvent | React.TouchEvent): { x: number; y: number } {
     const canvas = canvasRef.current!;
@@ -85,11 +96,16 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
       onClick={onClose}
     >
       <div
-        style={{ background: 'var(--color-white)', width: '100%', borderTop: '2px solid var(--color-black)', padding: 'var(--space-lg)' }}
+        ref={panelRef}
+        tabIndex={-1}
+        style={{ background: 'var(--color-white)', width: '100%', borderTop: '2px solid var(--color-black)', padding: 'var(--space-lg)', outline: 'none' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>

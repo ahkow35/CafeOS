@@ -12,38 +12,41 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
-          email: string;
+          phone_e164: string;
           full_name: string;
+          job_title: string | null;
           role: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance: number;
           medical_leave_balance: number;
           is_active: boolean;
-          phone: string | null;
           hourly_rate: number | null;
+          email: string | null;
           created_at: string;
         };
         Insert: {
-          id: string;
-          email: string;
+          id?: string;
+          phone_e164: string;
           full_name: string;
+          job_title?: string | null;
           role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
           is_active?: boolean;
-          phone?: string | null;
           hourly_rate?: number | null;
+          email?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
-          email?: string;
+          phone_e164?: string;
           full_name?: string;
+          job_title?: string | null;
           role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
           is_active?: boolean;
-          phone?: string | null;
           hourly_rate?: number | null;
+          email?: string | null;
           created_at?: string;
         };
       };
@@ -143,16 +146,7 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: {
-      is_manager_or_owner: {
-        Args: Record<PropertyKey, never>;
-        Returns: boolean;
-      };
-      is_owner: {
-        Args: Record<PropertyKey, never>;
-        Returns: boolean;
-      };
-    };
+    Functions: Record<string, never>;
     Enums: Record<string, never>;
   };
 }
@@ -194,5 +188,5 @@ export interface TimesheetEntry {
 
 export interface TimesheetWithEntries extends Timesheet {
   entries: TimesheetEntry[];
-  profile?: Pick<User, 'full_name' | 'email' | 'phone' | 'hourly_rate'>;
+  profile?: Pick<User, 'full_name' | 'email' | 'phone_e164' | 'hourly_rate'>;
 }

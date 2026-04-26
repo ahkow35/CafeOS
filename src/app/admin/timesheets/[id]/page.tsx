@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -23,18 +22,27 @@ function getDayName(dateStr: string) {
   return DAYS[new Date(dateStr + 'T00:00:00').getDay()];
 }
 
-type FullTimesheet = Timesheet & {
-  profiles: Pick<User, 'full_name' | 'email' | 'phone' | 'hourly_rate'>;
-};
+type ProfileMini = Pick<User, 'full_name' | 'phone_e164' | 'role' | 'hourly_rate' | 'email'>;
+
+async function jsonOrError<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+      ? (body as { error: string }).error
+      : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
+}
 
 export default function AdminTimesheetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const supabase = createClient();
   const { user, profile, loading: authLoading } = useAuth();
 
-  const [timesheet, setTimesheet] = useState<FullTimesheet | null>(null);
+  const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
   const [entries, setEntries] = useState<TimesheetEntry[]>([]);
+  const [tsProfile, setTsProfile] = useState<ProfileMini | null>(null);
   const [loading, setLoading] = useState(true);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -48,14 +56,21 @@ export default function AdminTimesheetDetailPage() {
   const totalHours = entries.reduce((sum, e) => sum + e.total_hours, 0);
 
   const load = useCallback(async () => {
-    const [{ data: ts }, { data: ents }] = await Promise.all([
-      supabase.from('timesheets').select('*, profiles(full_name, email, phone, hourly_rate)').eq('id', id).single(),
-      supabase.from('timesheet_entries').select('*').eq('timesheet_id', id).order('entry_date'),
-    ]);
-    setTimesheet(ts as FullTimesheet);
-    setEntries((ents as TimesheetEntry[]) ?? []);
-    setLoading(false);
-  }, [id, supabase]);
+    try {
+      const data = await jsonOrError<{
+        timesheet: Timesheet;
+        entries: TimesheetEntry[];
+        profile: ProfileMini;
+      }>(await fetch(`/api/timesheets/${id}`));
+      setTimesheet(data.timesheet);
+      setEntries(data.entries ?? []);
+      setTsProfile(data.profile);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load timesheet');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -77,63 +92,66 @@ export default function AdminTimesheetDetailPage() {
     };
   }, [user, load]);
 
+  async function patchTimesheet(body: Record<string, unknown>) {
+    const res = await fetch(`/api/timesheets/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return jsonOrError<{ timesheet: Timesheet }>(res);
+  }
+
   async function deleteTimesheet() {
     if (!timesheet) return;
     setDeleting(true);
     setError('');
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) { setError('Not authenticated'); setDeleting(false); return; }
-
-    const res = await fetch(`/api/admin/timesheets/${timesheet.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body.error ?? 'Delete failed');
+    try {
+      await jsonOrError(await fetch(`/api/timesheets/${timesheet.id}`, { method: 'DELETE' }));
+      router.push('/admin/timesheets');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
       setDeleting(false);
-      return;
     }
-    router.push('/admin/timesheets');
   }
 
   async function approve() {
-    if (!timesheet || !user) return;
+    if (!timesheet) return;
     setSaving(true);
     setError('');
-    const { error: err } = await supabase
-      .from('timesheets')
-      .update({ status: 'approved', approved_by: user.id, approved_at: new Date().toISOString() })
-      .eq('id', timesheet.id);
-    setSaving(false);
-    if (err) { setError(err.message); return; }
-    setTimesheet(prev => prev ? { ...prev, status: 'approved' } : prev);
+    try {
+      const data = await patchTimesheet({ status: 'approved' });
+      setTimesheet(data.timesheet);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Approve failed');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function reject() {
     if (!timesheet || !rejectionReason.trim()) return;
     setSaving(true);
     setError('');
-    const { error: err } = await supabase
-      .from('timesheets')
-      .update({ status: 'rejected', rejection_reason: rejectionReason.trim() })
-      .eq('id', timesheet.id);
-    setSaving(false);
-    if (err) { setError(err.message); return; }
-    setTimesheet(prev => prev ? { ...prev, status: 'rejected', rejection_reason: rejectionReason.trim() } : prev);
-    setShowRejectModal(false);
+    try {
+      const data = await patchTimesheet({ status: 'rejected', rejection_reason: rejectionReason.trim() });
+      setTimesheet(data.timesheet);
+      setShowRejectModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reject failed');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleManagerSign(dataUrl: string) {
     if (!timesheet) return;
-    const { error: err } = await supabase
-      .from('timesheets')
-      .update({ manager_signature: dataUrl })
-      .eq('id', timesheet.id);
-    if (err) { setError(err.message); return; }
-    setTimesheet(prev => prev ? { ...prev, manager_signature: dataUrl } : prev);
-    setShowManagerSignModal(false);
+    try {
+      const data = await patchTimesheet({ manager_signature: dataUrl });
+      setTimesheet(data.timesheet);
+      setShowManagerSignModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Signature save failed');
+    }
   }
 
   async function exportExcel() {
@@ -145,7 +163,7 @@ export default function AdminTimesheetDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `timesheet-${timesheet?.profiles?.full_name?.replace(/\s+/g, '-') ?? id}-${timesheet?.month_year}.xlsx`;
+      a.download = `timesheet-${tsProfile?.full_name?.replace(/\s+/g, '-') ?? id}-${timesheet?.month_year}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -167,8 +185,8 @@ export default function AdminTimesheetDetailPage() {
   if (!timesheet) return null;
 
   const isSubmitted = timesheet.status === 'submitted';
-  const hourlyRate = timesheet.profiles?.hourly_rate;
-  const salary = hourlyRate ? totalHours * hourlyRate : null;
+  const hourlyRate = tsProfile?.hourly_rate ?? null;
+  const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
 
   return (
     <>
@@ -181,10 +199,10 @@ export default function AdminTimesheetDetailPage() {
             <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray)', marginBottom: '0.75rem', padding: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)' }}>
               <ArrowLeft size={18} /> BACK
             </button>
-            <h1 className="page-title">{timesheet.profiles?.full_name ?? timesheet.profiles?.email}</h1>
+            <h1 className="page-title">{tsProfile?.full_name ?? tsProfile?.email ?? 'Unknown'}</h1>
             <p className="page-subtitle">{formatMonthYear(timesheet.month_year)}</p>
-            {timesheet.profiles?.phone && (
-              <p className="page-subtitle">Contact: {timesheet.profiles.phone}</p>
+            {tsProfile?.phone_e164 && (
+              <p className="page-subtitle">Contact: {tsProfile.phone_e164}</p>
             )}
             <div style={{ marginTop: 'var(--space-sm)' }}>
               <span style={{
@@ -205,20 +223,20 @@ export default function AdminTimesheetDetailPage() {
           </section>
 
           {/* Salary preview */}
-          {salary !== null && (
+          {salary !== null && hourlyRate !== null && (
             <section className="section animate-in">
               <div className="card">
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Salary Calculation
                 </div>
                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
-                  {totalHours.toFixed(2)} hrs × S${hourlyRate!.toFixed(2)}/hr = S${salary.toFixed(2)}
+                  {totalHours.toFixed(2)} hrs × S${hourlyRate.toFixed(2)}/hr = S${salary.toFixed(2)}
                 </div>
               </div>
             </section>
           )}
 
-          {!hourlyRate && (
+          {hourlyRate === null && (
             <section className="section animate-in">
               <div className="card" style={{ borderColor: 'var(--color-gray)' }}>
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)' }}>
@@ -279,6 +297,7 @@ export default function AdminTimesheetDetailPage() {
                   Employee
                 </div>
                 {timesheet.employee_signature ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- data-url signature image
                   <img
                     src={timesheet.employee_signature}
                     alt="Employee signature"
@@ -297,6 +316,7 @@ export default function AdminTimesheetDetailPage() {
                   Manager
                 </div>
                 {timesheet.manager_signature ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- data-url signature image
                   <img
                     src={timesheet.manager_signature}
                     alt="Manager signature"
@@ -373,8 +393,12 @@ export default function AdminTimesheetDetailPage() {
       {/* Reject modal */}
       {showRejectModal && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reject Timesheet"
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => setShowRejectModal(false)}
+          onKeyDown={e => e.key === 'Escape' && setShowRejectModal(false)}
         >
           <div
             style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-black)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
@@ -441,8 +465,12 @@ export default function AdminTimesheetDetailPage() {
       {/* Delete confirm modal */}
       {showDeleteModal && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete Timesheet"
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => !deleting && setShowDeleteModal(false)}
+          onKeyDown={e => e.key === 'Escape' && !deleting && setShowDeleteModal(false)}
         >
           <div
             style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-rust)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}

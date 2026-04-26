@@ -1,283 +1,120 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase';
-import { User } from '@/lib/database.types';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+
+export type Role = 'staff' | 'manager' | 'owner' | 'part_timer';
+
+export interface SessionUser {
+  id: string;
+  phone_e164: string;
+  full_name: string;
+  job_title: string | null;
+  role: Role;
+  annual_leave_balance: number;
+  medical_leave_balance: number;
+  hourly_rate: number | null;
+  is_active: boolean;
+  email: string | null;
+}
 
 interface AuthContextType {
-    user: SupabaseUser | null;
-    profile: User | null;
-    session: Session | null;
-    loading: boolean;
-    profileLoading: boolean;
-    signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-    signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
-    signOut: () => Promise<void>;
-    refreshProfile: () => Promise<void>;
-    resetPassword: (email: string) => Promise<{ error: Error | null }>;
-    updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  user: SessionUser | null;
+  profile: SessionUser | null; // alias for backwards-compat with existing pages
+  loading: boolean;
+  profileLoading: boolean;
+  signIn: (phone: string, pin: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<SupabaseUser | null>(null);
-    const [profile, setProfile] = useState<User | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [profileLoading, setProfileLoading] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    const supabase = createClient();
-
-    // 2. Helper Functions
-    const fetchProfile = async (userId: string) => {
-        try {
-            const fetchPromise = supabase
-                .from('profiles')
-                .select('id, email, full_name, role, annual_leave_balance, medical_leave_balance, is_active, phone, hourly_rate, created_at')
-                .eq('id', userId)
-                .single();
-
-            // Race against a 5s timeout so a sleeping Supabase instance can't hang the UI
-            const timeoutPromise = new Promise<{ data: null; error: Error }>(resolve =>
-                setTimeout(() => resolve({ data: null, error: new Error('Profile fetch timed out') }), 5000)
-            );
-
-            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-
-            if (error) {
-                // PGRST116 = no rows found — auto-create profile from auth metadata
-                if ((error as { code?: string }).code === 'PGRST116') {
-                    const { data: { user: authUser } } = await supabase.auth.getUser();
-                    if (authUser) {
-                        const { data: newProfile, error: insertError } = await supabase
-                            .from('profiles')
-                            .insert({
-                                id: userId,
-                                email: authUser.email ?? '',
-                                full_name: authUser.user_metadata?.full_name ?? authUser.email ?? 'New User',
-                                role: 'staff',
-                                is_active: true,
-                                annual_leave_balance: 14,
-                                medical_leave_balance: 14,
-                            })
-                            .select('id, email, full_name, role, annual_leave_balance, medical_leave_balance, is_active, phone, hourly_rate, created_at')
-                            .single();
-                        if (!insertError) return newProfile;
-                        console.error('[DEBUG] Profile auto-create failed:', insertError.message);
-                    }
-                } else {
-                    console.error('[DEBUG] Profile fetch error:', error.message);
-                }
-                return null;
-            }
-            return data;
-        } catch (err) {
-            console.error('[DEBUG] Unexpected error fetching profile:', err);
-            return null;
-        }
-    };
-
-    const refreshProfile = async () => {
-        if (user) {
-            const profileData = await fetchProfile(user.id);
-            setProfile(profileData);
-        }
-    };
-
-    const signIn = async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-        return { error: error as Error | null };
-    };
-
-    const signUp = async (email: string, password: string, name: string) => {
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { full_name: name },
-                emailRedirectTo: `${window.location.origin}/`,
-            },
-        });
-        return { error: error as Error | null };
-    };
-
-    const signOut = async () => {
-        await supabase.auth.signOut();
+  const refreshProfile = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (!res.ok) {
         setUser(null);
-        setProfile(null);
-        setSession(null);
+        return;
+      }
+      const json = (await res.json()) as { user: SessionUser | null };
+      setUser(json.user);
+    } catch (err) {
+      console.error('[AuthContext] /me failed', err);
+      setUser(null);
+    }
+  }, []);
+
+  const signIn = useCallback(async (phone: string, pin: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, pin }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        return { error: new Error(json.error ?? 'Login failed') };
+      }
+      const json = (await res.json()) as { user: SessionUser };
+      setUser(json.user);
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error('Login failed') };
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Cookie still gets cleared on next protected request anyway.
+    }
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      await refreshProfile();
+      if (mounted) setLoading(false);
+    })();
+    return () => {
+      mounted = false;
     };
+  }, [refreshProfile]);
 
-    const resetPassword = async (email: string) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
-        });
-        return { error: error as Error | null };
+  // Re-check session when the page is restored from bfcache.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) refreshProfile();
     };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [refreshProfile]);
 
-    const updatePassword = async (newPassword: string) => {
-        const { error } = await supabase.auth.updateUser({ password: newPassword });
-        return { error: error as Error | null };
-    };
-
-    // 3. The Effect Hook
-    useEffect(() => {
-        let mounted = true;
-        const AUTH_TIMEOUT_MS = 8000;
-
-        const initAuth = async () => {
-            // Timeout safety net — if initAuth hangs, unblock UI after 15s
-            const timeoutId = setTimeout(() => {
-                if (mounted) {
-                    console.warn('[AuthContext] Auth init timed out — unblocking loading without clearing session');
-                    setLoading(false);
-                    setProfileLoading(false);
-                }
-            }, AUTH_TIMEOUT_MS);
-
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
-
-                if (!mounted) return;
-
-                // Handle invalid refresh token error
-                if (error) {
-                    console.warn('Session restoration failed:', error.message);
-                    // Don't await signOut — on Safari, ITP can block this network call
-                    // and cause loading to hang. Just clear local state immediately.
-                    supabase.auth.signOut();
-                    setSession(null);
-                    setUser(null);
-                    setProfile(null);
-                    setLoading(false);        // explicit unlock before early return
-                    setProfileLoading(false);
-                    return;
-                }
-
-                setSession(session);
-                setUser(session?.user ?? null);
-
-                // ✅ Unblock UI — auth state is now known, profile loads in background
-                if (mounted) setLoading(false);
-
-                if (session?.user) {
-                    setProfileLoading(true);
-                    const profileData = await fetchProfile(session.user.id);
-                    if (mounted) {
-                        setProfile(profileData);
-                        setProfileLoading(false);
-                    }
-                }
-            } catch (err) {
-                console.error('Auth Init Error:', err);
-                // Don't await signOut — same Safari ITP hang risk
-                supabase.auth.signOut();
-                setSession(null);
-                setUser(null);
-                setProfile(null);
-            } finally {
-                clearTimeout(timeoutId);
-                // Safety net — ensures loading is always cleared even on unexpected throws
-                if (mounted) {
-                    setLoading(false);
-                    setProfileLoading(false);
-                }
-            }
-        };
-
-        initAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (!mounted) return;
-
-                // INITIAL_SESSION is already handled by initAuth above; skip to avoid double fetch
-                if (event === 'INITIAL_SESSION') return;
-
-                setSession(session);
-                setUser(session?.user ?? null);
-
-                if (session?.user) {
-                    setProfileLoading(true);
-                    const profileData = await fetchProfile(session.user.id);
-                    if (mounted) {
-                        setProfile(profileData);
-                        setProfileLoading(false);
-                    }
-                } else {
-                    if (mounted) {
-                        setProfile(null);
-                        setProfileLoading(false);
-                    }
-                }
-            }
-        );
-
-        return () => {
-            mounted = false;
-            subscription.unsubscribe();
-        };
-    }, []);
-
-    useEffect(() => {
-        const handlePageShow = (e: PageTransitionEvent) => {
-            if (e.persisted) {
-                // Page restored from bfcache — re-check auth state and re-fetch profile
-                supabase.auth.getSession().then(async ({ data: { session } }) => {
-                    setSession(session);
-                    setUser(session?.user ?? null);
-                    if (session?.user) {
-                        setProfileLoading(true);
-                        try {
-                            const profileData = await fetchProfile(session.user.id);
-                            setProfile(profileData);
-                        } finally {
-                            setProfileLoading(false);
-                        }
-                    } else {
-                        setProfile(null);
-                        setProfileLoading(false);
-                    }
-                }).catch(() => {
-                    setProfileLoading(false);
-                });
-            }
-        };
-        window.addEventListener('pageshow', handlePageShow);
-        return () => window.removeEventListener('pageshow', handlePageShow);
-    }, []);
-
-    // 4. Return the Provider
-    return (
-        <AuthContext.Provider
-            value={{
-                user,
-                profile,
-                session,
-                loading,
-                profileLoading,
-                signIn,
-                signUp,
-                signOut,
-                refreshProfile,
-                resetPassword,
-                updatePassword,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
-    );
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile: user,
+        loading,
+        profileLoading: loading,
+        signIn,
+        signOut,
+        refreshProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 }

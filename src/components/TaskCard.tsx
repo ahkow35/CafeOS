@@ -1,8 +1,6 @@
 'use client';
 
 import { Task } from '@/lib/database.types';
-import { createClient } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
 import { Clock, User } from 'lucide-react';
 
 interface TaskCardProps {
@@ -13,9 +11,6 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onComplete, showAssignee, assigneeName }: TaskCardProps) {
-    const { user } = useAuth();
-    const supabase = createClient();
-
     const formatDeadline = (deadline: string) => {
         const date = new Date(deadline);
         const now = new Date();
@@ -37,17 +32,16 @@ export default function TaskCard({ task, onComplete, showAssignee, assigneeName 
     const handleToggle = async () => {
         const newStatus = task.status === 'done' ? 'pending' : 'done';
 
-        const { error } = await supabase
-            .from('tasks')
-            .update({
-                status: newStatus,
-                completed_by: newStatus === 'done' ? user?.id : null,
-                completed_at: newStatus === 'done' ? new Date().toISOString() : null,
-            })
-            .eq('id', task.id);
-
-        if (!error && onComplete) {
-            onComplete();
+        try {
+            const res = await fetch(`/api/tasks/${task.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (!res.ok) throw new Error(`Update failed (${res.status})`);
+            onComplete?.();
+        } catch (err) {
+            console.error('Failed to toggle task:', err);
         }
     };
 

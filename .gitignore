@@ -40,3 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .worktrees/
+.env*.local
+
+# local audit / scratch notes
+/tasks/
+
+# claude artifacts
+/.claude/

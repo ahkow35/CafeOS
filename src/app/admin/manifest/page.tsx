@@ -1,62 +1,55 @@
 'use client';
 
-import { createClient } from '@/lib/supabase';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { ArrowLeft, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { User } from '@/lib/database.types';
 import { useToast } from '@/context/ToastContext';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
 
 export default function StaffManifestPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
     const toast = useToast();
 
     const [staff, setStaff] = useState<User[]>([]);
-    // Track local edits: { userId: { field: value } }
     const [edits, setEdits] = useState<Record<string, Partial<User>>>({});
     const [loadingData, setLoadingData] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!loading && !user) router.push('/login');
-        if (!loading && profile?.role !== 'owner') router.push('/admin');
-    }, [loading, user?.id, profile?.role, router]);
+    const isOwner = profile?.role === 'owner';
 
-    useEffect(() => {
-        if (profile?.role === 'owner') {
-            fetchStaff();
-        }
-    }, [profile?.role]);
-
-    const fetchStaff = async () => {
+    const fetchStaff = useCallback(async () => {
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('is_active', true)
-                .order('full_name', { ascending: true });
-
-            if (error) {
-                console.error('Error fetching staff:', error);
-                toast(`Error fetching staff: ${error.message}`, 'error');
-                return;
-            }
-
-            if (data) {
-                setStaff(data as User[]);
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
-            toast('Unexpected error fetching staff', 'error');
+            const data = await jsonOrError(await fetch('/api/profiles')) as { users: User[] };
+            const active = (data.users ?? []).filter(u => u.is_active);
+            setStaff(active);
+        } catch (err: unknown) {
+            toast(`Error fetching staff: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         } finally {
             setLoadingData(false);
         }
-    };
+    }, [toast]);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isOwner) { router.push('/admin'); return; }
+        if (isOwner) fetchStaff();
+    }, [loading, user, profile, isOwner, fetchStaff, router]);
 
     const handleInputChange = (userId: string, field: 'annual_leave_balance' | 'medical_leave_balance', value: string) => {
         const numValue = parseInt(value) || 0;
@@ -69,37 +62,33 @@ export default function StaffManifestPage() {
         }));
     };
 
-    const hasChanges = (userId: string) => {
-        return !!edits[userId];
-    };
+    const hasChanges = (userId: string) => !!edits[userId];
 
     const saveChanges = async (userId: string) => {
         const userEdits = edits[userId];
         if (!userEdits) return;
 
         setSaving(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update(userEdits)
-            .eq('id', userId);
-
-        if (!error) {
-            // Update local state
-            setStaff(prev => prev.map(u => u.id === userId ? { ...u, ...userEdits } : u));
-            // Clear edits for this user
+        try {
+            const { user: updated } = await jsonOrError(await fetch(`/api/admin/users/${userId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userEdits),
+            })) as { user: User };
+            setStaff(prev => prev.map(u => u.id === userId ? { ...u, ...updated } : u));
             setEdits(prev => {
-                const newEdits = { ...prev };
-                delete newEdits[userId];
-                return newEdits;
+                const next = { ...prev };
+                delete next[userId];
+                return next;
             });
-        } else {
-            toast('Failed to save changes', 'error');
+        } catch (err: unknown) {
+            toast(`Failed to save changes: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setSaving(null);
         }
-        setSaving(null);
     };
 
-    if (loading || !profile || profile.role !== 'owner') {
+    if (loading || !profile || !isOwner) {
         return <div className="loading"><div className="spinner" /></div>;
     }
 
@@ -117,7 +106,6 @@ export default function StaffManifestPage() {
                         <div className="loading"><div className="spinner" /></div>
                     ) : (
                         <div className="animate-in">
-                            {/* Manifest Header */}
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: '2fr 1fr 1fr 0.5fr',
@@ -135,7 +123,6 @@ export default function StaffManifestPage() {
                                 <div style={{ textAlign: 'center' }}>SAVE</div>
                             </div>
 
-                            {/* Manifest Rows */}
                             {staff.map(member => {
                                 const localEdit = edits[member.id];
                                 const annual = localEdit?.annual_leave_balance ?? member.annual_leave_balance;
@@ -196,7 +183,6 @@ export default function StaffManifestPage() {
                                             />
                                         </div>
 
-                                        {/* Save Button */}
                                         <div style={{ display: 'flex', justifyContent: 'center' }}>
                                             {isDirty && (
                                                 <button
@@ -210,13 +196,7 @@ export default function StaffManifestPage() {
                                                         minWidth: '60px'
                                                     }}
                                                 >
-                                                    {isSaving ? (
-                                                        <Loader2 size={14} className="animate-spin" />
-                                                    ) : (
-                                                        <>
-                                                            <Save size={14} />
-                                                        </>
-                                                    )}
+                                                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                                                 </button>
                                             )}
                                         </div>

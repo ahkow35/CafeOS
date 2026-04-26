@@ -1,22 +1,33 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Upload, FileText } from 'lucide-react';
 
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
+
 export default function LeaveApplicationForm() {
-    const { user, profile } = useAuth();
+    const { user, profile, refreshProfile } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const supabase = createClient();
 
-    // Refs for auto-focus flow
     const endDateRef = useRef<HTMLInputElement>(null);
     const reasonRef = useRef<HTMLTextAreaElement>(null);
 
-    const [leaveType, setLeaveType] = useState<'annual' | 'medical'>('annual');
+    const [leaveType, setLeaveType] = useState<'annual' | 'medical'>(() => {
+        const t = searchParams.get('type');
+        return t === 'annual' || t === 'medical' ? t : 'annual';
+    });
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [reason, setReason] = useState('');
@@ -25,32 +36,17 @@ export default function LeaveApplicationForm() {
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
 
-    // Smart auto-fill: Detect leave type from query parameter
-    useEffect(() => {
-        const typeParam = searchParams.get('type');
-        if (typeParam === 'annual' || typeParam === 'medical') {
-            setLeaveType(typeParam);
-        }
-    }, [searchParams]);
-
     const calculateDays = () => {
         if (!startDate || !endDate) return 0;
-
-        // Create dates at noon to avoid timezone/DST issues
         const start = new Date(startDate + 'T12:00:00');
         const end = new Date(endDate + 'T12:00:00');
-
-        // Reset to simple date comparison if needed, but T12:00:00 usually suffices
         if (end < start) return 0;
-
         let days = 0;
         const current = new Date(start);
-
         while (current <= end) {
             days++;
             current.setDate(current.getDate() + 1);
         }
-
         return days;
     };
 
@@ -69,7 +65,6 @@ export default function LeaveApplicationForm() {
         e.preventDefault();
         setError('');
 
-        // --- Session guard ---
         if (!user?.id) {
             setError('Your session has expired. Please log out and log in again.');
             return;
@@ -90,31 +85,12 @@ export default function LeaveApplicationForm() {
             return;
         }
 
-        // --- Insufficient balance: show explicit error, not just a disabled button ---
         if (daysRequested > availableBalance) {
             setError(
                 `Insufficient ${leaveType === 'annual' ? 'annual' : 'medical'} leave balance. ` +
                 `You requested ${daysRequested} day${daysRequested !== 1 ? 's' : ''} but only have ` +
                 `${availableBalance} day${availableBalance !== 1 ? 's' : ''} remaining.`
             );
-            return;
-        }
-
-        // Check for overlapping leave requests
-        const { data: existingLeaves, error: checkError } = await supabase
-            .from('leave_requests')
-            .select('start_date, end_date, leave_type, status')
-            .eq('user_id', user.id)
-            .in('status', ['pending_manager', 'pending_owner', 'approved'])
-            .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
-
-        if (checkError) {
-            console.error('Error checking overlapping leaves:', checkError);
-        } else if (existingLeaves && existingLeaves.length > 0) {
-            const overlapping = existingLeaves[0];
-            const overlapStart = new Date(overlapping.start_date).toLocaleDateString();
-            const overlapEnd = new Date(overlapping.end_date).toLocaleDateString();
-            setError(`You already have a ${overlapping.leave_type} leave request (${overlapping.status}) from ${overlapStart} to ${overlapEnd} that overlaps with these dates.`);
             return;
         }
 
@@ -130,24 +106,18 @@ export default function LeaveApplicationForm() {
         }
 
         setSubmitting(true);
-        let attachmentUrl = null;
+        let attachmentUrl: string | null = null;
 
         if (leaveType === 'medical' && file) {
             setUploading(true);
             try {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${user.id}_${Date.now()}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('medical_certificates')
-                    .upload(fileName, file);
-
-                if (uploadError) throw uploadError;
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('medical_certificates')
-                    .getPublicUrl(fileName);
-
-                attachmentUrl = publicUrl;
+                const form = new FormData();
+                form.append('file', file);
+                const data = await jsonOrError(await fetch('/api/uploads/medical-cert', {
+                    method: 'POST',
+                    body: form,
+                })) as { url: string };
+                attachmentUrl = data.url;
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Upload failed';
                 setError(`Upload failed: ${errorMessage}`);
@@ -158,64 +128,20 @@ export default function LeaveApplicationForm() {
             setUploading(false);
         }
 
-        // Determine initial status based on user role
-        // Staff: pending_manager (needs manager approval first)
-        // Manager: pending_owner (skip manager step, go directly to owner)
-        // Owner: approved (auto-approve)
-        let initialStatus = 'pending_manager';
-        if (profile?.role === 'manager') {
-            initialStatus = 'pending_owner';
-        } else if (profile?.role === 'owner') {
-            initialStatus = 'approved';
-        }
-
         try {
-            const { error: submitError } = await supabase
-                .from('leave_requests')
-                .insert({
-                    user_id: user.id,
+            await jsonOrError(await fetch('/api/leave-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     leave_type: leaveType,
                     start_date: startDate,
                     end_date: endDate,
-                    days_requested: daysRequested,
-                    is_retrospective: startDate < today,
-                    status: initialStatus,
                     reason: leaveType === 'medical' ? reason : null,
                     attachment_url: attachmentUrl,
-                    ...(profile?.role === 'owner' && {
-                        owner_action_by: user.id,
-                        owner_action_at: new Date().toISOString(),
-                    }),
-                });
+                }),
+            }));
 
-            if (submitError) {
-                // Surface RLS / auth errors with a human-readable message
-                if (submitError.code === 'PGRST301' || submitError.message?.includes('policy')) {
-                    throw new Error('Permission denied. Your account may not have the right permissions. Please contact your manager.');
-                }
-                if (submitError.code === '42501') {
-                    throw new Error('Permission denied by the database. Please try logging out and back in.');
-                }
-                throw new Error(submitError.message);
-            }
-
-            // Deduct balance immediately on successful submission
-            // (for all roles — owner self-approval, manager escalation, and staff pending)
-            const balanceField = leaveType === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-            const currentBalance = leaveType === 'annual'
-                ? profile?.annual_leave_balance ?? 0
-                : profile?.medical_leave_balance ?? 0;
-
-            const { error: balanceError } = await supabase
-                .from('profiles')
-                .update({ [balanceField]: currentBalance - daysRequested })
-                .eq('id', user.id);
-
-            if (balanceError) {
-                console.error('Balance update failed after successful submission:', balanceError);
-                // Don't block the user — leave was submitted, just log the error
-            }
-
+            await refreshProfile();
             router.push('/leave');
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
@@ -228,12 +154,11 @@ export default function LeaveApplicationForm() {
         <main className="page" style={{ overflowX: 'hidden' }}>
             <div className="container">
                 <section className="page-header animate-in">
-                    <h1 className="page-title">📝 Apply for Leave</h1>
+                    <h1 className="page-title">Apply for Leave</h1>
                     <p className="page-subtitle">Submit your time off request</p>
                 </section>
 
                 <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '100%' }}>
-                    {/* Leave Type */}
                     <section className="section animate-in">
                         <label className="form-label">Leave Type</label>
                         <div className="stats-grid">
@@ -247,7 +172,6 @@ export default function LeaveApplicationForm() {
                                     textAlign: 'center'
                                 }}
                             >
-                                <div className="stat-value success">🏖️</div>
                                 <div className="stat-label">Annual Leave</div>
                                 <div className="text-muted mt-sm" style={{ fontSize: '0.75rem' }}>
                                     {profile?.annual_leave_balance} days left
@@ -263,7 +187,6 @@ export default function LeaveApplicationForm() {
                                     textAlign: 'center'
                                 }}
                             >
-                                <div className="stat-value success">🏥</div>
                                 <div className="stat-label">Medical Leave</div>
                                 <div className="text-muted mt-sm" style={{ fontSize: '0.75rem' }}>
                                     {profile?.medical_leave_balance} days left
@@ -272,7 +195,6 @@ export default function LeaveApplicationForm() {
                         </div>
                     </section>
 
-                    {/* Date Selection */}
                     <section className="section animate-in">
                         <div className="form-group">
                             <label htmlFor="startDate" className="form-label">
@@ -285,11 +207,9 @@ export default function LeaveApplicationForm() {
                                 value={startDate}
                                 onChange={(e) => {
                                     setStartDate(e.target.value);
-                                    // Auto-focus end date input after start date is selected
                                     if (e.target.value && endDateRef.current) {
                                         setTimeout(() => {
                                             endDateRef.current?.focus();
-                                            // Note: Removed showPicker() as it prevents date selection
                                         }, 150);
                                     }
                                 }}
@@ -312,12 +232,9 @@ export default function LeaveApplicationForm() {
                                 value={endDate}
                                 onChange={(e) => {
                                     setEndDate(e.target.value);
-                                    // Auto-focus reason field for medical leave after end date is selected
                                     if (e.target.value && leaveType === 'medical' && reasonRef.current) {
-                                        // Longer delay to ensure date picker closes before focusing
                                         setTimeout(() => {
                                             reasonRef.current?.focus();
-                                            // Scroll into view for better UX
                                             reasonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                         }, 200);
                                     }
@@ -330,12 +247,10 @@ export default function LeaveApplicationForm() {
                         </div>
                     </section>
 
-                    {/* Retrospective Notice */}
                     {isRetrospective && (
                         <section className="section animate-in">
                             <div className="card" style={{ border: '2px solid var(--color-warning, #f59e0b)', background: 'var(--color-warning-light, #fffbeb)' }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                                    <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>📅</span>
                                     <div>
                                         <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Retrospective Request</div>
                                         <div className="text-muted" style={{ fontSize: '0.875rem' }}>
@@ -347,7 +262,6 @@ export default function LeaveApplicationForm() {
                         </section>
                     )}
 
-                    {/* Medical Leave Extra Fields */}
                     {leaveType === 'medical' && (
                         <section className="section animate-in">
                             <div className="form-group">
@@ -421,7 +335,6 @@ export default function LeaveApplicationForm() {
                         </section>
                     )}
 
-                    {/* Summary */}
                     {daysRequested > 0 && (
                         <section className="section animate-in">
                             <div className="card">
@@ -429,7 +342,7 @@ export default function LeaveApplicationForm() {
                                     <div>
                                         <div className="card-title">Request Summary</div>
                                         <div className="card-subtitle">
-                                            {leaveType === 'annual' ? '🏖️ Annual' : '🏥 Medical'} Leave
+                                            {leaveType === 'annual' ? 'Annual' : 'Medical'} Leave
                                         </div>
                                     </div>
                                 </div>
@@ -438,7 +351,7 @@ export default function LeaveApplicationForm() {
                                 </div>
                                 {daysRequested > availableBalance && (
                                     <div className="form-error mt-md">
-                                        ⚠️ You only have {availableBalance} day{availableBalance !== 1 ? 's' : ''} left but requested {daysRequested}. Please shorten your dates.
+                                        You only have {availableBalance} day{availableBalance !== 1 ? 's' : ''} left but requested {daysRequested}. Please shorten your dates.
                                     </div>
                                 )}
                             </div>
@@ -458,7 +371,7 @@ export default function LeaveApplicationForm() {
                             disabled={submitting || daysRequested === 0 || daysRequested > availableBalance}
                             title={daysRequested > availableBalance ? `Insufficient balance (${availableBalance} days available)` : undefined}
                         >
-                            {submitting ? (uploading ? 'Uploading Proof...' : 'Submitting...') : '📤 Submit Request'}
+                            {submitting ? (uploading ? 'Uploading Proof...' : 'Submitting...') : 'Submit Request'}
                         </button>
 
                         <button

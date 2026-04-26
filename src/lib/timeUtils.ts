@@ -12,7 +12,8 @@ export function parseTimeInput(raw: string): string | null {
   // "9:30am" / "9:30pm"
   let m = s.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
   if (m) {
-    let h = parseInt(m[1]), min = parseInt(m[2]);
+    let h = parseInt(m[1]);
+    const min = parseInt(m[2]);
     if (m[3] === 'am' && h === 12) h = 0;
     if (m[3] === 'pm' && h !== 12) h += 12;
     if (h < 24 && min < 60) return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
