@@ -19,7 +19,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const { error } = await signIn(phone, pin);
+    const { error } = await signIn('+65' + phone, pin);
 
     if (error) {
       setError(error.message);
@@ -40,17 +40,24 @@ export default function LoginPage() {
             <label htmlFor="phone" className="form-label">
               Mobile number
             </label>
-            <input
-              id="phone"
-              type="tel"
-              className="form-input"
-              placeholder="+6591234567"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              autoComplete="tel"
-              inputMode="tel"
-            />
+            <div style={{ display: 'flex' }}>
+              <span className="form-input" style={{ width: 'auto', padding: '0 12px', borderRight: 'none', color: 'var(--color-text-muted)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                +65
+              </span>
+              <input
+                id="phone"
+                type="tel"
+                className="form-input"
+                style={{ borderLeft: 'none', flex: 1 }}
+                placeholder="91234567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                required
+                autoComplete="tel"
+                inputMode="numeric"
+                maxLength={8}
+              />
+            </div>
           </div>
 
           <div className="form-group">

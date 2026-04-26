@@ -202,7 +202,7 @@ export default function AdminStaffPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     full_name: newStaff.full_name.trim(),
-                    phone: newStaff.phone.trim(),
+                    phone: '+65' + newStaff.phone.trim(),
                     job_title: newStaff.job_title.trim() || null,
                     pin: newStaff.pin.trim(),
                     hourly_rate: newStaff.hourly_rate ? parseFloat(newStaff.hourly_rate) : null,
@@ -229,7 +229,7 @@ export default function AdminStaffPage() {
 
     const copyCreds = async () => {
         if (!createdCreds) return;
-        const text = `Name: ${createdCreds.name}\nPhone: ${createdCreds.phone}\nPIN: ${createdCreds.tempPin}`;
+        const text = `Hi ${createdCreds.name}! 👋\n\nYour CafeOS login details:\n📱 Mobile: ${createdCreds.phone}\n🔑 PIN: ${createdCreds.tempPin}\n\nLogin at: https://cafe-os-six.vercel.app/login`;
         try {
             await navigator.clipboard.writeText(text);
             toast('Copied to clipboard', 'success');
@@ -314,16 +314,22 @@ export default function AdminStaffPage() {
                                     </div>
                                     <div>
                                         <label className="form-label">Mobile number *</label>
-                                        <input
-                                            type="tel"
-                                            inputMode="tel"
-                                            autoComplete="tel"
-                                            className="form-input"
-                                            value={newStaff.phone}
-                                            onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
-                                            placeholder="+6591234567 or 91234567"
-                                            disabled={creating}
-                                        />
+                                        <div style={{ display: 'flex' }}>
+                                            <span className="form-input" style={{ width: 'auto', padding: '0 12px', borderRight: 'none', color: 'var(--color-text-muted)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                                +65
+                                            </span>
+                                            <input
+                                                type="tel"
+                                                inputMode="numeric"
+                                                maxLength={8}
+                                                className="form-input"
+                                                style={{ borderLeft: 'none', flex: 1 }}
+                                                value={newStaff.phone}
+                                                onChange={e => setNewStaff({ ...newStaff, phone: e.target.value.replace(/\D/g, '').slice(0, 8) })}
+                                                placeholder="91234567"
+                                                disabled={creating}
+                                            />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="form-label">Job title</label>
