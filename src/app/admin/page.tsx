@@ -4,17 +4,22 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock } from 'lucide-react';
 
+interface AdminStats {
+    pendingManagerLeave: number;
+    pendingOwnerLeave: number;
+    pendingTasks: number;
+    staffCount: number;
+}
+
 export default function AdminPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
 
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<AdminStats>({
         pendingManagerLeave: 0,
         pendingOwnerLeave: 0,
         pendingTasks: 0,
@@ -26,56 +31,31 @@ export default function AdminPage() {
     const isManager = profile?.role === 'manager';
     const isManagerOrOwner = isManager || isOwner;
 
-    // Use auth loading correctly
     const pageLoading = loading || (isManagerOrOwner && statsLoading);
 
     useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        } else if (!loading && profile && !isManagerOrOwner) {
-            router.push('/');
-        }
+        if (loading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isManagerOrOwner) { router.push('/'); return; }
     }, [user, profile, loading, router, isManagerOrOwner]);
 
     useEffect(() => {
-        if (isManagerOrOwner) {
-            fetchStats();
-        }
-    }, [profile, isManagerOrOwner]);
-
-    const fetchStats = async () => {
-        const [
-            { count: managerLeaveCount },
-            { count: ownerLeaveCount },
-            { count: taskCount },
-            { count: staffCount },
-        ] = await Promise.all([
-            supabase
-                .from('leave_requests')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'pending_manager'),
-            supabase
-                .from('leave_requests')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'pending_owner'),
-            supabase
-                .from('tasks')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'pending'),
-            supabase
-                .from('profiles')
-                .select('*', { count: 'exact', head: true })
-                .eq('role', 'staff'),
-        ]);
-
-        setStats({
-            pendingManagerLeave: managerLeaveCount ?? 0,
-            pendingOwnerLeave: ownerLeaveCount ?? 0,
-            pendingTasks: taskCount ?? 0,
-            staffCount: staffCount ?? 0,
-        });
-        setStatsLoading(false);
-    };
+        if (!isManagerOrOwner) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch('/api/admin/stats');
+                if (!res.ok) throw new Error(`Stats failed (${res.status})`);
+                const data = await res.json() as { stats: AdminStats };
+                if (!cancelled) setStats(data.stats);
+            } catch (err) {
+                console.error('Failed to load admin stats:', err);
+            } finally {
+                if (!cancelled) setStatsLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isManagerOrOwner]);
 
     if (pageLoading || !user || !profile || !isManagerOrOwner) {
         return (

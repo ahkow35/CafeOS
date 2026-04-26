@@ -1,91 +1,73 @@
 'use client';
 
-import { createClient } from '@/lib/supabase';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { LeaveRequest, User } from '@/lib/database.types';
 
+type ProfileMini = Pick<User, 'full_name' | 'phone_e164' | 'role' | 'annual_leave_balance' | 'medical_leave_balance'>;
+
 interface LeaveWithProfile extends LeaveRequest {
-    profiles: User | null;
+    profile: ProfileMini | null;
+}
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
 }
 
 export default function AdminArchivePage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
+    const toast = useToast();
 
     const [leaves, setLeaves] = useState<LeaveWithProfile[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [filter, setFilter] = useState<'all' | 'approved' | 'rejected'>('all');
     const isOwner = profile?.role === 'owner';
-    const toast = useToast();
+    const isAdmin = profile?.role === 'manager' || profile?.role === 'owner';
 
-    useEffect(() => {
-        if (!loading && !user) router.push('/login');
-        // Allow both manager and owner to access
-        if (!loading && profile && profile.role !== 'owner' && profile.role !== 'manager') {
-            router.push('/admin');
-        }
-    }, [user, profile, loading, router]);
-
-    useEffect(() => {
-        if (profile && (profile.role === 'owner' || profile.role === 'manager')) {
-            fetchLeaveHistory();
-        }
-    }, [profile?.role]);
-
-    const fetchLeaveHistory = async () => {
+    const fetchLeaveHistory = useCallback(async () => {
         setLoadingData(true);
         try {
-            let query = supabase
-                .from('leave_requests')
-                .select('*, profiles(*)')
-                .in('status', ['approved', 'rejected'])
-                .order('created_at', { ascending: false });
-
-            const { data, error } = await query;
-
-            if (error) {
-                console.error('Error fetching leave history:', error);
-            } else {
-                let results = (data || []) as LeaveWithProfile[];
-
-                // Manager can only see staff leave records (not manager/owner)
-                // Owner can see all records
-                if (profile?.role === 'manager') {
-                    results = results.filter(leave =>
-                        leave.profiles?.role === 'staff'
-                    );
-                }
-
-                setLeaves(results);
-            }
-        } catch (err) {
-            console.error('Unexpected error:', err);
+            const data = await jsonOrError(await fetch('/api/leave-requests?scope=history')) as
+                { requests: LeaveWithProfile[] };
+            setLeaves(data.requests ?? []);
+        } catch (err: unknown) {
+            toast(`Failed to load history: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         } finally {
             setLoadingData(false);
         }
-    };
+    }, [toast]);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isAdmin) { router.push('/admin'); return; }
+        if (isAdmin) fetchLeaveHistory();
+    }, [user, profile, loading, isAdmin, fetchLeaveHistory, router]);
 
     const handleDelete = async (leaveId: string) => {
         if (!confirm('Permanently delete this leave record? This cannot be undone.')) return;
 
-        // Optimistic removal
+        const previous = leaves;
         setLeaves(prev => prev.filter(l => l.id !== leaveId));
 
-        const { error } = await supabase
-            .from('leave_requests')
-            .delete()
-            .eq('id', leaveId);
-
-        if (error) {
-            toast(`Failed to delete record: ${error.message}`, 'error');
-            fetchLeaveHistory(); // revert optimistic removal
+        try {
+            await jsonOrError(await fetch(`/api/leave-requests/${leaveId}`, { method: 'DELETE' }));
+        } catch (err: unknown) {
+            toast(`Failed to delete record: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            setLeaves(previous);
         }
     };
 
@@ -130,7 +112,7 @@ export default function AdminArchivePage() {
         );
     };
 
-    if (loading || !profile || (profile.role !== 'owner' && profile.role !== 'manager')) {
+    if (loading || !profile || !isAdmin) {
         return <div className="loading"><div className="spinner" /></div>;
     }
 
@@ -140,11 +122,10 @@ export default function AdminArchivePage() {
             <main className="page">
                 <div className="container">
                     <section className="page-header animate-in">
-                        <h1 className="page-title">📋 LEAVE ARCHIVE</h1>
+                        <h1 className="page-title">LEAVE ARCHIVE</h1>
                         <p className="page-subtitle">Historical Leave Records</p>
                     </section>
 
-                    {/* Filter Tabs */}
                     <div className="animate-in" style={{
                         display: 'flex',
                         gap: 'var(--space-sm)',
@@ -190,10 +171,10 @@ export default function AdminArchivePage() {
                                                 fontFamily: 'var(--font-heading)',
                                                 textTransform: 'uppercase'
                                             }}>
-                                                {leave.profiles?.full_name || 'Unknown User'}
+                                                {leave.profile?.full_name || 'Unknown User'}
                                             </div>
                                             <div className="card-subtitle" style={{ fontSize: '0.75rem' }}>
-                                                {leave.profiles?.role} • {leave.leave_type === 'annual' ? '🏖️ Annual' : '🏥 Medical'}
+                                                {leave.profile?.role} • {leave.leave_type === 'annual' ? 'Annual' : 'Medical'}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

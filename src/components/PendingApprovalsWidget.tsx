@@ -1,10 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase';
-import { LeaveRequest, User } from '@/lib/database.types';
+import { useEffect, useState, useCallback } from 'react';
+import { LeaveRequest } from '@/lib/database.types';
 import { Check, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
 
 function StageBadge({ status }: { status: string }) {
     const isPendingManager = status === 'pending_manager';
@@ -26,140 +36,58 @@ function StageBadge({ status }: { status: string }) {
     );
 }
 
-interface LeaveRequestWithUser extends LeaveRequest {
-    requester?: User;
+interface PendingRow extends LeaveRequest {
+    profile: {
+        full_name: string;
+        phone_e164: string;
+        role: 'staff' | 'manager' | 'owner' | 'part_timer';
+        annual_leave_balance: number;
+        medical_leave_balance: number;
+    };
 }
 
 interface PendingApprovalsWidgetProps {
     userRole: 'manager' | 'owner';
-    userId: string;
 }
 
-export default function PendingApprovalsWidget({ userRole, userId }: PendingApprovalsWidgetProps) {
-    const supabase = createClient();
+export default function PendingApprovalsWidget({ userRole }: PendingApprovalsWidgetProps) {
     const toast = useToast();
-    const [pendingRequests, setPendingRequests] = useState<LeaveRequestWithUser[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<PendingRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+    const loadPendingRequests = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await jsonOrError(await fetch('/api/leave-requests?scope=pending')) as { requests: PendingRow[] };
+            setPendingRequests(data.requests ?? []);
+        } catch (err) {
+            console.error('Error loading pending requests:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         loadPendingRequests();
-    }, [userRole]);
+    }, [loadPendingRequests]);
 
-    const loadPendingRequests = async () => {
-        setLoading(true);
-
-        const { data, error } = await supabase
-            .from('leave_requests')
-            .select(`
-                *,
-                requester:profiles(*)
-            `)
-            .in('status', userRole === 'manager'
-                ? ['pending_manager']
-                : ['pending_manager', 'pending_owner'])
-            .order('created_at', { ascending: true });
-
-        if (error) {
-            console.error('Error loading pending requests:', error);
-        } else {
-            setPendingRequests((data as LeaveRequestWithUser[]) || []);
-        }
-
-        setLoading(false);
-    };
-
-    const handleApprove = async (request: LeaveRequestWithUser) => {
-        setActionLoading(request.id);
-
-        try {
-            // Determine next status
-            let newStatus: LeaveRequest['status'] = 'approved';
-            const updateData: Partial<LeaveRequest> = {
-                updated_at: new Date().toISOString(),
-            };
-
-            if (userRole === 'manager') {
-                // Manager approves → goes to pending_owner
-                newStatus = 'pending_owner';
-                updateData.status = newStatus;
-                updateData.manager_action_by = userId;
-                updateData.manager_action_at = new Date().toISOString();
-            } else {
-                // Owner approves → final approval
-                newStatus = 'approved';
-                updateData.status = newStatus;
-                updateData.owner_action_by = userId;
-                updateData.owner_action_at = new Date().toISOString();
-            }
-
-            // Update leave request
-            const { error: updateError } = await supabase
-                .from('leave_requests')
-                .update(updateData)
-                .eq('id', request.id);
-
-            if (updateError) throw updateError;
-
-            // Note: Balance is already deducted at submission time. No need to deduct here.
-
-            // Refresh list
-            await loadPendingRequests();
-        } catch (error: unknown) {
-            console.error('Error approving request:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            toast(`Failed to approve: ${errorMessage}`, 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleReject = async (request: LeaveRequestWithUser) => {
-        if (!confirm(`Are you sure you want to reject this ${request.leave_type} leave request?`)) {
+    const act = async (request: PendingRow, action: 'approve' | 'reject') => {
+        if (action === 'reject' && !confirm(`Are you sure you want to reject this ${request.leave_type} leave request?`)) {
             return;
         }
-
         setActionLoading(request.id);
         try {
-            const updateData: Partial<LeaveRequest> = {
-                status: 'rejected',
-                updated_at: new Date().toISOString(),
-            };
-
-            if (userRole === 'manager') {
-                updateData.manager_action_by = userId;
-                updateData.manager_action_at = new Date().toISOString();
-            } else {
-                updateData.owner_action_by = userId;
-                updateData.owner_action_at = new Date().toISOString();
-            }
-
-            const { error } = await supabase
-                .from('leave_requests')
-                .update(updateData)
-                .eq('id', request.id);
-
-            if (error) throw error;
-
-            // Restore the employee's balance (was deducted at submission time)
-            if (request.requester) {
-                const balanceField = request.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-                const currentBalance = request.leave_type === 'annual'
-                    ? request.requester.annual_leave_balance ?? 0
-                    : request.requester.medical_leave_balance ?? 0;
-
-                await supabase
-                    .from('profiles')
-                    .update({ [balanceField]: currentBalance + request.days_requested })
-                    .eq('id', request.user_id);
-            }
-
-            // Refresh list
+            await jsonOrError(await fetch(`/api/leave-requests/${request.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action }),
+            }));
             await loadPendingRequests();
-        } catch (error: unknown) {
-            console.error('Error rejecting request:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            toast(`Failed to reject: ${errorMessage}`, 'error');
+        } catch (err: unknown) {
+            console.error(`Error ${action}ing request:`, err);
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+            toast(`Failed to ${action}: ${errorMessage}`, 'error');
         } finally {
             setActionLoading(null);
         }
@@ -177,7 +105,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
         return (
             <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
-                    ✅ No pending approvals
+                    No pending approvals
                 </div>
             </div>
         );
@@ -210,10 +138,10 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                                    {request.requester?.full_name || 'Unknown'}
+                                    {request.profile?.full_name || 'Unknown'}
                                 </div>
                                 <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-                                    {request.leave_type === 'annual' ? '🏖️' : '🏥'} {request.leave_type} • {startDate} - {endDate}
+                                    {request.leave_type} • {startDate} - {endDate}
                                 </div>
                                 <div style={{
                                     fontSize: '0.85rem',
@@ -225,9 +153,8 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                 <StageBadge status={request.status} />
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {/* Owners can override-reject at any stage, but cannot advance a pending_manager request (would skip manager approval) */}
                                 <button
-                                    onClick={() => handleApprove(request)}
+                                    onClick={() => act(request, 'approve')}
                                     className="btn btn-sm"
                                     style={{
                                         backgroundColor: 'var(--color-stali-green)',
@@ -240,7 +167,7 @@ export default function PendingApprovalsWidget({ userRole, userId }: PendingAppr
                                     <Check size={14} />
                                 </button>
                                 <button
-                                    onClick={() => handleReject(request)}
+                                    onClick={() => act(request, 'reject')}
                                     className="btn btn-sm"
                                     style={{
                                         backgroundColor: 'var(--color-rust)',

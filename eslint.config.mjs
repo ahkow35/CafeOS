@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude artifacts (stale worktrees, etc.)
+    ".claude/**",
+    // Migration scripts (run separately via tsx, not part of Next build)
+    "scripts/**",
+    // Legacy Supabase edge functions (decommissioned)
+    "supabase/**",
   ]),
 ]);
 

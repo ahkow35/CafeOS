@@ -1,9 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import * as path from 'path';
 import { fmt12 } from '@/lib/timeUtils';
+import { sql } from '@/lib/db';
+import { requireUser, AuthError } from '@/lib/auth';
+import type { TimesheetEntry } from '@/lib/database.types';
+
+export const runtime = 'nodejs';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface TimesheetExportRow {
+  id: string;
+  user_id: string;
+  month_year: string;
+  employee_signature: string | null;
+  manager_signature: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone_e164: string | null;
+  hourly_rate: string | null;
+}
 
 // ─── Timesheet sheet layout (exceljs 1-indexed rows, letter columns) ──────────
 //   Row 3  B3:C3  "NAME OF STAFF :"  → value in D3
@@ -39,153 +57,167 @@ function stripDataUrl(dataUrl: string): string {
 }
 
 export async function GET(
-  req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  try {
+    const me = await requireUser();
+    const { id } = await params;
+    if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+    const { rows } = await sql<TimesheetExportRow>`
+      SELECT t.id, t.user_id, t.month_year, t.employee_signature, t.manager_signature,
+             p.full_name, p.email, p.phone_e164, p.hourly_rate
+        FROM timesheets t
+        JOIN profiles p ON p.id = t.user_id
+       WHERE t.id = ${id}
+       LIMIT 1
+    `;
+    const timesheet = rows[0];
+    if (!timesheet) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const [{ data: ts }, { data: entries }] = await Promise.all([
-    supabase.from('timesheets').select('*, profiles(full_name, email, phone, hourly_rate)').eq('id', id).single(),
-    supabase.from('timesheet_entries').select('*').eq('timesheet_id', id).order('entry_date'),
-  ]);
-
-  if (!ts) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-  const profile = (ts as any).profiles ?? {};
-  const staffName: string  = profile.full_name ?? profile.email ?? 'Unknown';
-  const contactNo: string  = profile.phone ?? '';
-  const hourlyRate: number | null = profile.hourly_rate ?? null;
-  const [year, monthIdx]   = (ts as any).month_year.split('-').map(Number);
-  const monthLabel         = `${MONTH_NAMES[monthIdx - 1]}${String(year).slice(2)}`; // e.g. APR26
-  const daysInMonth        = new Date(year, monthIdx, 0).getDate();
-
-  const entryByDay: Record<number, any> = {};
-  for (const e of (entries ?? []) as any[]) {
-    entryByDay[parseInt(e.entry_date.split('-')[2])] = e;
-  }
-  const totalHours = (entries ?? []).reduce((s: number, e: any) => s + (e.total_hours ?? 0), 0);
-
-  // ── Load XLSX template ─────────────────────────────────────────────────────
-  const templatePath = path.join(process.cwd(), 'docs', 'RoundboyRoasters Timesheet.xlsx');
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(templatePath);
-  const ws = wb.getWorksheet('Timesheet')!;
-
-  // ── Header fields ──────────────────────────────────────────────────────────
-  ws.getCell('D3').value = staffName;
-  ws.getCell('D5').value = monthLabel;
-  ws.getCell('D7').value = contactNo;
-
-  // ── Day rows ───────────────────────────────────────────────────────────────
-  for (let day = 1; day <= daysInMonth; day++) {
-    const rowNum = 12 + day; // Day 1 → row 13, Day 31 → row 43
-    const dateStr = `${year}-${String(monthIdx).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const entry = entryByDay[day];
-
-    ws.getCell(`B${rowNum}`).value = fmtDate(dateStr);
-    ws.getCell(`C${rowNum}`).value = dayName(dateStr);
-
-    if (entry) {
-      if (entry.start_time) ws.getCell(`D${rowNum}`).value = fmt12(entry.start_time);
-      if (entry.end_time)   ws.getCell(`E${rowNum}`).value = fmt12(entry.end_time);
-      if (entry.break_hours != null) ws.getCell(`F${rowNum}`).value = entry.break_hours;
-      if (entry.total_hours != null) ws.getCell(`G${rowNum}`).value = entry.total_hours;
-      if (entry.remarks)    ws.getCell(`H${rowNum}`).value = entry.remarks;
+    const isAdmin = me.role === 'manager' || me.role === 'owner';
+    if (timesheet.user_id !== me.id && !isAdmin) {
+      throw new AuthError('forbidden', 'Cannot export this timesheet');
     }
-  }
 
-  // ── Total ──────────────────────────────────────────────────────────────────
-  ws.getCell('G44').value = totalHours;
+    const { rows: entryRows } = await sql<TimesheetEntry>`
+      SELECT id, timesheet_id, entry_date::text AS entry_date,
+             start_time::text AS start_time, end_time::text AS end_time,
+             break_hours, total_hours, remarks, created_at
+        FROM timesheet_entries
+       WHERE timesheet_id = ${id}
+       ORDER BY entry_date ASC
+    `;
 
-  // ── Salary note in comments area ───────────────────────────────────────────
-  if (hourlyRate !== null) {
-    ws.getCell('B47').value =
-      `${totalHours} hrs × $${hourlyRate.toFixed(2)}/hr = $${(totalHours * hourlyRate).toFixed(2)}`;
-  }
+    const staffName: string  = timesheet.full_name ?? timesheet.email ?? 'Unknown';
+    const contactNo: string  = timesheet.phone_e164 ?? '';
+    const hourlyRate: number | null =
+      timesheet.hourly_rate === null ? null : Number(timesheet.hourly_rate);
+    const [year, monthIdx]   = timesheet.month_year.split('-').map(Number);
+    const monthLabel         = `${MONTH_NAMES[monthIdx - 1]}${String(year).slice(2)}`;
+    const daysInMonth        = new Date(year, monthIdx, 0).getDate();
 
-  // ── Logo lives in the template itself — no need to re-add here. ───────────
+    const entryByDay: Record<number, TimesheetEntry> = {};
+    for (const e of entryRows) {
+      entryByDay[parseInt(e.entry_date.split('-')[2])] = e;
+    }
+    const totalHours = entryRows.reduce((s: number, e: TimesheetEntry) => s + (e.total_hours ?? 0), 0);
 
-  // ── Employee signature ─────────────────────────────────────────────────────
-  const employeeSig: string | null = (ts as any).employee_signature ?? null;
-  if (employeeSig) {
-    const empSigId = wb.addImage({
-      base64: stripDataUrl(employeeSig),
-      extension: 'png',
-    });
-    // Inside casual-worker box B49:D53 — 0-indexed tl (col 1, row 48) → br (col 4, row 53)
-    ws.addImage(empSigId, {
-      tl: { col: 1, row: 48 },
-      br: { col: 4, row: 53 },
-      editAs: 'oneCell',
-    } as any);
-  }
+    // ── Load XLSX template ─────────────────────────────────────────────────────
+    const templatePath = path.join(process.cwd(), 'docs', 'RoundboyRoasters Timesheet.xlsx');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(templatePath);
+    const ws = wb.getWorksheet('Timesheet')!;
 
-  // ── Manager signature ──────────────────────────────────────────────────────
-  const managerSig: string | null = (ts as any).manager_signature ?? null;
-  if (managerSig) {
-    const mgrSigId = wb.addImage({
-      base64: stripDataUrl(managerSig),
-      extension: 'png',
-    });
-    // Inside head-of-café box G49:H53 — 0-indexed tl (col 6, row 48) → br (col 8, row 53)
-    ws.addImage(mgrSigId, {
-      tl: { col: 6, row: 48 },
-      br: { col: 8, row: 53 },
-      editAs: 'oneCell',
-    } as any);
-  }
+    // ── Header fields ──────────────────────────────────────────────────────────
+    ws.getCell('D3').value = staffName;
+    ws.getCell('D5').value = monthLabel;
+    ws.getCell('D7').value = contactNo;
 
-  // ── Output ─────────────────────────────────────────────────────────────────
-  const buf = await wb.xlsx.writeBuffer();
+    // ── Day rows ───────────────────────────────────────────────────────────────
+    for (let day = 1; day <= daysInMonth; day++) {
+      const rowNum = 12 + day; // Day 1 → row 13, Day 31 → row 43
+      const dateStr = `${year}-${String(monthIdx).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const entry = entryByDay[day];
 
-  // Post-process the zip to work around two exceljs bugs that make
-  // Excel flag the output as "unreadable content":
-  //
-  //  1. A stray <Default Extension="vml"> is added to [Content_Types].xml
-  //     even though no VML parts exist in the archive.
-  //  2. When addImage() is called on a worksheet whose drawing already
-  //     contains a picture, exceljs clones the template picture's
-  //     <a:extLst> metadata — including its creationId GUID — onto every
-  //     new picture. Multiple pictures sharing the same creationId make
-  //     the drawing invalid. The extLst block is optional, so the
-  //     simplest fix is to strip it from every drawing XML part.
-  const zip = await JSZip.loadAsync(buf as ArrayBuffer);
+      ws.getCell(`B${rowNum}`).value = fmtDate(dateStr);
+      ws.getCell(`C${rowNum}`).value = dayName(dateStr);
 
-  const ctFile = zip.file('[Content_Types].xml');
-  if (ctFile) {
-    const ct = await ctFile.async('string');
-    const patched = ct.replace(
-      /<Default Extension="vml" ContentType="application\/vnd\.openxmlformats-officedocument\.vmlDrawing"\s*\/>/,
-      '',
+      if (entry) {
+        if (entry.start_time) ws.getCell(`D${rowNum}`).value = fmt12(entry.start_time);
+        if (entry.end_time)   ws.getCell(`E${rowNum}`).value = fmt12(entry.end_time);
+        if (entry.break_hours != null) ws.getCell(`F${rowNum}`).value = entry.break_hours;
+        if (entry.total_hours != null) ws.getCell(`G${rowNum}`).value = entry.total_hours;
+        if (entry.remarks)    ws.getCell(`H${rowNum}`).value = entry.remarks;
+      }
+    }
+
+    // ── Total ──────────────────────────────────────────────────────────────────
+    ws.getCell('G44').value = totalHours;
+
+    // ── Salary note in comments area ───────────────────────────────────────────
+    if (hourlyRate !== null) {
+      ws.getCell('B47').value =
+        `${totalHours} hrs × $${hourlyRate.toFixed(2)}/hr = $${(totalHours * hourlyRate).toFixed(2)}`;
+    }
+
+    // ── Employee signature ─────────────────────────────────────────────────────
+    const employeeSig: string | null = timesheet.employee_signature ?? null;
+    if (employeeSig) {
+      const empSigId = wb.addImage({
+        base64: stripDataUrl(employeeSig),
+        extension: 'png',
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exceljs types lack editAs
+      ws.addImage(empSigId, { tl: { col: 1, row: 48 }, br: { col: 4, row: 53 }, editAs: 'oneCell' } as any);
+    }
+
+    // ── Manager signature ──────────────────────────────────────────────────────
+    const managerSig: string | null = timesheet.manager_signature ?? null;
+    if (managerSig) {
+      const mgrSigId = wb.addImage({
+        base64: stripDataUrl(managerSig),
+        extension: 'png',
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exceljs types lack editAs
+      ws.addImage(mgrSigId, { tl: { col: 6, row: 48 }, br: { col: 8, row: 53 }, editAs: 'oneCell' } as any);
+    }
+
+    // ── Output ─────────────────────────────────────────────────────────────────
+    const buf = await wb.xlsx.writeBuffer();
+
+    // Post-process the zip to work around two exceljs bugs that make
+    // Excel flag the output as "unreadable content":
+    //
+    //  1. A stray <Default Extension="vml"> is added to [Content_Types].xml
+    //     even though no VML parts exist in the archive.
+    //  2. When addImage() is called on a worksheet whose drawing already
+    //     contains a picture, exceljs clones the template picture's
+    //     <a:extLst> metadata — including its creationId GUID — onto every
+    //     new picture. Multiple pictures sharing the same creationId make
+    //     the drawing invalid. The extLst block is optional, so the
+    //     simplest fix is to strip it from every drawing XML part.
+    const zip = await JSZip.loadAsync(buf as ArrayBuffer);
+
+    const ctFile = zip.file('[Content_Types].xml');
+    if (ctFile) {
+      const ct = await ctFile.async('string');
+      const patched = ct.replace(
+        /<Default Extension="vml" ContentType="application\/vnd\.openxmlformats-officedocument\.vmlDrawing"\s*\/>/,
+        '',
+      );
+      if (patched !== ct) zip.file('[Content_Types].xml', patched);
+    }
+
+    const drawingFiles = Object.keys(zip.files).filter(
+      (name) => /^xl\/drawings\/drawing\d+\.xml$/.test(name),
     );
-    if (patched !== ct) zip.file('[Content_Types].xml', patched);
+    for (const name of drawingFiles) {
+      const file = zip.file(name);
+      if (!file) continue;
+      const xml = await file.async('string');
+      const patched = xml.replace(/<a:extLst>[\s\S]*?<\/a:extLst>/g, '');
+      if (patched !== xml) zip.file(name, patched);
+    }
+
+    const outBuf = await zip.generateAsync({ type: 'nodebuffer' });
+
+    const filename = `${staffName.replace(/\s+/g, '-')}-${timesheet.month_year}.xlsx`;
+
+    return new NextResponse(new Uint8Array(outBuf), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (e) {
+    if (e instanceof AuthError) {
+      const status = e.code === 'unauthorized' ? 401 : 403;
+      return NextResponse.json({ error: e.message }, { status });
+    }
+    console.error('timesheets export error', e);
+    return NextResponse.json({ error: 'Export failed' }, { status: 500 });
   }
-
-  const drawingFiles = Object.keys(zip.files).filter(
-    (name) => /^xl\/drawings\/drawing\d+\.xml$/.test(name),
-  );
-  for (const name of drawingFiles) {
-    const file = zip.file(name);
-    if (!file) continue;
-    const xml = await file.async('string');
-    const patched = xml.replace(/<a:extLst>[\s\S]*?<\/a:extLst>/g, '');
-    if (patched !== xml) zip.file(name, patched);
-  }
-
-  const outBuf = await zip.generateAsync({ type: 'nodebuffer' });
-
-  const filename = `${staffName.replace(/\s+/g, '-')}-${(ts as any).month_year}.xlsx`;
-
-  return new NextResponse(new Uint8Array(outBuf), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
 }

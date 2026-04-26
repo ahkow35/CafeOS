@@ -3,14 +3,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Timesheet, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
 import { formatMonthYear } from '@/lib/dateUtils';
 
-type TimesheetWithUser = Timesheet & { profiles: Pick<User, 'full_name' | 'email'> };
+type ProfileMini = Pick<User, 'full_name' | 'email' | 'phone_e164' | 'role' | 'hourly_rate'>;
+type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   draft: { label: 'Draft', color: '#6b7280' },
@@ -21,10 +21,9 @@ const STATUS_BADGE: Record<string, { label: string; color: string }> = {
 
 export default function AdminTimesheetsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const { user, profile, loading: authLoading } = useAuth();
 
-  const [timesheets, setTimesheets] = useState<TimesheetWithUser[]>([]);
+  const [timesheets, setTimesheets] = useState<TimesheetWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('submitted');
@@ -32,19 +31,17 @@ export default function AdminTimesheetsPage() {
   const load = useCallback(async () => {
     setFetchError(null);
     try {
-      const { data, error } = await supabase
-        .from('timesheets')
-        .select('*, profiles(full_name, email)')
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
-      setTimesheets((data as TimesheetWithUser[]) ?? []);
+      const res = await fetch('/api/timesheets?scope=all');
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json() as { timesheets: TimesheetWithProfile[] };
+      setTimesheets(data.timesheets ?? []);
     } catch (err) {
       console.error('Failed to load timesheets:', err);
       setFetchError('Failed to load timesheets. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -129,7 +126,7 @@ export default function AdminTimesheetsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div className="stat-icon"><Clock size={22} /></div>
                         <div>
-                          <div className="card-title">{ts.profiles?.full_name ?? ts.profiles?.email}</div>
+                          <div className="card-title">{ts.profile?.full_name ?? ts.profile?.email ?? 'Unknown'}</div>
                           <div className="card-subtitle">{formatMonthYear(ts.month_year)}</div>
                         </div>
                       </div>

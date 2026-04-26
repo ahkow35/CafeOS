@@ -1,22 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { LeaveRequest } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
-import { Palmtree, BarChart3, Plus, Clock, History, Inbox } from 'lucide-react';
+import { BarChart3, Plus, Clock, History, Inbox } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
 
 export default function LeavePage() {
     const { user, profile, loading, refreshProfile } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
     const toast = useToast();
 
     const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -29,34 +38,27 @@ export default function LeavePage() {
         }
     }, [user, loading, router]);
 
-    useEffect(() => {
-        if (user) {
-            fetchLeaveRequests();
-            refreshProfile(); // Refresh profile to get latest leave balance
-        }
-    }, [user]);
-
-    const fetchLeaveRequests = async () => {
+    const fetchLeaveRequests = useCallback(async () => {
         setFetchError(null);
         try {
-            const { data, error } = await supabase
-                .from('leave_requests')
-                .select('id, user_id, leave_type, start_date, end_date, days_requested, status, reason, attachment_url, is_retrospective, created_at')
-                .eq('user_id', user?.id)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            setRequests((data as LeaveRequest[]) ?? []);
+            const data = await jsonOrError(await fetch('/api/leave-requests?scope=mine')) as { requests: LeaveRequest[] };
+            setRequests(data.requests ?? []);
         } catch (err) {
             console.error('Failed to load leave requests:', err);
             setFetchError('Failed to load your leave requests. Please try again.');
         } finally {
             setRequestsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (user) {
+            fetchLeaveRequests();
+            refreshProfile();
+        }
+    }, [user, fetchLeaveRequests, refreshProfile]);
 
     const handleDelete = async (requestId: string) => {
-        // Find the request so we know how many days to restore
         const requestToCancel = requests.find(r => r.id === requestId);
         if (!requestToCancel) return;
 
@@ -67,40 +69,13 @@ export default function LeavePage() {
             `Cancel this leave request? Your ${daysToRestore} day${daysToRestore !== 1 ? 's' : ''} will be returned to your ${leaveType} leave balance.`
         )) return;
 
-        // Restore balance before deleting (balance was deducted at submission time)
-        const balanceField = leaveType === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-        const currentBalance = leaveType === 'annual'
-            ? profile?.annual_leave_balance ?? 0
-            : profile?.medical_leave_balance ?? 0;
-
-        const { error: balanceError } = await supabase
-            .from('profiles')
-            .update({ [balanceField]: currentBalance + daysToRestore })
-            .eq('id', user!.id);
-
-        if (balanceError) {
-            console.error('Failed to restore leave balance:', balanceError);
-            alert('Failed to restore your leave balance. Please contact your manager.');
-            return;
-        }
-
-        // Now delete the request
-        const { error } = await supabase
-            .from('leave_requests')
-            .delete()
-            .eq('id', requestId);
-
-        if (!error) {
-            await refreshProfile(); // Refresh balance card immediately
-            fetchLeaveRequests();
-        } else {
-            // Undo the balance restore if delete failed
-            await supabase
-                .from('profiles')
-                .update({ [balanceField]: currentBalance })
-                .eq('id', user!.id);
+        try {
+            await jsonOrError(await fetch(`/api/leave-requests/${requestId}`, { method: 'DELETE' }));
             await refreshProfile();
-            toast('Failed to cancel request. Please try again.', 'error');
+            await fetchLeaveRequests();
+        } catch (err) {
+            console.error('Failed to cancel request:', err);
+            toast(err instanceof Error ? err.message : 'Failed to cancel request. Please try again.', 'error');
         }
     };
 
@@ -125,7 +100,6 @@ export default function LeavePage() {
                         <p className="page-subtitle">Track your time off</p>
                     </section>
 
-                    {/* Leave Balance */}
                     <section className="section animate-in">
                         <h2 className="section-title">
                             <BarChart3 size={20} />
@@ -137,7 +111,6 @@ export default function LeavePage() {
                         />
                     </section>
 
-                    {/* Apply Button */}
                     <section className="section animate-in">
                         <Link href="/leave/apply" className="btn btn-primary btn-block btn-lg">
                             <Plus size={20} />
@@ -145,7 +118,6 @@ export default function LeavePage() {
                         </Link>
                     </section>
 
-                    {/* Pending Requests */}
                     {pendingRequests.length > 0 && (
                         <section className="section animate-in">
                             <h2 className="section-title">
@@ -162,7 +134,6 @@ export default function LeavePage() {
                         </section>
                     )}
 
-                    {/* Past Requests */}
                     <section className="section animate-in">
                         <h2 className="section-title">
                             <History size={20} />

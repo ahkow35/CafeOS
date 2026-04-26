@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -11,115 +10,84 @@ import { ArrowLeft } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import TeamMemberCard from '@/components/TeamMemberCard';
 
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
+
 export default function ManageTeamPage() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
     const toast = useToast();
 
     const [profiles, setProfiles] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [updating, setUpdating] = useState<string | null>(null);
-    const [currentUserRole, setCurrentUserRole] = useState<string>('');
 
-    useEffect(() => {
-        if (!authLoading) {
-            if (!user) {
-                router.push('/login');
-            } else {
-                loadData();
-            }
-        }
-    }, [user, authLoading]);
+    const isOwner = profile?.role === 'owner';
 
-    const loadData = async () => {
-        if (!user) return;
-
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError(null);
-
         try {
-            const { data: currentUserProfile, error: profileError } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-
-            if (profileError) {
-                setError(`Role check failed: ${profileError.message}`);
-                return;
-            }
-
-            if (!currentUserProfile || currentUserProfile.role !== 'owner') {
-                router.push('/');
-                return;
-            }
-
-            setCurrentUserRole(currentUserProfile.role);
-
-            const { data: allProfiles, error: fetchError } = await supabase
-                .from('profiles')
-                .select('id, full_name, email, role, is_active, hourly_rate, phone')
-                .order('full_name', { ascending: true });
-
-            if (fetchError) {
-                setError(`Team fetch failed: ${fetchError.message}`);
-                return;
-            }
-
-            setProfiles((allProfiles || []) as User[]);
-
+            const data = await jsonOrError(await fetch('/api/profiles')) as { users: User[] };
+            setProfiles(data.users ?? []);
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-            setError(errorMessage);
+            setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isOwner) { router.push('/'); return; }
+        if (isOwner) loadData();
+    }, [user, profile, authLoading, isOwner, loadData, router]);
+
+    const patchUser = async (targetUserId: string, body: Record<string, unknown>) => {
+        return jsonOrError(await fetch(`/api/admin/users/${targetUserId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })) as Promise<{ user: User }>;
     };
 
     const handleHourlyRateChange = async (targetUserId: string, rate: number) => {
         setUpdating(targetUserId);
-        const { error } = await supabase
-            .from('profiles')
-            .update({ hourly_rate: rate })
-            .eq('id', targetUserId);
-        if (!error) {
-            setProfiles(prev => prev.map(p => p.id === targetUserId ? { ...p, hourly_rate: rate } : p));
+        try {
+            const { user: updated } = await patchUser(targetUserId, { hourly_rate: rate });
+            setProfiles(prev => prev.map(p => p.id === targetUserId ? { ...p, hourly_rate: updated.hourly_rate } : p));
             toast(`Hourly rate updated to S$${rate}/hr`, 'success');
-        } else {
-            toast(`Failed to update rate: ${error.message}`, 'error');
+        } catch (err: unknown) {
+            toast(`Failed to update rate: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setUpdating(null);
         }
-        setUpdating(null);
     };
 
     const handleRoleChange = async (targetUserId: string, newRole: string) => {
-        const typedRole = newRole as User['role'];
         if (targetUserId === user?.id) {
             toast("You cannot change your own role.", 'error');
             return;
         }
-
-        const confirmUpdate = window.confirm(`Are you sure you want to change this user's role to ${newRole.toUpperCase()}?`);
-        if (!confirmUpdate) return;
+        if (!window.confirm(`Are you sure you want to change this user's role to ${newRole.toUpperCase()}?`)) return;
 
         setUpdating(targetUserId);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ role: typedRole })
-                .eq('id', targetUserId);
-
-            if (error) throw error;
-
-            setProfiles(prev => prev.map(p =>
-                p.id === targetUserId ? { ...p, role: typedRole } : p
-            ));
-
+            const { user: updated } = await patchUser(targetUserId, { role: newRole });
+            setProfiles(prev => prev.map(p => p.id === targetUserId ? { ...p, role: updated.role } : p));
             toast(`Role updated to ${newRole.toUpperCase()}!`, 'success');
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            toast(`Failed to update role: ${errorMessage}`, 'error');
+        } catch (err: unknown) {
+            toast(`Failed to update role: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         } finally {
             setUpdating(null);
         }
@@ -130,43 +98,33 @@ export default function ManageTeamPage() {
         if (!confirm(`Are you sure you want to ${action} this user?`)) return;
 
         setUpdating(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ is_active: !currentStatus })
-            .eq('id', userId);
-
-        if (!error) {
-            setProfiles(prev => prev.map(p =>
-                p.id === userId ? { ...p, is_active: !currentStatus } : p
-            ));
+        try {
+            const { user: updated } = await patchUser(userId, { is_active: !currentStatus });
+            setProfiles(prev => prev.map(p => p.id === userId ? { ...p, is_active: updated.is_active } : p));
             toast(`User ${action}d successfully!`, 'success');
-        } else {
-            toast(`Failed to ${action} user: ${error.message}`, 'error');
+        } catch (err: unknown) {
+            toast(`Failed to ${action} user: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setUpdating(null);
         }
-        setUpdating(null);
     };
 
     const removeUser = async (userId: string, userName: string) => {
-        if (!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY DELETE ${userName}? This action CANNOT be undone!`)) return;
+        if (!confirm(`WARNING: Are you sure you want to PERMANENTLY DELETE ${userName}? This action CANNOT be undone!`)) return;
 
         setUpdating(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .delete()
-            .eq('id', userId);
-
-        if (!error) {
+        try {
+            await jsonOrError(await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' }));
             setProfiles(prev => prev.filter(p => p.id !== userId));
             toast(`${userName} has been removed from the system.`, 'success');
-        } else {
-            toast(`Failed to remove user: ${error.message}`, 'error');
+        } catch (err: unknown) {
+            toast(`Failed to remove user: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setUpdating(null);
         }
-        setUpdating(null);
     };
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
             <>
                 <Header />
@@ -250,13 +208,13 @@ export default function ManageTeamPage() {
                     ) : (
                         <section className="section animate-in">
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {profiles.map(profile => (
+                                {profiles.map(p => (
                                     <TeamMemberCard
-                                        key={profile.id}
-                                        member={profile}
+                                        key={p.id}
+                                        member={p}
                                         updating={updating}
-                                        isMe={profile.id === user?.id}
-                                        currentUserRole={currentUserRole}
+                                        isMe={p.id === user?.id}
+                                        currentUserRole={profile?.role ?? ''}
                                         onToggleActive={toggleUserStatus}
                                         onChangeRole={handleRoleChange}
                                         onUpdateHourlyRate={handleHourlyRateChange}

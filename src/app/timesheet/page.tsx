@@ -1,14 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Timesheet } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Clock, Plus, ChevronRight, FileText } from 'lucide-react';
 import { formatMonthYear } from '@/lib/dateUtils';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+      ? (body as { error: string }).error
+      : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json();
+}
 
 function statusBadge(status: Timesheet['status']): { label: string; color: string } {
   switch (status) {
@@ -21,7 +31,6 @@ function statusBadge(status: Timesheet['status']): { label: string; color: strin
 
 export default function TimesheetPage() {
   const router = useRouter();
-  const supabase = createClient();
   const { user, profile, loading: authLoading } = useAuth();
 
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
@@ -29,32 +38,26 @@ export default function TimesheetPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) { router.push('/login'); return; }
-    if (profile && profile.role !== 'part_timer') { router.push('/'); return; }
-    loadTimesheets();
-  }, [user, profile, authLoading]);
-
-  async function loadTimesheets() {
-    if (!user) return;
+  const loadTimesheets = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
-      const { data, error } = await supabase
-        .from('timesheets')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('month_year', { ascending: false });
-      if (error) throw error;
-      setTimesheets((data as Timesheet[]) ?? []);
+      const data = await jsonOrError(await fetch('/api/timesheets?scope=mine')) as { timesheets: Timesheet[] };
+      setTimesheets(data.timesheets ?? []);
     } catch (err) {
       console.error('Failed to load timesheets:', err);
       setFetchError('Failed to load timesheets. Please try again.');
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.push('/login'); return; }
+    if (profile && profile.role !== 'part_timer') { router.push('/'); return; }
+    loadTimesheets();
+  }, [user, profile, authLoading, loadTimesheets, router]);
 
   if (authLoading || loading) {
     return (
@@ -147,7 +150,6 @@ export default function TimesheetPage() {
 
       {showNewModal && (
         <NewTimesheetModal
-          userId={user!.id}
           existingMonths={timesheets.map(t => t.month_year)}
           onClose={() => setShowNewModal(false)}
           onCreated={(ts) => {
@@ -177,17 +179,14 @@ const MONTH_OPTIONS = [
 ];
 
 function NewTimesheetModal({
-  userId,
   existingMonths,
   onClose,
   onCreated,
 }: {
-  userId: string;
   existingMonths: string[];
   onClose: () => void;
   onCreated: (ts: Timesheet) => void;
 }) {
-  const supabase = createClient();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -220,14 +219,18 @@ function NewTimesheetModal({
     }
     setCreating(true);
     setError('');
-    const { data, error: err } = await supabase
-      .from('timesheets')
-      .insert({ user_id: userId, month_year: monthYear })
-      .select()
-      .single();
-    setCreating(false);
-    if (err || !data) { setError(err?.message ?? 'Failed to create'); return; }
-    onCreated(data as Timesheet);
+    try {
+      const data = await jsonOrError(await fetch('/api/timesheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month_year: monthYear }),
+      })) as { timesheet: Timesheet };
+      onCreated(data.timesheet);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create');
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (

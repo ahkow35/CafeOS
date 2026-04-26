@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
-import { createClient } from '@/lib/supabase';
 import { Task } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -13,9 +12,19 @@ import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import PendingApprovalsWidget from '@/components/PendingApprovalsWidget';
 import { Palmtree, ClipboardList, Settings, Plus, PartyPopper } from 'lucide-react';
 
+async function jsonOrError(res: Response): Promise<unknown> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+      ? (body as { error: string }).error
+      : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 export default function HomePage() {
   const router = useRouter();
-  const supabase = createClient();
   const { user, profile, loading: authLoading, profileLoading } = useAuth();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -29,8 +38,26 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, [authLoading, profileLoading]);
 
+  const loadDashboardData = useCallback(async () => {
+    try {
+      setDataLoading(true);
+      const data = await jsonOrError(await fetch('/api/tasks?scope=mine')) as { tasks: Task[] };
+      const all = data.tasks ?? [];
+      const cutoff = new Date();
+      cutoff.setHours(23, 59, 59, 999);
+      const cutoffMs = cutoff.getTime();
+      const due = all
+        .filter(t => t.status === 'pending' && new Date(t.deadline).getTime() <= cutoffMs)
+        .slice(0, 5);
+      setTasks(due);
+    } catch (error) {
+      console.error('Dashboard load error', error);
+    } finally {
+      setDataLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    // Wait for auth and profile to resolve before acting
     if (authLoading || profileLoading) return;
 
     if (!user) {
@@ -39,32 +66,7 @@ export default function HomePage() {
     }
 
     loadDashboardData();
-  }, [user, authLoading, profileLoading, router]);
-
-  const loadDashboardData = async () => {
-    if (!user) return;
-
-    try {
-      setDataLoading(true);
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-
-      const { data } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('status', 'pending')
-        .lte('deadline', today.toISOString())
-        .order('deadline', { ascending: true })
-        .limit(5);
-
-      if (data) setTasks(data as Task[]);
-
-    } catch (error) {
-      console.error('Dashboard load error', error);
-    } finally {
-      setDataLoading(false);
-    }
-  };
+  }, [user, authLoading, profileLoading, router, loadDashboardData]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -77,7 +79,6 @@ export default function HomePage() {
     return profile?.full_name?.split(' ')[0] || 'there';
   };
 
-  // Combined loading state — show skeleton instead of blank spinner
   if (authLoading || profileLoading || dataLoading) {
     return (
       <>
@@ -118,9 +119,6 @@ export default function HomePage() {
     );
   }
 
-  // If profile is missing after loading, it means error or no user.
-  // Guard includes authLoading/profileLoading so Safari doesn't flash this
-  // during the brief window after login where profile is still resolving.
   if (!authLoading && !profileLoading && !profile) {
     return (
       <div className="empty-state animate-in" style={{ padding: '2rem', textAlign: 'center' }}>
@@ -139,7 +137,6 @@ export default function HomePage() {
       </div>
     );
   }
-  // Narrow type for TypeScript — compound condition above handles the real guard
   if (!profile) return null;
 
   return (
@@ -147,13 +144,11 @@ export default function HomePage() {
       <Header />
       <main className="page">
         <div className="container">
-          {/* Welcome Section */}
           <section className="section animate-in">
             <h1 className="page-title">{getGreeting()}, {getFirstName()}!</h1>
             <p className="page-subtitle">Welcome to your dashboard — {new Date().toLocaleDateString()}</p>
           </section>
 
-          {/* Leave Balance — hidden for part-timers */}
           {profile.role !== 'part_timer' && (
             <section className="section animate-in">
               <h2 className="section-title">
@@ -167,7 +162,6 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* Today's Tasks */}
           <section className="section animate-in">
             <h2 className="section-title">
               <ClipboardList size={20} />
@@ -195,7 +189,6 @@ export default function HomePage() {
             )}
           </section>
 
-          {/* Manager/Owner Quick Actions & Pending Approvals */}
           {(profile.role === 'manager' || profile.role === 'owner') && (
             <>
               <section className="section animate-in">
@@ -203,10 +196,7 @@ export default function HomePage() {
                   <Settings size={20} />
                   <span>Pending Approvals</span>
                 </h2>
-                <PendingApprovalsWidget
-                  userRole={profile.role as 'manager' | 'owner'}
-                  userId={user!.id}
-                />
+                <PendingApprovalsWidget userRole={profile.role as 'manager' | 'owner'} />
               </section>
 
               <section className="section animate-in">

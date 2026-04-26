@@ -2,6 +2,7 @@
 
 import { Palmtree, Stethoscope, Check, X, Trash2 } from 'lucide-react';
 import { LeaveRequest } from '@/lib/database.types';
+import { openMedicalCert } from '@/lib/storageUtils';
 
 interface LeaveRequestCardProps {
     request: LeaveRequest;
@@ -111,16 +112,14 @@ export default function LeaveRequestCard({
                         </div>
                     )}
                     {request.attachment_url && (
-                        <a
-                            href={request.attachment_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <button
+                            onClick={() => openMedicalCert(request.attachment_url!)}
                             className="btn btn-outline btn-sm btn-block"
-                            style={{ marginTop: '0.5rem', textDecoration: 'none' }}
+                            style={{ marginTop: '0.5rem' }}
                         >
                             <Stethoscope size={16} />
                             <span>View Proof</span>
-                        </a>
+                        </button>
                     )}
                 </div>
             )}

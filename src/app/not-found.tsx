@@ -38,7 +38,7 @@ export default function NotFound() {
                     marginBottom: 'var(--space-xl)',
                     lineHeight: 1.6
                 }}>
-                    Oops! The page you're looking for doesn't exist. It might have been moved or deleted.
+                    Oops! The page you&apos;re looking for doesn&apos;t exist. It might have been moved or deleted.
                 </p>
 
                 <Link href="/" className="btn btn-primary" style={{

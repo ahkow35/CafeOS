@@ -1,25 +1,44 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck, UserPlus, Copy, X } from 'lucide-react';
+import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck, UserPlus, Copy, X, KeyRound } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+
+type StaffRow = Pick<
+    User,
+    | 'id'
+    | 'phone_e164'
+    | 'full_name'
+    | 'job_title'
+    | 'role'
+    | 'annual_leave_balance'
+    | 'medical_leave_balance'
+    | 'is_active'
+    | 'hourly_rate'
+    | 'email'
+    | 'created_at'
+>;
+
+async function jsonOrError(res: Response): Promise<{ ok: boolean; data: unknown; error?: string }> {
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, data, error: (data.error as string) ?? `Request failed (${res.status})` };
+    return { ok: true, data };
+}
 
 export default function AdminStaffPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
     const toast = useToast();
 
-    const [staff, setStaff] = useState<User[]>([]);
+    const [staff, setStaff] = useState<StaffRow[]>([]);
     const [staffLoading, setStaffLoading] = useState(true);
     const [updating, setUpdating] = useState<string | null>(null);
-    const [editingRate, setEditingRate] = useState<string | null>(null); // userId being edited
+    const [editingRate, setEditingRate] = useState<string | null>(null);
     const [rateInput, setRateInput] = useState('');
 
     // Add-staff form state
@@ -27,64 +46,68 @@ export default function AdminStaffPage() {
     const [creating, setCreating] = useState(false);
     const [newStaff, setNewStaff] = useState({
         full_name: '',
-        email: '',
         phone: '',
+        job_title: '',
+        pin: '',
         hourly_rate: '',
         role: 'staff' as User['role'],
     });
-    const [createdCreds, setCreatedCreds] = useState<{ email: string; tempPassword: string } | null>(null);
+    const [createdCreds, setCreatedCreds] = useState<{ phone: string; tempPin: string; name: string } | null>(null);
 
     const isOwner = profile?.role === 'owner';
 
     useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        } else if (!loading && profile && !isOwner) {
-            // Only owners can manage staff
-            router.push('/admin');
-        }
-    }, [loading, user?.id, isOwner, router]); // Removed 'profile' dependency
+        if (loading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isOwner) router.push('/admin');
+    }, [loading, user, profile, isOwner, router]);
 
-    useEffect(() => {
-        if (isOwner) {
-            fetchStaff();
-        }
-    }, [isOwner]); // Removed 'profile' dependency
-
-    const fetchStaff = async () => {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .order('full_name', { ascending: true });
-
-        if (!error && data) {
-            setStaff(data as User[]);
+    const fetchStaff = useCallback(async () => {
+        const res = await fetch('/api/admin/users', { cache: 'no-store' });
+        const { ok, data, error } = await jsonOrError(res);
+        if (ok) {
+            setStaff(((data as { users: StaffRow[] }).users) ?? []);
+        } else {
+            toast(error ?? 'Failed to load staff', 'error');
         }
         setStaffLoading(false);
+    }, [toast]);
+
+    useEffect(() => {
+        if (isOwner) fetchStaff();
+    }, [isOwner, fetchStaff]);
+
+    const patchUser = async (
+        userId: string,
+        body: Record<string, unknown>,
+        opts?: { successToast?: string; errorPrefix?: string },
+    ): Promise<StaffRow | null> => {
+        const res = await fetch(`/api/admin/users/${userId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const { ok, data, error } = await jsonOrError(res);
+        if (!ok) {
+            toast(`${opts?.errorPrefix ?? 'Update failed'}: ${error}`, 'error');
+            return null;
+        }
+        if (opts?.successToast) toast(opts.successToast, 'success');
+        return (data as { user: StaffRow }).user;
     };
 
-    const updateBalance = async (userId: string, field: 'annual_leave_balance' | 'medical_leave_balance', delta: number) => {
-        setUpdating(userId);
-
+    const updateBalance = async (
+        userId: string,
+        field: 'annual_leave_balance' | 'medical_leave_balance',
+        delta: number,
+    ) => {
         const member = staff.find(s => s.id === userId);
         if (!member) return;
-
-        const currentValue = member[field];
-        const newValue = Math.max(0, currentValue + delta);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ [field]: newValue })
-            .eq('id', userId);
-
-        if (!error) {
-            setStaff(staff.map(s =>
-                s.id === userId
-                    ? { ...s, [field]: newValue }
-                    : s
-            ));
-        }
-
+        const next = Math.max(0, member[field] + delta);
+        if (next === member[field]) return;
+        setUpdating(userId);
+        const updated = await patchUser(userId, { [field]: next }, { errorPrefix: 'Failed to update balance' });
+        if (updated) setStaff(staff.map(s => (s.id === userId ? { ...s, [field]: updated[field] } : s)));
         setUpdating(null);
     };
 
@@ -92,63 +115,36 @@ export default function AdminStaffPage() {
         const roleLabel = newRole === 'part_timer' ? 'Part-timer' : newRole.charAt(0).toUpperCase() + newRole.slice(1);
         if (!confirm(`Are you sure you want to change this user's role to ${roleLabel}?`)) return;
         setUpdating(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ role: newRole })
-            .eq('id', userId);
-
-        if (!error) {
-            setStaff(staff.map(s =>
-                s.id === userId
-                    ? { ...s, role: newRole }
-                    : s
-            ));
-        }
+        const updated = await patchUser(userId, { role: newRole }, { errorPrefix: 'Failed to change role' });
+        if (updated) setStaff(staff.map(s => (s.id === userId ? { ...s, role: updated.role } : s)));
         setUpdating(null);
     };
 
     const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
         const action = currentStatus ? 'disable' : 'enable';
         if (!confirm(`Are you sure you want to ${action} this user? ${currentStatus ? 'They will not be able to access the system.' : 'They will regain access to the system.'}`)) return;
-
         setUpdating(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ is_active: !currentStatus })
-            .eq('id', userId);
-
-        if (!error) {
-            setStaff(staff.map(s =>
-                s.id === userId
-                    ? { ...s, is_active: !currentStatus }
-                    : s
-            ));
-        } else {
-            toast(`Failed to ${action} user: ${error.message}`, 'error');
-        }
+        const updated = await patchUser(
+            userId,
+            { is_active: !currentStatus },
+            { errorPrefix: `Failed to ${action} user` },
+        );
+        if (updated) setStaff(staff.map(s => (s.id === userId ? { ...s, is_active: updated.is_active } : s)));
         setUpdating(null);
     };
 
     const removeUser = async (userId: string, userName: string) => {
         if (!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY DELETE ${userName}?\n\nThis will:\n- Delete their profile\n- Remove all their leave requests\n- Remove all their task assignments\n\nThis action CANNOT be undone!`)) return;
-
-        // Double confirmation for destructive action
-        if (!confirm(`Final confirmation: Type DELETE in the next prompt to confirm deletion of ${userName}`)) return;
+        if (!confirm(`Final confirmation: delete ${userName}? This cannot be undone.`)) return;
 
         setUpdating(userId);
-
-        const { error } = await supabase
-            .from('profiles')
-            .delete()
-            .eq('id', userId);
-
-        if (!error) {
+        const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        const { ok, error } = await jsonOrError(res);
+        if (ok) {
             setStaff(staff.filter(s => s.id !== userId));
             toast(`${userName} has been removed from the system.`, 'success');
         } else {
-            toast(`Failed to remove user: ${error.message}`, 'error');
+            toast(`Failed to remove user: ${error}`, 'error');
         }
         setUpdating(null);
     };
@@ -157,23 +153,42 @@ export default function AdminStaffPage() {
         const rate = parseFloat(rateInput);
         if (isNaN(rate) || rate <= 0) return;
         setUpdating(userId);
-        const { error } = await supabase
-            .from('profiles')
-            .update({ hourly_rate: rate })
-            .eq('id', userId);
-        if (!error) {
-            setStaff(staff.map(s => s.id === userId ? { ...s, hourly_rate: rate } : s));
-            toast(`Hourly rate updated to S$${rate}/hr`, 'success');
-        } else {
-            toast(`Failed to update rate: ${error.message}`, 'error');
-        }
+        const updated = await patchUser(
+            userId,
+            { hourly_rate: rate },
+            { errorPrefix: 'Failed to update rate', successToast: `Hourly rate updated to S$${rate}/hr` },
+        );
+        if (updated) setStaff(staff.map(s => (s.id === userId ? { ...s, hourly_rate: updated.hourly_rate } : s)));
         setEditingRate(null);
         setUpdating(null);
     };
 
+    const resetPin = async (userId: string, userName: string) => {
+        if (!confirm(`Generate a new PIN for ${userName}? Their old PIN will stop working immediately.`)) return;
+        setUpdating(userId);
+        const res = await fetch(`/api/admin/users/${userId}/reset-pin`, { method: 'POST' });
+        const { ok, data, error } = await jsonOrError(res);
+        if (ok) {
+            const member = staff.find(s => s.id === userId);
+            setCreatedCreds({
+                phone: member?.phone_e164 ?? '',
+                tempPin: (data as { tempPin: string }).tempPin,
+                name: userName,
+            });
+            toast('PIN reset — share the new PIN with the user', 'success');
+        } else {
+            toast(`Failed to reset PIN: ${error}`, 'error');
+        }
+        setUpdating(null);
+    };
+
     const createStaff = async () => {
-        if (!newStaff.full_name.trim() || !newStaff.email.trim()) {
-            toast('Name and email are required', 'error');
+        if (!newStaff.full_name.trim() || !newStaff.phone.trim() || !newStaff.pin.trim()) {
+            toast('Name, phone, and PIN are required', 'error');
+            return;
+        }
+        if (!/^\d{6}$/.test(newStaff.pin.trim())) {
+            toast('PIN must be exactly 6 digits', 'error');
             return;
         }
         if (newStaff.role === 'part_timer' && !newStaff.hourly_rate) {
@@ -182,35 +197,26 @@ export default function AdminStaffPage() {
         }
         setCreating(true);
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData.session?.access_token;
-            if (!token) {
-                toast('Session expired — please sign in again', 'error');
-                setCreating(false);
-                return;
-            }
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     full_name: newStaff.full_name.trim(),
-                    email: newStaff.email.trim(),
-                    phone: newStaff.phone.trim() || null,
+                    phone: newStaff.phone.trim(),
+                    job_title: newStaff.job_title.trim() || null,
+                    pin: newStaff.pin.trim(),
                     hourly_rate: newStaff.hourly_rate ? parseFloat(newStaff.hourly_rate) : null,
                     role: newStaff.role,
                 }),
             });
-            const payload = await res.json();
-            if (!res.ok) {
-                toast(payload.error ?? 'Failed to create user', 'error');
-                setCreating(false);
+            const { ok, data, error } = await jsonOrError(res);
+            if (!ok) {
+                toast(error ?? 'Failed to create user', 'error');
                 return;
             }
-            setCreatedCreds({ email: payload.email, tempPassword: payload.tempPassword });
-            setNewStaff({ full_name: '', email: '', phone: '', hourly_rate: '', role: 'staff' });
+            const payload = data as { phone_e164: string; tempPin: string; full_name: string };
+            setCreatedCreds({ phone: payload.phone_e164, tempPin: payload.tempPin, name: payload.full_name });
+            setNewStaff({ full_name: '', phone: '', job_title: '', pin: '', hourly_rate: '', role: 'staff' });
             setShowAddForm(false);
             await fetchStaff();
             toast('Staff account created', 'success');
@@ -223,7 +229,7 @@ export default function AdminStaffPage() {
 
     const copyCreds = async () => {
         if (!createdCreds) return;
-        const text = `Email: ${createdCreds.email}\nTemporary password: ${createdCreds.tempPassword}`;
+        const text = `Name: ${createdCreds.name}\nPhone: ${createdCreds.phone}\nPIN: ${createdCreds.tempPin}`;
         try {
             await navigator.clipboard.writeText(text);
             toast('Copied to clipboard', 'success');
@@ -307,24 +313,40 @@ export default function AdminStaffPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="form-label">Email *</label>
+                                        <label className="form-label">Mobile number *</label>
                                         <input
-                                            type="email"
+                                            type="tel"
+                                            inputMode="tel"
+                                            autoComplete="tel"
                                             className="form-input"
-                                            value={newStaff.email}
-                                            onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
-                                            placeholder="staff@example.com"
+                                            value={newStaff.phone}
+                                            onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
+                                            placeholder="+6591234567 or 91234567"
                                             disabled={creating}
                                         />
                                     </div>
                                     <div>
-                                        <label className="form-label">Phone</label>
+                                        <label className="form-label">Job title</label>
                                         <input
-                                            type="tel"
+                                            type="text"
                                             className="form-input"
-                                            value={newStaff.phone}
-                                            onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
-                                            placeholder="Optional"
+                                            value={newStaff.job_title}
+                                            onChange={e => setNewStaff({ ...newStaff, job_title: e.target.value })}
+                                            placeholder="e.g. Barista"
+                                            disabled={creating}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">6-digit PIN *</label>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="\d{6}"
+                                            maxLength={6}
+                                            className="form-input"
+                                            value={newStaff.pin}
+                                            onChange={e => setNewStaff({ ...newStaff, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                                            placeholder="123456"
                                             disabled={creating}
                                         />
                                     </div>
@@ -369,17 +391,17 @@ export default function AdminStaffPage() {
                         )}
                     </section>
 
-                    {/* Credentials display — shown once after creation */}
+                    {/* Credentials display — shown once after creation or PIN reset */}
                     {createdCreds && (
                         <section className="section animate-in">
                             <div className="card" style={{ border: '2px solid var(--color-primary)' }}>
-                                <div className="card-title">Account Created</div>
+                                <div className="card-title">Credentials</div>
                                 <p className="card-subtitle mb-md">
-                                    Share these credentials with the new staff member. They will not be shown again.
+                                    Share these with {createdCreds.name}. They will not be shown again.
                                 </p>
                                 <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
-                                    <div><strong>Email:</strong> {createdCreds.email}</div>
-                                    <div><strong>Temp password:</strong> {createdCreds.tempPassword}</div>
+                                    <div><strong>Phone:</strong> {createdCreds.phone}</div>
+                                    <div><strong>PIN:</strong> {createdCreds.tempPin}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button className="btn btn-outline" onClick={copyCreds}>
@@ -403,7 +425,7 @@ export default function AdminStaffPage() {
                                 <UserIcon size={48} />
                             </div>
                             <div className="empty-state-title">No staff yet</div>
-                            <p>Staff will appear here once they sign up</p>
+                            <p>Add your first staff member above</p>
                         </div>
                     ) : (
                         <section className="section animate-in">
@@ -445,12 +467,14 @@ export default function AdminStaffPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="staff-email">{member.email}</div>
+                                                <div className="staff-email">
+                                                    {member.phone_e164}
+                                                    {member.job_title ? ` · ${member.job_title}` : ''}
+                                                </div>
 
                                                 {/* Action Buttons */}
                                                 {!isCurrentUser && (
                                                     <div style={{ marginTop: '0.5rem' }}>
-                                                        {/* Role assignment — not shown for owner members or current user */}
                                                         {!isMemberOwner && (
                                                             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
                                                                 <button
@@ -488,6 +512,15 @@ export default function AdminStaffPage() {
                                                             </div>
                                                         )}
                                                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                            <button
+                                                                onClick={() => resetPin(member.id, member.full_name)}
+                                                                className="btn btn-xs btn-outline"
+                                                                style={{ fontSize: '0.7rem' }}
+                                                                disabled={!!updating}
+                                                            >
+                                                                <KeyRound size={12} style={{ marginRight: '4px' }} />
+                                                                Reset PIN
+                                                            </button>
                                                             <button
                                                                 onClick={() => toggleUserStatus(member.id, member.is_active)}
                                                                 className={`btn btn-xs ${isDisabled ? 'btn-success' : 'btn-outline'}`}
@@ -554,7 +587,6 @@ export default function AdminStaffPage() {
                                         )}
 
                                         <div className="balance-controls">
-                                            {/* Annual Leave */}
                                             <div className="balance-control">
                                                 <div className="balance-label">
                                                     <Palmtree size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
@@ -578,7 +610,6 @@ export default function AdminStaffPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Medical Leave */}
                                             <div className="balance-control">
                                                 <div className="balance-label">
                                                     <Stethoscope size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />

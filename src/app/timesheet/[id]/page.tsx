@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Timesheet, TimesheetEntry } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -14,18 +13,24 @@ import TimesheetEntryRow, { RowState } from '@/components/TimesheetEntryRow';
 
 const SHORT_MONTH = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
-// ─── Row state ────────────────────────────────────────────────────────────────
+async function jsonOrError<T = unknown>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+      ? (body as { error: string }).error
+      : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
+}
 
 function emptyRow(): RowState {
   return { startRaw: '', endRaw: '', startTime: null, endTime: null, breakHours: 0, remarks: '', notesOpen: false, entryId: null };
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function TimesheetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const supabase = createClient();
   const { user, profile, loading: authLoading } = useAuth();
 
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
@@ -49,38 +54,38 @@ export default function TimesheetDetailPage() {
   }, 0);
 
   const load = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
-    const [{ data: ts }, { data: ents }] = await Promise.all([
-      supabase.from('timesheets').select('*').eq('id', id).single(),
-      supabase.from('timesheet_entries').select('*').eq('timesheet_id', id),
-    ]);
-    if (!ts) { setLoading(false); return; }
-    setTimesheet(ts as Timesheet);
-    const map: Record<string, RowState> = {};
-    for (const e of (ents ?? []) as TimesheetEntry[]) {
-      map[e.entry_date] = {
-        startRaw: e.start_time ? fmt12(e.start_time) : '',
-        endRaw: e.end_time ? fmt12(e.end_time) : '',
-        startTime: e.start_time,
-        endTime: e.end_time,
-        breakHours: e.break_hours,
-        remarks: e.remarks ?? '',
-        notesOpen: !!e.remarks,
-        entryId: e.id,
-      };
+    try {
+      const data = await jsonOrError<{ timesheet: Timesheet; entries: TimesheetEntry[] }>(
+        await fetch(`/api/timesheets/${id}`),
+      );
+      setTimesheet(data.timesheet);
+      const map: Record<string, RowState> = {};
+      for (const e of data.entries ?? []) {
+        map[e.entry_date] = {
+          startRaw: e.start_time ? fmt12(e.start_time) : '',
+          endRaw: e.end_time ? fmt12(e.end_time) : '',
+          startTime: e.start_time,
+          endTime: e.end_time,
+          breakHours: e.break_hours,
+          remarks: e.remarks ?? '',
+          notesOpen: !!e.remarks,
+          entryId: e.id,
+        };
+      }
+      setRows(map);
+    } catch (err) {
+      console.error('Failed to load timesheet:', err);
+    } finally {
+      setLoading(false);
     }
-    setRows(map);
-    setLoading(false);
-  }, [id, user]);
+  }, [id]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
     load();
-  }, [user, authLoading, load]);
-
-  // ─── Save helpers ───────────────────────────────────────────────────────────
+  }, [user, authLoading, load, router]);
 
   async function saveRowData(
     date: string,
@@ -89,41 +94,53 @@ export default function TimesheetDetailPage() {
     const { startTime, endTime, breakHours, remarks, entryId } = data;
     setSavingDate(date);
 
-    if (!startTime && !endTime) {
+    try {
+      if (!startTime && !endTime) {
+        if (entryId) {
+          await jsonOrError(await fetch(`/api/timesheet-entries/${entryId}`, { method: 'DELETE' }));
+          setRows(prev => ({ ...prev, [date]: { ...prev[date], entryId: null } }));
+        }
+        return;
+      }
+
+      if (!startTime || !endTime) return;
+
+      const total_hours = computeHours(startTime, endTime, breakHours);
+
       if (entryId) {
-        await supabase.from('timesheet_entries').delete().eq('id', entryId);
-        setRows(prev => ({ ...prev, [date]: { ...prev[date], entryId: null } }));
+        await jsonOrError(await fetch(`/api/timesheet-entries/${entryId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start_time: startTime,
+            end_time: endTime,
+            break_hours: breakHours,
+            total_hours,
+            remarks: remarks || null,
+          }),
+        }));
+      } else {
+        const created = await jsonOrError<{ entry: TimesheetEntry }>(await fetch(`/api/timesheets/${id}/entries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entry_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            break_hours: breakHours,
+            total_hours,
+            remarks: remarks || null,
+          }),
+        }));
+        setRows(prev => ({ ...prev, [date]: { ...prev[date], entryId: created.entry.id } }));
       }
+    } catch (err) {
+      console.error('Failed to save row:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save entry');
+    } finally {
       setSavingDate(null);
-      return;
     }
-
-    if (!startTime || !endTime) { setSavingDate(null); return; }
-
-    const total_hours = computeHours(startTime, endTime, breakHours);
-
-    if (entryId) {
-      await supabase.from('timesheet_entries').update({
-        start_time: startTime, end_time: endTime,
-        break_hours: breakHours, total_hours,
-        remarks: remarks || null,
-      }).eq('id', entryId);
-    } else {
-      const { data: newEntry } = await supabase.from('timesheet_entries').insert({
-        timesheet_id: id, entry_date: date,
-        start_time: startTime, end_time: endTime,
-        break_hours: breakHours, total_hours,
-        remarks: remarks || null,
-      }).select().single();
-      if (newEntry) {
-        setRows(prev => ({ ...prev, [date]: { ...prev[date], entryId: (newEntry as TimesheetEntry).id } }));
-      }
-    }
-
-    setSavingDate(null);
   }
-
-  // ─── Row handlers ───────────────────────────────────────────────────────────
 
   function handleRowChange(date: string, updates: Partial<RowState>) {
     setRows(prev => ({ ...prev, [date]: { ...(prev[date] ?? emptyRow()), ...updates } }));
@@ -133,58 +150,51 @@ export default function TimesheetDetailPage() {
     if (isDraft) saveRowData(date, updatedRow);
   }
 
-  // ─── Submit / sign ──────────────────────────────────────────────────────────
+  async function patchTimesheet(body: Record<string, unknown>) {
+    return jsonOrError<{ timesheet: Timesheet }>(await fetch(`/api/timesheets/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }));
+  }
 
   async function handleSign(dataUrl: string) {
     if (!timesheet) return;
-    const { error: err } = await supabase
-      .from('timesheets')
-      .update({ employee_signature: dataUrl })
-      .eq('id', timesheet.id);
-    if (err) { setError(err.message); return; }
-    setTimesheet(prev => prev ? { ...prev, employee_signature: dataUrl } : prev);
-    setSignModal(false);
+    try {
+      const { timesheet: updated } = await patchTimesheet({ employee_signature: dataUrl });
+      setTimesheet(updated);
+      setSignModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save signature');
+    }
   }
 
   async function submitTimesheet() {
     if (!timesheet) return;
     setSubmitting(true);
     setError('');
-    // .select() forces RLS violations to surface as 0 rows rather than a
-    // silent no-op. Without this, an RLS block would leave the DB row
-    // unchanged while the UI optimistically reports success.
-    const { data, error: err } = await supabase
-      .from('timesheets')
-      .update({ status: 'submitted' })
-      .eq('id', timesheet.id)
-      .select();
-    if (err) { setError(err.message); setSubmitting(false); return; }
-    if (!data || data.length === 0) {
-      setError('Could not submit — permission denied. Please reload and try again.');
+    try {
+      const { timesheet: updated } = await patchTimesheet({ status: 'submitted' });
+      setTimesheet(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit');
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setTimesheet(prev => prev ? { ...prev, status: 'submitted' } : prev);
-    setSubmitting(false);
   }
 
   async function reopenTimesheet() {
     if (!timesheet) return;
     setReopening(true);
     setError('');
-    const { data, error: err } = await supabase
-      .from('timesheets')
-      .update({ status: 'draft', rejection_reason: null, employee_signature: null })
-      .eq('id', timesheet.id)
-      .select();
-    if (err) { setError(err.message); setReopening(false); return; }
-    if (!data || data.length === 0) {
-      setError('Could not reopen — permission denied. Please reload and try again.');
+    try {
+      const { timesheet: updated } = await patchTimesheet({ status: 'draft' });
+      setTimesheet(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reopen');
+    } finally {
       setReopening(false);
-      return;
     }
-    setTimesheet(prev => prev ? { ...prev, status: 'draft', rejection_reason: null, employee_signature: null } : prev);
-    setReopening(false);
   }
 
   async function exportExcel() {
@@ -202,11 +212,10 @@ export default function TimesheetDetailPage() {
       URL.revokeObjectURL(url);
     } catch {
       setError('Export failed. Try again.');
+    } finally {
+      setExporting(false);
     }
-    setExporting(false);
   }
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
 
   if (authLoading || loading) {
     return (
@@ -235,7 +244,6 @@ export default function TimesheetDetailPage() {
       <Header />
       <main className="page" style={{ paddingBottom: 120 }}>
 
-        {/* ── Dark header ── */}
         <div style={{
           background: 'var(--color-gray-dark)', color: 'var(--color-white)',
           padding: 'var(--space-lg) var(--space-md)',
@@ -279,7 +287,6 @@ export default function TimesheetDetailPage() {
 
         <div className="container">
 
-          {/* ── Rejection notice ── */}
           {timesheet.status === 'rejected' && timesheet.rejection_reason && (
             <div className="section animate-in" style={{ marginTop: 'var(--space-lg)' }}>
               <div style={{ background: 'var(--color-rust)', color: 'var(--color-white)', padding: 'var(--space-md)', borderLeft: '4px solid var(--color-black)' }}>
@@ -309,10 +316,8 @@ export default function TimesheetDetailPage() {
             </div>
           )}
 
-          {/* ── Day grid ── */}
           <div className="section animate-in" style={{ marginTop: 'var(--space-lg)', overflowX: 'auto' }}>
 
-            {/* Column headers */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: '44px 1fr 1fr 52px 44px 28px',
@@ -328,7 +333,6 @@ export default function TimesheetDetailPage() {
               ))}
             </div>
 
-            {/* Day rows */}
             {days.map(date => (
               <TimesheetEntryRow
                 key={date}
@@ -344,7 +348,6 @@ export default function TimesheetDetailPage() {
 
           {error && <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-md)' }}>{error}</p>}
 
-          {/* ── Download (submitted / approved) ── */}
           {(timesheet.status === 'submitted' || timesheet.status === 'approved') && (
             <div className="section animate-in">
               <button
@@ -361,7 +364,6 @@ export default function TimesheetDetailPage() {
         </div>
       </main>
 
-      {/* ── Fixed bottom action bar (draft only) ── */}
       {isDraft && (
         <div style={{
           position: 'fixed', bottom: 'var(--bottom-nav-height)', left: 0, right: 0,

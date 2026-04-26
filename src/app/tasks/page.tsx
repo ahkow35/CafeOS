@@ -1,19 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Task } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
-import { CheckSquare, AlertTriangle, CalendarDays, Sunrise, CalendarRange, ChevronDown, ChevronUp, PartyPopper } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Sunrise, CalendarRange, ChevronDown, ChevronUp, PartyPopper } from 'lucide-react';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
 
 export default function TasksPage() {
-    const { user, profile, loading } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
@@ -27,46 +36,27 @@ export default function TasksPage() {
         }
     }, [user, loading, router]);
 
-    useEffect(() => {
-        if (user) {
-            fetchTasks();
-        }
-    }, [user]);
-
-    const fetchTasks = async () => {
+    const fetchTasks = useCallback(async () => {
         setFetchError(null);
         try {
-            // Fetch pending tasks
-            const { data: pendingData, error: pendingError } = await supabase
-                .from('tasks')
-                .select('*')
-                .eq('status', 'pending')
-                .order('deadline', { ascending: true });
-
-            if (pendingError) throw pendingError;
-            setTasks((pendingData as Task[]) ?? []);
-
-            // Fetch completed tasks (last 7 days)
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-
-            const { data: completedData, error: completedError } = await supabase
-                .from('tasks')
-                .select('*')
-                .eq('status', 'done')
-                .gte('completed_at', weekAgo.toISOString())
-                .order('completed_at', { ascending: false })
-                .limit(10);
-
-            if (completedError) throw completedError;
-            setCompletedTasks((completedData as Task[]) ?? []);
+            const [mine, recent] = await Promise.all([
+                jsonOrError(await fetch('/api/tasks?scope=mine')) as Promise<{ tasks: Task[] }>,
+                jsonOrError(await fetch('/api/tasks?scope=recent-done')) as Promise<{ tasks: Task[] }>,
+            ]);
+            const allMine = mine.tasks ?? [];
+            setTasks(allMine.filter(t => t.status === 'pending'));
+            setCompletedTasks(recent.tasks ?? []);
         } catch (err) {
             console.error('Failed to load tasks:', err);
             setFetchError('Failed to load tasks. Please try again.');
         } finally {
             setTasksLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (user) fetchTasks();
+    }, [user, fetchTasks]);
 
     const groupTasksByDate = (tasks: Task[]) => {
         const today = new Date();
@@ -139,7 +129,6 @@ export default function TasksPage() {
                         </div>
                     ) : (
                         <>
-                            {/* Overdue */}
                             {overdue.length > 0 && (
                                 <section className="section animate-in">
                                     <h2 className="section-title text-danger">
@@ -152,7 +141,6 @@ export default function TasksPage() {
                                 </section>
                             )}
 
-                            {/* Today */}
                             {todayTasks.length > 0 && (
                                 <section className="section animate-in">
                                     <h2 className="section-title">
@@ -165,7 +153,6 @@ export default function TasksPage() {
                                 </section>
                             )}
 
-                            {/* Tomorrow */}
                             {tomorrowTasks.length > 0 && (
                                 <section className="section animate-in">
                                     <h2 className="section-title">
@@ -178,7 +165,6 @@ export default function TasksPage() {
                                 </section>
                             )}
 
-                            {/* Upcoming */}
                             {upcoming.length > 0 && (
                                 <section className="section animate-in">
                                     <h2 className="section-title">
@@ -193,7 +179,6 @@ export default function TasksPage() {
                         </>
                     )}
 
-                    {/* Completed Tasks Toggle */}
                     {completedTasks.length > 0 && (
                         <section className="section animate-in">
                             <button

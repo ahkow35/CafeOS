@@ -3,6 +3,7 @@
 import { LeaveRequest } from '@/lib/database.types';
 import { formatDateLong } from '@/lib/dateUtils';
 import { FileText, Calendar } from 'lucide-react';
+import { openMedicalCert } from '@/lib/storageUtils';
 
 interface DecisionTicketProps {
     request: LeaveRequest;
@@ -107,16 +108,14 @@ export default function DecisionTicket({
                             </div>
                         )}
                         {request.attachment_url && (
-                            <a
-                                href={request.attachment_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                onClick={() => openMedicalCert(request.attachment_url!)}
                                 className="btn btn-sm"
-                                style={{ textDecoration: 'none', marginTop: '0.5rem' }}
+                                style={{ marginTop: '0.5rem' }}
                             >
                                 <FileText size={14} />
                                 VIEW PROOF
-                            </a>
+                            </button>
                         )}
                     </div>
                 )}

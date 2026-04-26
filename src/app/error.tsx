@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { Home, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function Error({
@@ -71,7 +72,7 @@ export default function Error({
                         <span>Try Again</span>
                     </button>
 
-                    <a
+                    <Link
                         href="/"
                         className="btn btn-ghost"
                         style={{
@@ -82,7 +83,7 @@ export default function Error({
                     >
                         <Home size={18} />
                         <span>Back to Home</span>
-                    </a>
+                    </Link>
                 </div>
             </div>
         </div>

@@ -1,25 +1,33 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { createClient } from '@/lib/supabase';
 import { Task, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
-import { CheckSquare, Plus, History, ClipboardList, ArrowLeft, Users, User as UserIcon, Check } from 'lucide-react';
+import { Plus, History, ClipboardList, ArrowLeft, Check } from 'lucide-react';
+
+async function jsonOrError(res: Response): Promise<unknown> {
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
+            ? (body as { error: string }).error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
+    }
+    return res.json();
+}
 
 export default function AdminTasksPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
-    const supabase = createClient();
 
     const [staff, setStaff] = useState<User[]>([]);
     const [recentTasks, setRecentTasks] = useState<Task[]>([]);
     const [tasksLoading, setTasksLoading] = useState(true);
 
-    // Form state
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [deadline, setDeadline] = useState('');
@@ -30,38 +38,27 @@ export default function AdminTasksPage() {
 
     const isManagerOrOwner = profile?.role === 'manager' || profile?.role === 'owner';
 
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        } else if (!loading && profile && !isManagerOrOwner) {
-            router.push('/');
+    const fetchData = useCallback(async () => {
+        try {
+            const [profilesRes, tasksRes] = await Promise.all([
+                jsonOrError(await fetch('/api/profiles')) as Promise<{ users: User[] }>,
+                jsonOrError(await fetch('/api/tasks?scope=recent-done')) as Promise<{ tasks: Task[] }>,
+            ]);
+            setStaff(profilesRes.users ?? []);
+            setRecentTasks(tasksRes.tasks ?? []);
+        } catch (err) {
+            console.error('Failed to fetch admin tasks data:', err);
+        } finally {
+            setTasksLoading(false);
         }
-    }, [user, profile, loading, router, isManagerOrOwner]);
+    }, []);
 
     useEffect(() => {
-        if (isManagerOrOwner) {
-            fetchData();
-        }
-    }, [profile, isManagerOrOwner]);
-
-    const fetchData = async () => {
-        const [{ data: staffData }, { data: tasksData }] = await Promise.all([
-            supabase
-                .from('profiles')
-                .select('id, full_name')
-                .order('full_name', { ascending: true }),
-            supabase
-                .from('tasks')
-                .select('*')
-                .eq('status', 'done')
-                .order('completed_at', { ascending: false })
-                .limit(10),
-        ]);
-
-        if (staffData) setStaff(staffData as User[]);
-        if (tasksData) setRecentTasks(tasksData as Task[]);
-        setTasksLoading(false);
-    };
+        if (loading) return;
+        if (!user) { router.push('/login'); return; }
+        if (profile && !isManagerOrOwner) { router.push('/'); return; }
+        if (isManagerOrOwner) fetchData();
+    }, [user, profile, loading, isManagerOrOwner, fetchData, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,42 +69,39 @@ export default function AdminTasksPage() {
             setError('Please enter a task title');
             return;
         }
-
         if (!deadline) {
             setError('Please select a deadline');
             return;
         }
 
         setSubmitting(true);
-
-        const { error: submitError } = await supabase
-            .from('tasks')
-            .insert({
-                title: title.trim(),
-                description: description.trim() || null,
-                deadline: new Date(deadline).toISOString(),
-                assigned_to: assignedTo,
-                status: 'pending',
-                created_by: user?.id,
-            });
-
-        if (submitError) {
-            setError(submitError.message);
-        } else {
+        try {
+            await jsonOrError(await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: title.trim(),
+                    description: description.trim() || null,
+                    deadline: new Date(deadline).toISOString(),
+                    assigned_to: assignedTo,
+                }),
+            }));
             setSuccess('Task created successfully!');
             setTitle('');
             setDescription('');
             setDeadline('');
             setAssignedTo('all');
             fetchData();
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to create task');
+        } finally {
+            setSubmitting(false);
         }
-
-        setSubmitting(false);
     };
 
-    const getAssigneeName = (assignedTo: string) => {
-        if (assignedTo === 'all') return 'Everyone';
-        const member = staff.find(s => s.id === assignedTo);
+    const getAssigneeName = (assignedToId: string) => {
+        if (assignedToId === 'all') return 'Everyone';
+        const member = staff.find(s => s.id === assignedToId);
         return member?.full_name || 'Unknown';
     };
 
@@ -131,7 +125,6 @@ export default function AdminTasksPage() {
                         <p className="page-subtitle">Create and track team tasks</p>
                     </section>
 
-                    {/* Create Task Form */}
                     <section className="section animate-in">
                         <h2 className="section-title">
                             <Plus size={20} />
@@ -221,7 +214,6 @@ export default function AdminTasksPage() {
                         </form>
                     </section>
 
-                    {/* Recent Completed Tasks */}
                     <section className="section animate-in">
                         <h2 className="section-title">
                             <History size={20} />
