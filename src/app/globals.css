@@ -461,7 +461,7 @@ a:hover {
 
 .badge-neutral {
   background: var(--color-bg-hover);
-  color: var(--color-text-secondary);
+  color: var(--color-bg);
 }
 
 /* ==================== Stats/Balance Cards - BRUTALIST ==================== */
