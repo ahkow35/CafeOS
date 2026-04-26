@@ -53,6 +53,8 @@ export default function AdminStaffPage() {
         role: 'staff' as User['role'],
     });
     const [createdCreds, setCreatedCreds] = useState<{ phone: string; tempPin: string; name: string } | null>(null);
+    const [resetPinModal, setResetPinModal] = useState<{ userId: string; userName: string; phone: string } | null>(null);
+    const [resetPinValue, setResetPinValue] = useState('');
 
     const isOwner = profile?.role === 'owner';
 
@@ -163,22 +165,36 @@ export default function AdminStaffPage() {
         setUpdating(null);
     };
 
-    const resetPin = async (userId: string, userName: string) => {
-        if (!confirm(`Generate a new PIN for ${userName}? Their old PIN will stop working immediately.`)) return;
-        setUpdating(userId);
-        const res = await fetch(`/api/admin/users/${userId}/reset-pin`, { method: 'POST' });
+    const resetPin = (userId: string, userName: string) => {
+        const member = staff.find(s => s.id === userId);
+        setResetPinValue('');
+        setResetPinModal({ userId, userName, phone: member?.phone_e164 ?? '' });
+    };
+
+    const confirmResetPin = async () => {
+        if (!resetPinModal) return;
+        if (!/^\d{6}$/.test(resetPinValue)) {
+            toast('PIN must be exactly 6 digits', 'error');
+            return;
+        }
+        setUpdating(resetPinModal.userId);
+        const res = await fetch(`/api/admin/users/${resetPinModal.userId}/reset-pin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: resetPinValue }),
+        });
         const { ok, data, error } = await jsonOrError(res);
         if (ok) {
-            const member = staff.find(s => s.id === userId);
             setCreatedCreds({
-                phone: member?.phone_e164 ?? '',
+                phone: resetPinModal.phone,
                 tempPin: (data as { tempPin: string }).tempPin,
-                name: userName,
+                name: resetPinModal.userName,
             });
-            toast('PIN reset — share the new PIN with the user', 'success');
+            toast('PIN updated — share the new credentials with the user', 'success');
         } else {
-            toast(`Failed to reset PIN: ${error}`, 'error');
+            toast(`Failed to update PIN: ${error}`, 'error');
         }
+        setResetPinModal(null);
         setUpdating(null);
     };
 
@@ -655,6 +671,50 @@ export default function AdminStaffPage() {
                 </div>
             </main>
             <BottomNav />
+
+            {resetPinModal && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
+                    onClick={() => setResetPinModal(null)}
+                >
+                    <div
+                        style={{ background: 'var(--color-bg)', width: '100%', borderTop: '3px solid var(--color-border)', padding: 'var(--spacing-lg)', paddingBottom: 'calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px))' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' }}>
+                            Set New PIN
+                        </h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+                            Setting PIN for <strong>{resetPinModal.userName}</strong>. Their current PIN will stop working immediately.
+                        </p>
+                        <label className="form-label">New 6-digit PIN</label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            className="form-input"
+                            value={resetPinValue}
+                            onChange={e => setResetPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="123456"
+                            autoFocus
+                            style={{ marginBottom: '1rem' }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setResetPinModal(null)}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                style={{ flex: 1 }}
+                                onClick={confirmResetPin}
+                                disabled={resetPinValue.length !== 6}
+                            >
+                                Set PIN &amp; Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
