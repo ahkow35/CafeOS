@@ -102,7 +102,7 @@ export async function GET(
     for (const e of entryRows) {
       entryByDay[parseInt(e.entry_date.split('-')[2])] = e;
     }
-    const totalHours = entryRows.reduce((s: number, e: TimesheetEntry) => s + (e.total_hours ?? 0), 0);
+    const totalHours = entryRows.reduce((s: number, e: TimesheetEntry) => s + Number(e.total_hours ?? 0), 0);
 
     // ── Load XLSX template ─────────────────────────────────────────────────────
     const templatePath = path.join(process.cwd(), 'docs', 'RoundboyRoasters Timesheet.xlsx');

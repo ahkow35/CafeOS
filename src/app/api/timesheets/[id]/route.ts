@@ -94,7 +94,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const { profile_full_name, profile_phone_e164, profile_role, profile_hourly_rate, profile_email, ...ts } = r;
     return NextResponse.json({
       timesheet: ts,
-      entries,
+      entries: entries.map(e => ({
+        ...e,
+        break_hours: Number(e.break_hours),
+        total_hours: Number(e.total_hours),
+      })),
       profile: {
         full_name: profile_full_name,
         phone_e164: profile_phone_e164,

@@ -116,7 +116,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return r.rows[0];
     });
 
-    return NextResponse.json({ entry: updated });
+    return NextResponse.json({ entry: {
+      ...updated,
+      break_hours: Number(updated.break_hours),
+      total_hours: Number(updated.total_hours),
+    } });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {

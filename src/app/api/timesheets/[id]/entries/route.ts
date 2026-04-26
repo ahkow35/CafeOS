@@ -99,7 +99,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return r.rows[0];
     });
 
-    return NextResponse.json({ entry: created }, { status: 201 });
+    return NextResponse.json({ entry: {
+      ...created,
+      break_hours: Number(created.break_hours),
+      total_hours: Number(created.total_hours),
+    } }, { status: 201 });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {

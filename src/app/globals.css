@@ -980,19 +980,25 @@ a:hover {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  border: none;
-  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   color: var(--color-text);
   font-size: var(--font-size-lg);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.balance-btn:hover {
-  background: var(--color-primary);
+.balance-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-bg);
+}
+
+.balance-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .balance-value {
