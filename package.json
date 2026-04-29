@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:data": "tsx scripts/migrate-supabase-to-neon.ts",
     "backfill:phones": "tsx scripts/backfill-phones.ts"
   },
   "dependencies": {
