@@ -24,7 +24,7 @@ interface OwnerCheckRow {
   id: string;
   timesheet_id: string;
   user_id: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 }
 
 async function loadOwnership(entryId: string): Promise<OwnerCheckRow | null> {

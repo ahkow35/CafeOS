@@ -235,8 +235,16 @@ export default function TimesheetDetailPage() {
   const STATUS_COLORS: Record<string, string> = {
     draft: 'var(--color-gray)',
     submitted: 'var(--color-orange)',
+    pending_owner: '#a78bfa',
     approved: 'var(--color-stali-green)',
     rejected: 'var(--color-rust)',
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    draft: 'draft',
+    submitted: 'awaiting manager',
+    pending_owner: 'awaiting owner',
+    approved: 'approved',
+    rejected: 'rejected',
   };
 
   return (
@@ -280,7 +288,7 @@ export default function TimesheetDetailPage() {
               border: `1px solid ${STATUS_COLORS[timesheet.status]}`,
               padding: '3px 8px', whiteSpace: 'nowrap',
             }}>
-              {timesheet.status}
+              {STATUS_LABEL[timesheet.status] ?? timesheet.status}
             </span>
           </div>
         </div>
@@ -348,7 +356,7 @@ export default function TimesheetDetailPage() {
 
           {error && <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-md)' }}>{error}</p>}
 
-          {(timesheet.status === 'submitted' || timesheet.status === 'approved') && (
+          {(timesheet.status === 'submitted' || timesheet.status === 'pending_owner' || timesheet.status === 'approved') && (
             <div className="section animate-in">
               <button
                 onClick={exportExcel}

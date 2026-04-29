@@ -14,7 +14,8 @@ type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   draft: { label: 'Draft', color: '#6b7280' },
-  submitted: { label: 'Submitted', color: '#d97706' },
+  submitted: { label: 'Awaiting Manager', color: '#d97706' },
+  pending_owner: { label: 'Awaiting Owner', color: '#7c3aed' },
   approved: { label: 'Approved', color: '#16a34a' },
   rejected: { label: 'Rejected', color: '#dc2626' },
 };
@@ -26,7 +27,7 @@ export default function AdminTimesheetsPage() {
   const [timesheets, setTimesheets] = useState<TimesheetWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('submitted');
+  const [filter, setFilter] = useState<'all' | 'submitted' | 'pending_owner' | 'approved' | 'rejected'>('submitted');
 
   const load = useCallback(async () => {
     setFetchError(null);
@@ -91,7 +92,13 @@ export default function AdminTimesheetsPage() {
           {/* Filter tabs */}
           <section className="section animate-in">
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              {(['submitted', 'all', 'approved', 'rejected'] as const).map(f => (
+              {([
+                ['submitted', 'Awaiting Mgr'],
+                ['pending_owner', 'Awaiting Owner'],
+                ['all', 'All'],
+                ['approved', 'Approved'],
+                ['rejected', 'Rejected'],
+              ] as const).map(([f, label]) => (
                 <button key={f} onClick={() => setFilter(f)}
                   style={{
                     padding: '0.35rem 0.85rem', borderRadius: 999, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
@@ -99,7 +106,7 @@ export default function AdminTimesheetsPage() {
                     background: filter === f ? 'var(--color-primary, #1a1a2e)' : '#fff',
                     color: filter === f ? '#fff' : '#374151',
                   }}>
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {label}
                 </button>
               ))}
             </div>

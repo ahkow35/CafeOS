@@ -114,12 +114,19 @@ export default function AdminTimesheetDetailPage() {
     }
   }
 
+  /**
+   * Approve action. Manager on a 'submitted' row forwards to owner
+   * (status → pending_owner). Owner on either 'submitted' or
+   * 'pending_owner' performs final approval (status → approved).
+   */
   async function approve() {
     if (!timesheet) return;
     setSaving(true);
     setError('');
     try {
-      const data = await patchTimesheet({ status: 'approved' });
+      const isManager = profile?.role === 'manager';
+      const target = isManager ? 'pending_owner' : 'approved';
+      const data = await patchTimesheet({ status: target });
       setTimesheet(data.timesheet);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approve failed');
@@ -184,9 +191,33 @@ export default function AdminTimesheetDetailPage() {
 
   if (!timesheet) return null;
 
-  const isSubmitted = timesheet.status === 'submitted';
+  const role = profile?.role;
+  const isManager = role === 'manager';
+  const isOwner = role === 'owner';
+  // Manager can act only on the submitted stage.
+  // Owner can act on submitted (skip-manager) or pending_owner (final).
+  const canAct =
+    (isManager && timesheet.status === 'submitted') ||
+    (isOwner && (timesheet.status === 'submitted' || timesheet.status === 'pending_owner'));
+  const canSignManager =
+    timesheet.status === 'submitted' || (timesheet.status === 'pending_owner' && isOwner);
+  const hasManagerSig = !!timesheet.manager_signature;
+  const approveLabel = isManager ? 'APPROVE & FORWARD' : 'FINAL APPROVE';
   const hourlyRate = tsProfile?.hourly_rate ?? null;
   const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
+
+  const STATUS_STYLE: Record<string, { color: string; bg: string }> = {
+    draft: { color: 'var(--color-gray)', bg: 'transparent' },
+    submitted: { color: 'var(--color-black)', bg: 'var(--color-neon)' },
+    pending_owner: { color: '#7c3aed', bg: 'transparent' },
+    approved: { color: 'var(--color-success, #22c55e)', bg: 'transparent' },
+    rejected: { color: 'var(--color-rust)', bg: 'transparent' },
+  };
+  const statusStyle = STATUS_STYLE[timesheet.status] ?? STATUS_STYLE.draft;
+  const statusLabel =
+    timesheet.status === 'submitted' ? 'AWAITING MANAGER' :
+    timesheet.status === 'pending_owner' ? 'AWAITING OWNER' :
+    timesheet.status.toUpperCase();
 
   return (
     <>
@@ -213,11 +244,11 @@ export default function AdminTimesheetDetailPage() {
                 letterSpacing: '0.08em',
                 padding: '3px 10px',
                 border: '2px solid',
-                borderColor: timesheet.status === 'approved' ? 'var(--color-success, #22c55e)' : timesheet.status === 'rejected' ? 'var(--color-rust)' : timesheet.status === 'submitted' ? 'var(--color-black)' : 'var(--color-gray)',
-                color: timesheet.status === 'approved' ? 'var(--color-success, #22c55e)' : timesheet.status === 'rejected' ? 'var(--color-rust)' : timesheet.status === 'submitted' ? 'var(--color-black)' : 'var(--color-gray)',
-                background: timesheet.status === 'submitted' ? 'var(--color-neon)' : 'transparent',
+                borderColor: statusStyle.color,
+                color: statusStyle.color,
+                background: statusStyle.bg,
               }}>
-                {timesheet.status.toUpperCase()}
+                {statusLabel}
               </span>
             </div>
           </section>
@@ -327,7 +358,7 @@ export default function AdminTimesheetDetailPage() {
                     Not signed
                   </div>
                 )}
-                {isSubmitted && (
+                {canSignManager && (
                   <button
                     onClick={() => setShowManagerSignModal(true)}
                     className="btn btn-outline btn-sm"
@@ -365,19 +396,26 @@ export default function AdminTimesheetDetailPage() {
               </button>
             )}
 
-            {isSubmitted && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
-                <button onClick={() => setShowRejectModal(true)} disabled={saving}
-                  className="btn btn-danger"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <XCircle size={16} /> REJECT
-                </button>
-                <button onClick={approve} disabled={saving}
-                  className="btn btn-success"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <CheckCircle size={16} /> {saving ? '...' : 'APPROVE'}
-                </button>
-              </div>
+            {canAct && (
+              <>
+                {!hasManagerSig && (
+                  <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)' }}>
+                    Manager signature required before approval.
+                  </p>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-sm)' }}>
+                  <button onClick={() => setShowRejectModal(true)} disabled={saving}
+                    className="btn btn-danger"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <XCircle size={16} /> REJECT
+                  </button>
+                  <button onClick={approve} disabled={saving || !hasManagerSig}
+                    className="btn btn-success"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <CheckCircle size={16} /> {saving ? '...' : approveLabel}
+                  </button>
+                </div>
+              </>
             )}
 
             <button onClick={() => setShowDeleteModal(true)} disabled={deleting}

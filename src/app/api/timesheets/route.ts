@@ -11,11 +11,13 @@ interface TimesheetRow {
   id: string;
   user_id: string;
   month_year: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
   comments: string | null;
   rejection_reason: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  manager_action_by: string | null;
+  manager_action_at: string | null;
   employee_signature: string | null;
   manager_signature: string | null;
   created_at: string;
@@ -58,8 +60,8 @@ export async function GET(req: Request) {
     if (scope === 'mine') {
       const { rows } = await sql<TimesheetRow>`
         SELECT id, user_id, month_year, status, comments, rejection_reason,
-               approved_by, approved_at, employee_signature, manager_signature,
-               created_at, updated_at
+               approved_by, approved_at, manager_action_by, manager_action_at,
+               employee_signature, manager_signature, created_at, updated_at
           FROM timesheets
          WHERE user_id = ${me.id}
          ORDER BY month_year DESC
@@ -75,8 +77,8 @@ export async function GET(req: Request) {
       const status = url.searchParams.get('status');
       const { rows } = await sql<JoinedTimesheetRow>`
         SELECT t.id, t.user_id, t.month_year, t.status, t.comments, t.rejection_reason,
-               t.approved_by, t.approved_at, t.employee_signature, t.manager_signature,
-               t.created_at, t.updated_at,
+               t.approved_by, t.approved_at, t.manager_action_by, t.manager_action_at,
+               t.employee_signature, t.manager_signature, t.created_at, t.updated_at,
                p.full_name AS profile_full_name,
                p.phone_e164 AS profile_phone_e164,
                p.role AS profile_role,
@@ -132,8 +134,8 @@ export async function POST(req: Request) {
       INSERT INTO timesheets (user_id, month_year, status)
       VALUES (${me.id}, ${month_year}, 'draft')
       RETURNING id, user_id, month_year, status, comments, rejection_reason,
-                approved_by, approved_at, employee_signature, manager_signature,
-                created_at, updated_at
+                approved_by, approved_at, manager_action_by, manager_action_at,
+                employee_signature, manager_signature, created_at, updated_at
     `;
     return NextResponse.json({ timesheet: rows[0] }, { status: 201 });
   } catch (e) {

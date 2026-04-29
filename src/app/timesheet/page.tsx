@@ -23,7 +23,8 @@ async function jsonOrError(res: Response): Promise<unknown> {
 function statusBadge(status: Timesheet['status']): { label: string; color: string } {
   switch (status) {
     case 'draft': return { label: 'Draft', color: '#6b7280' };
-    case 'submitted': return { label: 'Submitted', color: '#d97706' };
+    case 'submitted': return { label: 'Awaiting Manager', color: '#d97706' };
+    case 'pending_owner': return { label: 'Awaiting Owner', color: '#7c3aed' };
     case 'approved': return { label: 'Approved', color: '#16a34a' };
     case 'rejected': return { label: 'Rejected', color: '#dc2626' };
   }

@@ -24,7 +24,7 @@ interface EntryRow {
 interface TimesheetRow {
   id: string;
   user_id: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 }
 
 function parseTime(input: unknown): string | null {

@@ -84,11 +84,13 @@ CREATE TABLE IF NOT EXISTS public.timesheets (
     user_id             UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     month_year          TEXT NOT NULL, -- 'YYYY-MM'
     status              TEXT NOT NULL DEFAULT 'draft'
-                            CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
+                            CHECK (status IN ('draft', 'submitted', 'pending_owner', 'approved', 'rejected')),
     comments            TEXT,
     rejection_reason    TEXT,
     employee_signature  TEXT,
     manager_signature   TEXT,
+    manager_action_by   UUID REFERENCES public.profiles(id),
+    manager_action_at   TIMESTAMPTZ,
     approved_by         UUID REFERENCES public.profiles(id),
     approved_at         TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),

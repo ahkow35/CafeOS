@@ -21,6 +21,7 @@ export interface Database {
           is_active: boolean;
           hourly_rate: number | null;
           email: string | null;
+          telegram_chat_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -47,6 +48,7 @@ export interface Database {
           is_active?: boolean;
           hourly_rate?: number | null;
           email?: string | null;
+          telegram_chat_id?: string | null;
           created_at?: string;
         };
       };
@@ -157,7 +159,7 @@ export type Task = Database['public']['Tables']['tasks']['Row'];
 
 export type UserRole = User['role'];
 export type LeaveStatus = LeaveRequest['status'];
-export type TimesheetStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type TimesheetStatus = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 
 export interface Timesheet {
   id: string;
@@ -168,6 +170,8 @@ export interface Timesheet {
   rejection_reason: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  manager_action_by: string | null;
+  manager_action_at: string | null;
   employee_signature: string | null;
   manager_signature: string | null;
   created_at: string;
