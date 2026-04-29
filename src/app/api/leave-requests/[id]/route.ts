@@ -3,6 +3,7 @@ import { sql, withTx } from '@/lib/db';
 import { requireUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { deleteMedicalCert } from '@/lib/storage';
+import { notifyLeaveDecision } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -124,6 +125,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       );
       return r.rows[0];
     });
+
+    // Notify requester on final decisions (approved or rejected)
+    if (updated.status === 'approved' || updated.status === 'rejected') {
+      notifyLeaveDecision({
+        requesterUserId: updated.user_id,
+        leaveType: updated.leave_type,
+        startDate: updated.start_date,
+        endDate: updated.end_date,
+        days: updated.days_requested,
+        approved: updated.status === 'approved',
+      }).catch(err => console.error('notifyLeaveDecision error:', err));
+    }
 
     return NextResponse.json({ request: updated });
   } catch (e) {

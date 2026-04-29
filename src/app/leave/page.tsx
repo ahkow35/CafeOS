@@ -52,11 +52,8 @@ export default function LeavePage() {
     }, []);
 
     useEffect(() => {
-        if (user) {
-            fetchLeaveRequests();
-            refreshProfile();
-        }
-    }, [user, fetchLeaveRequests, refreshProfile]);
+        if (user) fetchLeaveRequests();
+    }, [user, fetchLeaveRequests]);
 
     const handleDelete = async (requestId: string) => {
         const requestToCancel = requests.find(r => r.id === requestId);

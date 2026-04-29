@@ -10,7 +10,7 @@ import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
 import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import PendingApprovalsWidget from '@/components/PendingApprovalsWidget';
-import { Palmtree, ClipboardList, Settings, Plus, PartyPopper } from 'lucide-react';
+import { Palmtree, ClipboardList, Settings, Plus } from 'lucide-react';
 
 async function jsonOrError(res: Response): Promise<unknown> {
   if (!res.ok) {
@@ -180,11 +180,7 @@ export default function HomePage() {
               </>
             ) : (
               <div className="empty-state">
-                <div className="empty-state-icon">
-                  <PartyPopper size={48} />
-                </div>
-                <div className="empty-state-title">All caught up!</div>
-                <p>No pending tasks for today</p>
+                <div className="empty-state-title">No tasks due today</div>
               </div>
             )}
           </section>

@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/icons') ||
     pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/telegram/') ||
     pathname === '/manifest.json' ||
     pathname === '/favicon.ico'
   ) {

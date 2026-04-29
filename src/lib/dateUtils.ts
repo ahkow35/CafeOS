@@ -8,7 +8,8 @@ const LONG_MONTH  = ['January','February','March','April','May','June','July','A
  * Uses noon time to avoid DST/timezone shifts on date boundaries.
  */
 export function formatDateLong(dateString: string): string {
-  const date = new Date(dateString + 'T12:00:00');
+  const dateOnly = dateString.split('T')[0];
+  const date = new Date(dateOnly + 'T12:00:00');
   return `${date.getDate().toString().padStart(2,'0')} ${SHORT_MONTH[date.getMonth()]} ${date.getFullYear()}`;
 }
 
@@ -17,7 +18,8 @@ export function formatDateLong(dateString: string): string {
  * Uses noon time to avoid DST/timezone shifts on date boundaries.
  */
 export function formatDateShort(dateString: string): string {
-  const date = new Date(dateString + 'T12:00:00');
+  const dateOnly = dateString.split('T')[0];
+  const date = new Date(dateOnly + 'T12:00:00');
   return `${SHORT_MONTH[date.getMonth()]} ${date.getDate()}`;
 }
 

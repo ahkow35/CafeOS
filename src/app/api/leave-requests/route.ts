@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql, withTx } from '@/lib/db';
 import { requireUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { notifyLeaveSubmitted } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -319,7 +320,7 @@ export async function POST(req: Request) {
              reason, attachment_url, is_retrospective, status,
              owner_action_by, owner_action_at)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                  CASE WHEN $9 = 'approved' THEN $1 ELSE NULL END,
+                  CASE WHEN $9 = 'approved' THEN $1::uuid ELSE NULL END,
                   CASE WHEN $9 = 'approved' THEN NOW() ELSE NULL END)
           RETURNING id, user_id, leave_type, start_date, end_date, days_requested,
                     reason, attachment_url, is_retrospective, status,
@@ -329,6 +330,17 @@ export async function POST(req: Request) {
       );
       return insert.rows[0];
     });
+
+    // Fire-and-forget: notify managers/owner (only for requests needing review)
+    if (created.status !== 'approved') {
+      notifyLeaveSubmitted({
+        requesterName: me.full_name,
+        leaveType: created.leave_type,
+        startDate: created.start_date,
+        endDate: created.end_date,
+        days: created.days_requested,
+      }).catch(err => console.error('notifyLeaveSubmitted error:', err));
+    }
 
     return NextResponse.json({ request: created }, { status: 201 });
   } catch (e) {

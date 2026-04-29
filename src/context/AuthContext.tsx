@@ -36,15 +36,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (!res.ok) {
+      if (res.status === 401) {
         setUser(null);
+        return;
+      }
+      if (!res.ok) {
+        // Transient error (503, 500, network blip) — keep existing auth state.
+        console.warn('[AuthContext] /me transient failure', res.status);
         return;
       }
       const json = (await res.json()) as { user: SessionUser | null };
       setUser(json.user);
     } catch (err) {
-      console.error('[AuthContext] /me failed', err);
-      setUser(null);
+      // Network error — do NOT log the user out.
+      console.warn('[AuthContext] /me network error', err);
     }
   }, []);
 

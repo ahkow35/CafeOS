@@ -40,6 +40,7 @@ export interface SessionUser {
   hourly_rate: number | null;
   is_active: boolean;
   email: string | null;
+  telegram_chat_id: string | null;
 }
 
 interface JwtClaims {
@@ -98,6 +99,7 @@ interface LoginRow {
   hourly_rate: string | null; // numeric -> string from pg
   is_active: boolean;
   email: string | null;
+  telegram_chat_id: string | null;
 }
 
 function rowToUser(r: LoginRow): SessionUser {
@@ -112,6 +114,7 @@ function rowToUser(r: LoginRow): SessionUser {
     hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate),
     is_active: r.is_active,
     email: r.email,
+    telegram_chat_id: r.telegram_chat_id,
   };
 }
 
@@ -119,7 +122,7 @@ export async function login(phoneE164: string, pin: string): Promise<SessionUser
   const { rows } = await sql<LoginRow>`
     SELECT id, phone_e164, full_name, job_title, role, pin_hash, failed_attempts,
            locked_until, annual_leave_balance, medical_leave_balance, hourly_rate,
-           is_active, email
+           is_active, email, telegram_chat_id
       FROM profiles
      WHERE phone_e164 = ${phoneE164}
      LIMIT 1
@@ -193,7 +196,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const { rows } = await sql<LoginRow>`
     SELECT id, phone_e164, full_name, job_title, role, pin_hash, failed_attempts,
            locked_until, annual_leave_balance, medical_leave_balance, hourly_rate,
-           is_active, email
+           is_active, email, telegram_chat_id
       FROM profiles
      WHERE id = ${claims.sub}
      LIMIT 1
