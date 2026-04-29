@@ -49,12 +49,18 @@ const TS_SELECT = `
   employee_signature, manager_signature, created_at, updated_at
 `;
 
-async function loadTimesheet(id: string): Promise<TimesheetRow | null> {
-  const { rows } = await sql<TimesheetRow>`
-    SELECT id, user_id, month_year, status, comments, rejection_reason,
-           approved_by, approved_at, manager_action_by, manager_action_at,
-           employee_signature, manager_signature, created_at, updated_at
-      FROM timesheets WHERE id = ${id} LIMIT 1
+type TimesheetWithSubmitterName = TimesheetRow & { submitter_name: string };
+
+async function loadTimesheet(id: string): Promise<TimesheetWithSubmitterName | null> {
+  const { rows } = await sql<TimesheetWithSubmitterName>`
+    SELECT t.id, t.user_id, t.month_year, t.status, t.comments, t.rejection_reason,
+           t.approved_by, t.approved_at, t.manager_action_by, t.manager_action_at,
+           t.employee_signature, t.manager_signature, t.created_at, t.updated_at,
+           p.full_name AS submitter_name
+      FROM timesheets t
+      JOIN profiles p ON p.id = t.user_id
+     WHERE t.id = ${id}
+     LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -200,7 +206,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       update.comments = body.comments == null ? null : String(body.comments);
     }
 
-    // Capture rejection_reason early so the status branch can require it.
     if ('rejection_reason' in body) {
       if (!isAdmin) throw new AuthError('forbidden', 'Manager or owner access required');
       update.rejection_reason = body.rejection_reason == null ? null : String(body.rejection_reason);
@@ -323,11 +328,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return r.rows[0];
     });
 
-    // Schedule notifications to run AFTER the response is sent. Plain
-    // fire-and-forget Promises get cancelled when a Vercel serverless
-    // function returns its response, which silently dropped the
-    // Telegram fetches. `after()` keeps the function alive long enough
-    // for the work to actually complete.
+    // Use after() so notifications keep running past the JSON response —
+    // plain fire-and-forget gets cancelled by Vercel's serverless runtime.
+    const partTimerName = ts.submitter_name;
     if (notifyEvent === 'submitted') {
       after(async () => {
         try {
@@ -342,10 +345,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } else if (notifyEvent === 'pending_owner') {
       after(async () => {
         try {
-          const { rows } = await sql<{ full_name: string }>`
-            SELECT full_name FROM profiles WHERE id = ${updated.user_id} LIMIT 1
-          `;
-          const partTimerName = rows[0]?.full_name ?? 'A part-timer';
           await notifyTimesheetForOwner({
             partTimerName,
             managerName: me.full_name,

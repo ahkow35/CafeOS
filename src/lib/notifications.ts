@@ -1,11 +1,12 @@
 import { sql } from '@/lib/db';
+import { formatMonthYear } from '@/lib/dateUtils';
 
 const SHORT_DATE = (d: string) => {
   const dt = new Date(d.split('T')[0] + 'T00:00:00');
   return dt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 };
 
-async function sendTelegram(chatId: string, text: string): Promise<void> {
+export async function sendTelegram(chatId: string, text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
   try {
@@ -83,14 +84,6 @@ export async function notifyLeaveDecision(args: NotifyLeaveDecisionArgs): Promis
 // Timesheet notifications
 // ---------------------------------------------------------------------------
 
-const TIMESHEET_LABEL = (monthYear: string) => {
-  // 'YYYY-MM' → 'Mar 2026'
-  const [y, m] = monthYear.split('-').map(Number);
-  if (!y || !m) return monthYear;
-  const d = new Date(Date.UTC(y, m - 1, 1));
-  return d.toLocaleDateString('en-SG', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-};
-
 interface NotifyTimesheetSubmittedArgs {
   partTimerName: string;
   monthYear: string;
@@ -106,7 +99,7 @@ export async function notifyTimesheetSubmitted(args: NotifyTimesheetSubmittedArg
   `;
   if (rows.length === 0) return;
 
-  const text = `🕒 <b>New Timesheet Submitted</b>\n\n${args.partTimerName} submitted their ${TIMESHEET_LABEL(args.monthYear)} timesheet for review.\n\nLog in to review: https://cafe-os-six.vercel.app/admin/timesheets`;
+  const text = `🕒 <b>New Timesheet Submitted</b>\n\n${args.partTimerName} submitted their ${formatMonthYear(args.monthYear)} timesheet for review.\n\nLog in to review: https://cafe-os-six.vercel.app/admin/timesheets`;
 
   await Promise.all(rows.map(r => sendTelegram(r.telegram_chat_id, text)));
 }
@@ -127,7 +120,7 @@ export async function notifyTimesheetForOwner(args: NotifyTimesheetForOwnerArgs)
   `;
   if (rows.length === 0) return;
 
-  const text = `📋 <b>Timesheet Awaiting Owner Approval</b>\n\n${args.managerName} approved ${args.partTimerName}'s ${TIMESHEET_LABEL(args.monthYear)} timesheet. Final approval needed.\n\nLog in to review: https://cafe-os-six.vercel.app/admin/timesheets`;
+  const text = `📋 <b>Timesheet Awaiting Owner Approval</b>\n\n${args.managerName} approved ${args.partTimerName}'s ${formatMonthYear(args.monthYear)} timesheet. Final approval needed.\n\nLog in to review: https://cafe-os-six.vercel.app/admin/timesheets`;
 
   await Promise.all(rows.map(r => sendTelegram(r.telegram_chat_id, text)));
 }
@@ -154,7 +147,7 @@ export async function notifyTimesheetDecision(args: NotifyTimesheetDecisionArgs)
   const reasonLine = !args.approved && args.rejectionReason
     ? `\n\nReason: ${args.rejectionReason}`
     : '';
-  const text = `${icon} <b>Timesheet ${verb.charAt(0).toUpperCase() + verb.slice(1)}</b>\n\nYour ${TIMESHEET_LABEL(args.monthYear)} timesheet has been <b>${verb}</b>.${reasonLine}`;
+  const text = `${icon} <b>Timesheet ${verb.charAt(0).toUpperCase() + verb.slice(1)}</b>\n\nYour ${formatMonthYear(args.monthYear)} timesheet has been <b>${verb}</b>.${reasonLine}`;
 
   await sendTelegram(rows[0].telegram_chat_id, text);
 }

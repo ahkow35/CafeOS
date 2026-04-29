@@ -1,30 +1,20 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { parseE164, ValidationError } from '@/lib/validators';
+import { sendTelegram } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
 interface TelegramUpdate {
   message?: {
-    from: { id: number; first_name?: string };
+    chat?: { id: number };
+    from?: { id: number; first_name?: string };
     text?: string;
   };
 }
 
-async function reply(chatId: number, text: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
-}
-
 export async function POST(req: Request): Promise<Response> {
-  // Verify webhook secret
-  const secret = req.headers.get('X-Telegram-Bot-Api-Secret-Token');
-  if (secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+  if (req.headers.get('X-Telegram-Bot-Api-Secret-Token') !== process.env.TELEGRAM_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -36,9 +26,10 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const msg = update.message;
-  if (!msg?.text || !msg.from) return NextResponse.json({ ok: true });
-
-  const chatId = msg.from.id;
+  // Use chat.id (private chat == from.id, but groups differ) and require text.
+  const chatId = msg?.chat?.id ?? msg?.from?.id;
+  if (!msg?.text || chatId == null) return NextResponse.json({ ok: true });
+  const chatIdStr = String(chatId);
   const text = msg.text.trim();
 
   // /link <phone>
@@ -48,44 +39,44 @@ export async function POST(req: Request): Promise<Response> {
     try {
       phone = parseE164(linkMatch[1].trim());
     } catch (e) {
-      await reply(chatId, e instanceof ValidationError ? e.message : 'Invalid phone number. Use: /link +6591234567');
+      await sendTelegram(chatIdStr, e instanceof ValidationError ? e.message : 'Invalid phone number. Use: /link +6591234567');
       return NextResponse.json({ ok: true });
     }
 
-    const { rows } = await sql<{ full_name: string; is_active: boolean }>`
-      SELECT full_name, is_active FROM profiles WHERE phone_e164 = ${phone} LIMIT 1
+    // Single round-trip: bind chat_id to an active profile and return the name.
+    const { rows } = await sql<{ full_name: string }>`
+      UPDATE profiles
+         SET telegram_chat_id = ${chatIdStr}, updated_at = NOW()
+       WHERE phone_e164 = ${phone}
+         AND is_active = TRUE
+       RETURNING full_name
     `;
 
     if (rows.length === 0) {
-      await reply(chatId, `No CafeOS account found for ${phone}. Ask your manager to check your registered number.`);
+      // Tell apart "no such number" vs "inactive" with one cheap probe.
+      const { rows: who } = await sql<{ is_active: boolean }>`
+        SELECT is_active FROM profiles WHERE phone_e164 = ${phone} LIMIT 1
+      `;
+      const reason = who.length === 0
+        ? `No CafeOS account found for ${phone}. Ask your manager to check your registered number.`
+        : 'This account is inactive. Contact your manager.';
+      await sendTelegram(chatIdStr, reason);
       return NextResponse.json({ ok: true });
     }
 
-    if (!rows[0].is_active) {
-      await reply(chatId, 'This account is inactive. Contact your manager.');
-      return NextResponse.json({ ok: true });
-    }
-
-    await sql`
-      UPDATE profiles SET telegram_chat_id = ${String(chatId)}, updated_at = NOW()
-       WHERE phone_e164 = ${phone}
-    `;
-
-    await reply(chatId, `✅ Linked to CafeOS as ${rows[0].full_name}.\n\nYou'll now receive leave notifications here.`);
+    await sendTelegram(chatIdStr, `✅ Linked to CafeOS as ${rows[0].full_name}.\n\nYou'll now receive notifications here.`);
     return NextResponse.json({ ok: true });
   }
 
-  // /unlink
   if (/^\/unlink$/i.test(text)) {
     await sql`
       UPDATE profiles SET telegram_chat_id = NULL, updated_at = NOW()
-       WHERE telegram_chat_id = ${String(chatId)}
+       WHERE telegram_chat_id = ${chatIdStr}
     `;
-    await reply(chatId, '🔕 Unlinked. You will no longer receive CafeOS notifications.');
+    await sendTelegram(chatIdStr, '🔕 Unlinked. You will no longer receive CafeOS notifications.');
     return NextResponse.json({ ok: true });
   }
 
-  // Default help
-  await reply(chatId, 'CafeOS Notifications Bot\n\n/link +6591234567 — link your account\n/unlink — stop notifications');
+  await sendTelegram(chatIdStr, 'CafeOS Notifications Bot\n\n/link +6591234567 — link your account\n/unlink — stop notifications');
   return NextResponse.json({ ok: true });
 }

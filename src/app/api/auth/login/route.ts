@@ -24,10 +24,6 @@ export async function POST(req: Request) {
     const pinStr = parsePin(pin);
     const { user, token } = await login(phoneE164, pinStr);
 
-    // Attach Set-Cookie directly to the response — the only reliable pattern
-    // across Next.js 14/15/16 Route Handlers. Using cookies() from next/headers
-    // had race-y interactions with the JSON response body and was the cause of
-    // post-login "logged out on first navigation" symptoms.
     const res = NextResponse.json({ user });
     res.cookies.set(SESSION_COOKIE, token, {
       ...SESSION_COOKIE_OPTIONS,

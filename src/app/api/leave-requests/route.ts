@@ -331,8 +331,6 @@ export async function POST(req: Request) {
       return insert.rows[0];
     });
 
-    // Schedule notification AFTER the response so Vercel doesn't kill the
-    // outbound Telegram fetch when the function returns.
     if (created.status !== 'approved') {
       const requesterName = me.full_name;
       after(async () => {

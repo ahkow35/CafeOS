@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetEntry } from '@/lib/database.types';
+import { Timesheet, TimesheetEntry, TimesheetStatus } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import SignatureModal from '@/components/SignatureModal';
@@ -232,20 +232,14 @@ export default function TimesheetDetailPage() {
   const [y, mo] = timesheet.month_year.split('-').map(Number);
   const monthLabel = `${SHORT_MONTH[mo - 1]} ${y}`;
 
-  const STATUS_COLORS: Record<string, string> = {
-    draft: 'var(--color-gray)',
-    submitted: 'var(--color-orange)',
-    pending_owner: '#a78bfa',
-    approved: 'var(--color-stali-green)',
-    rejected: 'var(--color-rust)',
+  const STATUS_META: Record<TimesheetStatus, { color: string; label: string }> = {
+    draft:         { color: 'var(--color-gray)',         label: 'draft' },
+    submitted:     { color: 'var(--color-orange)',       label: 'awaiting manager' },
+    pending_owner: { color: '#a78bfa',                   label: 'awaiting owner' },
+    approved:      { color: 'var(--color-stali-green)',  label: 'approved' },
+    rejected:      { color: 'var(--color-rust)',         label: 'rejected' },
   };
-  const STATUS_LABEL: Record<string, string> = {
-    draft: 'draft',
-    submitted: 'awaiting manager',
-    pending_owner: 'awaiting owner',
-    approved: 'approved',
-    rejected: 'rejected',
-  };
+  const statusMeta = STATUS_META[timesheet.status];
 
   return (
     <>
@@ -284,11 +278,11 @@ export default function TimesheetDetailPage() {
             <span style={{
               fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)',
               textTransform: 'uppercase', letterSpacing: '0.05em',
-              color: STATUS_COLORS[timesheet.status],
-              border: `1px solid ${STATUS_COLORS[timesheet.status]}`,
+              color: statusMeta.color,
+              border: `1px solid ${statusMeta.color}`,
               padding: '3px 8px', whiteSpace: 'nowrap',
             }}>
-              {STATUS_LABEL[timesheet.status] ?? timesheet.status}
+              {statusMeta.label}
             </span>
           </div>
         </div>

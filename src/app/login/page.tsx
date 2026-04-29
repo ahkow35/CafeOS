@@ -25,10 +25,8 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      // Invalidate any RSC payloads prefetched while unauthenticated (e.g. the
-      // BottomNav links Next.js prefetches on render). Without this, the first
-      // navigation after login can reuse a cached payload that middleware had
-      // redirected to /login, kicking the user back out until a hard refresh.
+      // Invalidate RSC prefetched while unauthenticated; otherwise the first
+      // post-login navigation reuses the middleware-redirect-to-/login payload.
       router.refresh();
       router.replace('/');
     }

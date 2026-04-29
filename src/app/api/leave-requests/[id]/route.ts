@@ -126,8 +126,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return r.rows[0];
     });
 
-    // Notify requester on final decisions — schedule via after() so the
-    // outbound Telegram fetch isn't killed when the function returns.
     if (updated.status === 'approved' || updated.status === 'rejected') {
       const approved = updated.status === 'approved';
       after(async () => {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
+import { Timesheet, TimesheetEntry, TimesheetStatus, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import SignatureModal from '@/components/SignatureModal';
@@ -206,18 +206,15 @@ export default function AdminTimesheetDetailPage() {
   const hourlyRate = tsProfile?.hourly_rate ?? null;
   const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
 
-  const STATUS_STYLE: Record<string, { color: string; bg: string }> = {
-    draft: { color: 'var(--color-gray)', bg: 'transparent' },
-    submitted: { color: 'var(--color-black)', bg: 'var(--color-neon)' },
-    pending_owner: { color: '#7c3aed', bg: 'transparent' },
-    approved: { color: 'var(--color-success, #22c55e)', bg: 'transparent' },
-    rejected: { color: 'var(--color-rust)', bg: 'transparent' },
+  const STATUS_STYLE: Record<TimesheetStatus, { color: string; bg: string; label: string }> = {
+    draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'DRAFT' },
+    submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'AWAITING MANAGER' },
+    pending_owner: { color: '#7c3aed',                          bg: 'transparent',     label: 'AWAITING OWNER' },
+    approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'APPROVED' },
+    rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'REJECTED' },
   };
-  const statusStyle = STATUS_STYLE[timesheet.status] ?? STATUS_STYLE.draft;
-  const statusLabel =
-    timesheet.status === 'submitted' ? 'AWAITING MANAGER' :
-    timesheet.status === 'pending_owner' ? 'AWAITING OWNER' :
-    timesheet.status.toUpperCase();
+  const statusStyle = STATUS_STYLE[timesheet.status];
+  const statusLabel = statusStyle.label;
 
   return (
     <>

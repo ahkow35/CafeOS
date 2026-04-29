@@ -175,11 +175,7 @@ export async function login(phoneE164: string, pin: string): Promise<{ user: Ses
   }
 
   const token = await signSession({ sub: row.id, role: row.role });
-
-  // Cookie writing is the route handler's job (NextResponse.cookies.set) so the
-  // Set-Cookie header is reliably attached to the response. `cookies()` writes
-  // from next/headers have been flaky inside Route Handlers across Next.js
-  // versions and were the source of post-login session-not-yet-active bugs.
+  // Caller (route handler) attaches the cookie via NextResponse.cookies.set.
   return { user: rowToUser(row), token };
 }
 
@@ -192,12 +188,16 @@ export async function getSessionClaims(): Promise<JwtClaims | null> {
   return verifySession(token);
 }
 
+type SessionRow = Omit<LoginRow, 'pin_hash' | 'failed_attempts' | 'locked_until'>;
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const claims = await getSessionClaims();
   if (!claims) return null;
-  const { rows } = await sql<LoginRow>`
-    SELECT id, phone_e164, full_name, job_title, role, pin_hash, failed_attempts,
-           locked_until, annual_leave_balance, medical_leave_balance, hourly_rate,
+  // Hot path — runs on every authenticated request. Skip credential and
+  // lockout columns; they're only needed by login().
+  const { rows } = await sql<SessionRow>`
+    SELECT id, phone_e164, full_name, job_title, role,
+           annual_leave_balance, medical_leave_balance, hourly_rate,
            is_active, email, telegram_chat_id
       FROM profiles
      WHERE id = ${claims.sub}
@@ -205,7 +205,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   `;
   const row = rows[0];
   if (!row || !row.is_active) return null;
-  return rowToUser(row);
+  return rowToUser(row as LoginRow);
 }
 
 export async function requireUser(): Promise<SessionUser> {

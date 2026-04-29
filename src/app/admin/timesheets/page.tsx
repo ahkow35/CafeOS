@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, User } from '@/lib/database.types';
+import { Timesheet, TimesheetStatus, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
@@ -12,7 +12,7 @@ import { formatMonthYear } from '@/lib/dateUtils';
 type ProfileMini = Pick<User, 'full_name' | 'email' | 'phone_e164' | 'role' | 'hourly_rate'>;
 type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
 
-const STATUS_BADGE: Record<string, { label: string; color: string }> = {
+const STATUS_BADGE: Record<TimesheetStatus, { label: string; color: string }> = {
   draft: { label: 'Draft', color: '#6b7280' },
   submitted: { label: 'Awaiting Manager', color: '#d97706' },
   pending_owner: { label: 'Awaiting Owner', color: '#7c3aed' },
