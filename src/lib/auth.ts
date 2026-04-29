@@ -12,6 +12,15 @@
 
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
+
+// Cookie attributes shared between login (set) and logout (clear). Centralised so
+// the cookie's path/sameSite/secure flags can't drift between writes.
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+} as const;
 import bcrypt from 'bcryptjs';
 import { sql } from '@/lib/db';
 import type { Role } from '@/lib/validators';
@@ -118,7 +127,7 @@ function rowToUser(r: LoginRow): SessionUser {
   };
 }
 
-export async function login(phoneE164: string, pin: string): Promise<SessionUser> {
+export async function login(phoneE164: string, pin: string): Promise<{ user: SessionUser; token: string }> {
   const { rows } = await sql<LoginRow>`
     SELECT id, phone_e164, full_name, job_title, role, pin_hash, failed_attempts,
            locked_until, annual_leave_balance, medical_leave_balance, hourly_rate,
@@ -166,22 +175,15 @@ export async function login(phoneE164: string, pin: string): Promise<SessionUser
   }
 
   const token = await signSession({ sub: row.id, role: row.role });
-  const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: COOKIE_MAX_AGE_SEC,
-  });
 
-  return rowToUser(row);
+  // Cookie writing is the route handler's job (NextResponse.cookies.set) so the
+  // Set-Cookie header is reliably attached to the response. `cookies()` writes
+  // from next/headers have been flaky inside Route Handlers across Next.js
+  // versions and were the source of post-login session-not-yet-active bugs.
+  return { user: rowToUser(row), token };
 }
 
-export async function logout(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
-}
+export const SESSION_COOKIE_MAX_AGE = COOKIE_MAX_AGE_SEC;
 
 export async function getSessionClaims(): Promise<JwtClaims | null> {
   const cookieStore = await cookies();
