@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { sql, withTx } from '@/lib/db';
 import { requireUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
@@ -126,16 +126,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return r.rows[0];
     });
 
-    // Notify requester on final decisions (approved or rejected)
+    // Notify requester on final decisions — schedule via after() so the
+    // outbound Telegram fetch isn't killed when the function returns.
     if (updated.status === 'approved' || updated.status === 'rejected') {
-      notifyLeaveDecision({
-        requesterUserId: updated.user_id,
-        leaveType: updated.leave_type,
-        startDate: updated.start_date,
-        endDate: updated.end_date,
-        days: updated.days_requested,
-        approved: updated.status === 'approved',
-      }).catch(err => console.error('notifyLeaveDecision error:', err));
+      const approved = updated.status === 'approved';
+      after(async () => {
+        try {
+          await notifyLeaveDecision({
+            requesterUserId: updated.user_id,
+            leaveType: updated.leave_type,
+            startDate: updated.start_date,
+            endDate: updated.end_date,
+            days: updated.days_requested,
+            approved,
+          });
+        } catch (err) {
+          console.error('notifyLeaveDecision error:', err);
+        }
+      });
     }
 
     return NextResponse.json({ request: updated });

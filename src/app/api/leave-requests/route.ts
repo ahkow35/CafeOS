@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { sql, withTx } from '@/lib/db';
 import { requireUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
@@ -331,15 +331,23 @@ export async function POST(req: Request) {
       return insert.rows[0];
     });
 
-    // Fire-and-forget: notify managers/owner (only for requests needing review)
+    // Schedule notification AFTER the response so Vercel doesn't kill the
+    // outbound Telegram fetch when the function returns.
     if (created.status !== 'approved') {
-      notifyLeaveSubmitted({
-        requesterName: me.full_name,
-        leaveType: created.leave_type,
-        startDate: created.start_date,
-        endDate: created.end_date,
-        days: created.days_requested,
-      }).catch(err => console.error('notifyLeaveSubmitted error:', err));
+      const requesterName = me.full_name;
+      after(async () => {
+        try {
+          await notifyLeaveSubmitted({
+            requesterName,
+            leaveType: created.leave_type,
+            startDate: created.start_date,
+            endDate: created.end_date,
+            days: created.days_requested,
+          });
+        } catch (err) {
+          console.error('notifyLeaveSubmitted error:', err);
+        }
+      });
     }
 
     return NextResponse.json({ request: created }, { status: 201 });

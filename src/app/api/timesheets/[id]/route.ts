@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { sql, withTx } from '@/lib/db';
 import { requireUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
@@ -323,31 +323,53 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return r.rows[0];
     });
 
-    // Fire-and-forget notifications (do not block the response).
+    // Schedule notifications to run AFTER the response is sent. Plain
+    // fire-and-forget Promises get cancelled when a Vercel serverless
+    // function returns its response, which silently dropped the
+    // Telegram fetches. `after()` keeps the function alive long enough
+    // for the work to actually complete.
     if (notifyEvent === 'submitted') {
-      notifyTimesheetSubmitted({
-        partTimerName: me.full_name,
-        monthYear: updated.month_year,
-      }).catch(err => console.error('notifyTimesheetSubmitted error:', err));
+      after(async () => {
+        try {
+          await notifyTimesheetSubmitted({
+            partTimerName: me.full_name,
+            monthYear: updated.month_year,
+          });
+        } catch (err) {
+          console.error('notifyTimesheetSubmitted error:', err);
+        }
+      });
     } else if (notifyEvent === 'pending_owner') {
-      // Look up part-timer name for the message — best-effort.
-      sql<{ full_name: string }>`SELECT full_name FROM profiles WHERE id = ${updated.user_id} LIMIT 1`
-        .then(({ rows }) => {
+      after(async () => {
+        try {
+          const { rows } = await sql<{ full_name: string }>`
+            SELECT full_name FROM profiles WHERE id = ${updated.user_id} LIMIT 1
+          `;
           const partTimerName = rows[0]?.full_name ?? 'A part-timer';
-          notifyTimesheetForOwner({
+          await notifyTimesheetForOwner({
             partTimerName,
             managerName: me.full_name,
             monthYear: updated.month_year,
-          }).catch(err => console.error('notifyTimesheetForOwner error:', err));
-        })
-        .catch(err => console.error('notifyTimesheetForOwner lookup error:', err));
+          });
+        } catch (err) {
+          console.error('notifyTimesheetForOwner error:', err);
+        }
+      });
     } else if (notifyEvent === 'approved' || notifyEvent === 'rejected') {
-      notifyTimesheetDecision({
-        partTimerUserId: updated.user_id,
-        monthYear: updated.month_year,
-        approved: notifyEvent === 'approved',
-        rejectionReason: updated.rejection_reason,
-      }).catch(err => console.error('notifyTimesheetDecision error:', err));
+      const approved = notifyEvent === 'approved';
+      const rejectionReason = updated.rejection_reason;
+      after(async () => {
+        try {
+          await notifyTimesheetDecision({
+            partTimerUserId: updated.user_id,
+            monthYear: updated.month_year,
+            approved,
+            rejectionReason,
+          });
+        } catch (err) {
+          console.error('notifyTimesheetDecision error:', err);
+        }
+      });
     }
 
     return NextResponse.json({ timesheet: updated });
