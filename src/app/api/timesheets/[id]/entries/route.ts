@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -45,11 +45,11 @@ function parseHours(input: unknown, label: string): number {
 /**
  * POST /api/timesheets/[id]/entries
  * Body: { entry_date, start_time?, end_time?, break_hours?, total_hours, remarks? }
- * Auth: owner-of-timesheet, only while draft.
+ * Auth: owner-of-timesheet, only while draft. Timesheet must belong to caller's cafe.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -60,12 +60,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
+    // Verify timesheet belongs to this cafe (prevents cross-cafe entry injection).
     const { rows: tsRows } = await sql<TimesheetRow>`
-      SELECT id, user_id, status FROM timesheets WHERE id = ${id} LIMIT 1
+      SELECT id, user_id, status FROM timesheets
+       WHERE id = ${id}
+         AND cafe_id = ${ctx.cafeId}
+       LIMIT 1
     `;
     const ts = tsRows[0];
     if (!ts) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
-    if (ts.user_id !== me.id) throw new AuthError('forbidden', 'Only the owner can edit entries');
+    if (ts.user_id !== ctx.userId) throw new AuthError('forbidden', 'Only the owner can edit entries');
     if (ts.status !== 'draft') throw new ValidationError('Entries can only be edited while in draft');
 
     if (typeof body.entry_date !== 'string' || !DATE_RE.test(body.entry_date)) {
@@ -80,11 +84,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ? null
       : String(body.remarks).trim() || null;
 
-    const created = await withTx(me.id, async (tx) => {
+    const created = await withTenantTx(ctx, async (tx) => {
       const r = await tx.query<EntryRow>(
         `INSERT INTO timesheet_entries
-           (timesheet_id, entry_date, start_time, end_time, break_hours, total_hours, remarks)
-         VALUES ($1, $2::date, $3::time, $4::time, $5, $6, $7)
+           (timesheet_id, cafe_id, entry_date, start_time, end_time, break_hours, total_hours, remarks)
+         VALUES ($1, $2, $3::date, $4::time, $5::time, $6, $7, $8)
          ON CONFLICT (timesheet_id, entry_date) DO UPDATE SET
            start_time = EXCLUDED.start_time,
            end_time = EXCLUDED.end_time,
@@ -94,7 +98,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
          RETURNING id, timesheet_id, entry_date::text AS entry_date,
                    start_time::text AS start_time, end_time::text AS end_time,
                    break_hours, total_hours, remarks, created_at`,
-        [id, entry_date, start_time, end_time, break_hours, total_hours, remarks],
+        [id, ctx.cafeId, entry_date, start_time, end_time, break_hours, total_hours, remarks],
       );
       return r.rows[0];
     });

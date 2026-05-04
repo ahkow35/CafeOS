@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -27,12 +27,13 @@ interface OwnerCheckRow {
   status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 }
 
-async function loadOwnership(entryId: string): Promise<OwnerCheckRow | null> {
+async function loadOwnership(entryId: string, cafeId: string): Promise<OwnerCheckRow | null> {
   const { rows } = await sql<OwnerCheckRow>`
     SELECT te.id, te.timesheet_id, t.user_id, t.status
       FROM timesheet_entries te
       JOIN timesheets t ON t.id = te.timesheet_id
      WHERE te.id = ${entryId}
+       AND t.cafe_id = ${cafeId}
      LIMIT 1
   `;
   return rows[0] ?? null;
@@ -58,10 +59,11 @@ function parseNumberMaybe(input: unknown, label: string): number | undefined {
  * PATCH /api/timesheet-entries/[id]
  * Body: any of start_time, end_time, break_hours, total_hours, remarks
  * Auth: owner-of-timesheet only, while parent timesheet is in draft.
+ * Parent timesheet must belong to caller's cafe.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -72,9 +74,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const owner = await loadOwnership(id);
+    const owner = await loadOwnership(id, ctx.cafeId);
     if (!owner) return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
-    if (owner.user_id !== me.id) throw new AuthError('forbidden', 'Only the owner can edit entries');
+    if (owner.user_id !== ctx.userId) throw new AuthError('forbidden', 'Only the owner can edit entries');
     if (owner.status !== 'draft') throw new ValidationError('Entries can only be edited while in draft');
 
     const start_time = 'start_time' in body ? parseTime(body.start_time) : undefined;
@@ -92,7 +94,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
-    const updated = await withTx(me.id, async (tx) => {
+    const updated = await withTenantTx(ctx, async (tx) => {
       const r = await tx.query<EntryRow>(
         `UPDATE timesheet_entries SET
            start_time  = CASE WHEN $1::boolean THEN $2::time ELSE start_time END,
@@ -101,6 +103,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
            total_hours = CASE WHEN $7::boolean THEN $8::numeric ELSE total_hours END,
            remarks     = CASE WHEN $9::boolean THEN $10 ELSE remarks END
          WHERE id = $11
+           AND cafe_id = $12
          RETURNING id, timesheet_id, entry_date::text AS entry_date,
                    start_time::text AS start_time, end_time::text AS end_time,
                    break_hours, total_hours, remarks, created_at`,
@@ -111,6 +114,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           total_hours !== undefined, total_hours ?? null,
           remarks !== undefined, remarks ?? null,
           id,
+          ctx.cafeId,
         ],
       );
       return r.rows[0];
@@ -135,19 +139,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 /**
  * DELETE /api/timesheet-entries/[id]
  * Auth: owner-of-timesheet only, while parent timesheet is in draft.
+ * Parent timesheet must belong to caller's cafe.
  */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-    const owner = await loadOwnership(id);
+    const owner = await loadOwnership(id, ctx.cafeId);
     if (!owner) return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
-    if (owner.user_id !== me.id) throw new AuthError('forbidden', 'Only the owner can delete entries');
+    if (owner.user_id !== ctx.userId) throw new AuthError('forbidden', 'Only the owner can delete entries');
     if (owner.status !== 'draft') throw new ValidationError('Entries can only be deleted while in draft');
 
-    await sql`DELETE FROM timesheet_entries WHERE id = ${id}`;
+    await sql`DELETE FROM timesheet_entries WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

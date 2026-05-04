@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ interface TaskRow {
  */
 export async function GET(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const url = new URL(req.url);
     const scope = url.searchParams.get('scope') ?? 'mine';
 
@@ -37,16 +37,15 @@ export async function GET(req: Request) {
         SELECT id, title, description, deadline, assigned_to, status,
                created_by, completed_by, completed_at, created_at
           FROM tasks
-         WHERE assigned_to = ${me.id} OR assigned_to = 'all'
+         WHERE cafe_id = ${ctx.cafeId}
+           AND (assigned_to = ${ctx.userId} OR assigned_to = 'all')
          ORDER BY status ASC, deadline ASC
       `;
       return NextResponse.json({ tasks: rows });
     }
 
     if (scope === 'all') {
-      if (me.role !== 'manager' && me.role !== 'owner') {
-        throw new AuthError('forbidden', 'Manager or owner access required');
-      }
+      requireManagerInCafe(ctx);
       const status = url.searchParams.get('status');
       const limitParam = url.searchParams.get('limit');
       const limit = limitParam ? Math.min(Math.max(Number(limitParam) || 0, 1), 200) : 100;
@@ -54,7 +53,8 @@ export async function GET(req: Request) {
         SELECT id, title, description, deadline, assigned_to, status,
                created_by, completed_by, completed_at, created_at
           FROM tasks
-         WHERE (${status}::text IS NULL OR status = ${status}::text)
+         WHERE cafe_id = ${ctx.cafeId}
+           AND (${status}::text IS NULL OR status = ${status}::text)
          ORDER BY
            CASE WHEN status = 'done' THEN completed_at ELSE deadline END DESC
          LIMIT ${limit}
@@ -67,7 +67,8 @@ export async function GET(req: Request) {
         SELECT id, title, description, deadline, assigned_to, status,
                created_by, completed_by, completed_at, created_at
           FROM tasks
-         WHERE status = 'done'
+         WHERE cafe_id = ${ctx.cafeId}
+           AND status = 'done'
            AND completed_at >= NOW() - INTERVAL '7 days'
          ORDER BY completed_at DESC
          LIMIT 10
@@ -93,10 +94,8 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const me = await requireUser();
-    if (me.role !== 'manager' && me.role !== 'owner') {
-      throw new AuthError('forbidden', 'Manager or owner access required');
-    }
+    const ctx = await requireTenantUser();
+    requireManagerInCafe(ctx);
     let body: Record<string, unknown>;
     try {
       body = (await req.json()) as Record<string, unknown>;
@@ -134,8 +133,8 @@ export async function POST(req: Request) {
     }
 
     const { rows } = await sql<TaskRow>`
-      INSERT INTO tasks (title, description, deadline, assigned_to, status, created_by)
-      VALUES (${title}, ${description}, ${deadline}::timestamptz, ${assignedTo}, 'pending', ${me.id})
+      INSERT INTO tasks (cafe_id, title, description, deadline, assigned_to, status, created_by)
+      VALUES (${ctx.cafeId}, ${title}, ${description}, ${deadline}::timestamptz, ${assignedTo}, 'pending', ${ctx.userId})
       RETURNING id, title, description, deadline, assigned_to, status,
                 created_by, completed_by, completed_at, created_at
     `;

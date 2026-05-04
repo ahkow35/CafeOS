@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -48,12 +48,12 @@ function joinShape(r: JoinedTimesheetRow) {
 
 /**
  * GET /api/timesheets?scope=mine|all&user_id=&status=
- *  - mine: caller's own
- *  - all : manager+owner only; optional filters user_id, status
+ *  - mine: caller's own timesheets within their active cafe
+ *  - all : manager+owner only; optional filters user_id, status; cafe-scoped
  */
 export async function GET(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const url = new URL(req.url);
     const scope = url.searchParams.get('scope') ?? 'mine';
 
@@ -63,16 +63,15 @@ export async function GET(req: Request) {
                approved_by, approved_at, manager_action_by, manager_action_at,
                employee_signature, manager_signature, created_at, updated_at
           FROM timesheets
-         WHERE user_id = ${me.id}
+         WHERE user_id = ${ctx.userId}
+           AND cafe_id = ${ctx.cafeId}
          ORDER BY month_year DESC
       `;
       return NextResponse.json({ timesheets: rows });
     }
 
     if (scope === 'all') {
-      if (me.role !== 'manager' && me.role !== 'owner') {
-        throw new AuthError('forbidden', 'Manager or owner access required');
-      }
+      requireManagerInCafe(ctx);
       const userId = url.searchParams.get('user_id');
       const status = url.searchParams.get('status');
       const { rows } = await sql<JoinedTimesheetRow>`
@@ -81,12 +80,14 @@ export async function GET(req: Request) {
                t.employee_signature, t.manager_signature, t.created_at, t.updated_at,
                p.full_name AS profile_full_name,
                p.phone_e164 AS profile_phone_e164,
-               p.role AS profile_role,
+               m.role AS profile_role,
                p.hourly_rate AS profile_hourly_rate,
                p.email AS profile_email
           FROM timesheets t
           JOIN profiles p ON p.id = t.user_id
-         WHERE (${userId}::uuid IS NULL OR t.user_id = ${userId}::uuid)
+          JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = t.cafe_id
+         WHERE t.cafe_id = ${ctx.cafeId}
+           AND (${userId}::uuid IS NULL OR t.user_id = ${userId}::uuid)
            AND (${status}::text IS NULL OR t.status = ${status}::text)
          ORDER BY t.month_year DESC, p.full_name ASC
       `;
@@ -107,11 +108,11 @@ export async function GET(req: Request) {
 /**
  * POST /api/timesheets
  * Body: { month_year: 'YYYY-MM' }
- * Creates a draft for the caller. 409 if one already exists.
+ * Creates a draft for the caller within their active cafe. 409 if one already exists.
  */
 export async function POST(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     let body: Record<string, unknown>;
     try {
       body = (await req.json()) as Record<string, unknown>;
@@ -124,15 +125,19 @@ export async function POST(req: Request) {
     const month_year = body.month_year;
 
     const { rows: existing } = await sql<{ id: string }>`
-      SELECT id FROM timesheets WHERE user_id = ${me.id} AND month_year = ${month_year} LIMIT 1
+      SELECT id FROM timesheets
+       WHERE user_id = ${ctx.userId}
+         AND cafe_id = ${ctx.cafeId}
+         AND month_year = ${month_year}
+       LIMIT 1
     `;
     if (existing.length > 0) {
       return NextResponse.json({ error: 'Timesheet already exists for that month', id: existing[0].id }, { status: 409 });
     }
 
     const { rows } = await sql<TimesheetRow>`
-      INSERT INTO timesheets (user_id, month_year, status)
-      VALUES (${me.id}, ${month_year}, 'draft')
+      INSERT INTO timesheets (user_id, cafe_id, month_year, status)
+      VALUES (${ctx.userId}, ${ctx.cafeId}, ${month_year}, 'draft')
       RETURNING id, user_id, month_year, status, comments, rejection_reason,
                 approved_by, approved_at, manager_action_by, manager_action_at,
                 employee_signature, manager_signature, created_at, updated_at

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -19,33 +19,41 @@ interface ProfileRow {
 }
 
 /**
- * Roster for any signed-in user. Used by:
+ * Roster for any signed-in user within their active cafe. Used by:
  *  - admin/team, admin/manifest, admin/archive, admin/tasks (assignment dropdowns)
  *  - the home page leave widgets
- * Owners can see disabled accounts; everyone else only sees active ones.
+ * Owners can see inactive members; everyone else only sees active ones.
+ *
+ * role returned is the per-cafe role from cafe_memberships (not profiles.role).
  */
 export async function GET() {
   try {
-    const me = await requireUser();
-    const includeInactive = me.role === 'owner';
+    const ctx = await requireTenantUser();
+    const includeInactive = ctx.role === 'owner';
+
     const { rows } = includeInactive
       ? await sql<ProfileRow>`
-          SELECT id, phone_e164, full_name, job_title, role,
-                 annual_leave_balance, medical_leave_balance, hourly_rate,
-                 is_active, email, created_at
-            FROM profiles
-            ORDER BY full_name ASC
+          SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+                 m.role,
+                 p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
+                 p.is_active, p.email, p.created_at
+            FROM profiles p
+            JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${ctx.cafeId}
+           ORDER BY p.full_name ASC
         `
       : await sql<ProfileRow>`
-          SELECT id, phone_e164, full_name, job_title, role,
-                 annual_leave_balance, medical_leave_balance, hourly_rate,
-                 is_active, email, created_at
-            FROM profiles
-           WHERE is_active = TRUE
-            ORDER BY full_name ASC
+          SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+                 m.role,
+                 p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
+                 p.is_active, p.email, p.created_at
+            FROM profiles p
+            JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${ctx.cafeId}
+           WHERE p.is_active = TRUE AND m.status = 'active'
+           ORDER BY p.full_name ASC
         `;
+
     return NextResponse.json({
-      users: rows.map((r: ProfileRow) => ({ ...r, hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate) })),
+      users: rows.map((r) => ({ ...r, hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate) })),
     });
   } catch (e) {
     if (e instanceof AuthError) {

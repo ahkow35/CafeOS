@@ -16,12 +16,13 @@ const PREFIX = 'medical-certificates';
 
 export async function uploadMedicalCert(opts: {
   userId: string;
+  cafeId: string;
   file: File | Blob;
   filename: string;
   contentType?: string;
 }): Promise<{ url: string; pathname: string }> {
   const safeName = opts.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const key = `${PREFIX}/${opts.userId}/${Date.now()}-${safeName}`;
+  const key = `${PREFIX}/${opts.cafeId}/${opts.userId}/${Date.now()}-${safeName}`;
   const result = await put(key, opts.file, {
     access: 'public', // gated by app-layer auth on /api/medical-certs/[id]
     addRandomSuffix: false,
@@ -39,6 +40,6 @@ export async function deleteMedicalCert(urlOrPathname: string): Promise<void> {
  * before serving a download.
  */
 export function ownerFromPath(pathname: string): string | null {
-  const m = pathname.match(/^medical-certificates\/([^/]+)\//);
+  const m = pathname.match(/^medical-certificates\/[^/]+\/([^/]+)\//);
   return m ? m[1] : null;
 }

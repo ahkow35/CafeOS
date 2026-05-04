@@ -64,7 +64,22 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ ok: true });
     }
 
-    await sendTelegram(chatIdStr, `✅ Linked to CafeOS as ${rows[0].full_name}.\n\nYou'll now receive notifications here.`);
+    const { rows: cafeRows } = await sql<{ name: string }>`
+      SELECT c.name
+        FROM cafe_memberships m
+        JOIN cafes c ON c.id = m.cafe_id
+       WHERE m.user_id = (SELECT id FROM profiles WHERE phone_e164 = ${phone} LIMIT 1)
+         AND m.status = 'active'
+         AND c.status = 'active'
+       ORDER BY c.name
+    `;
+    const cafeList = cafeRows.length > 0
+      ? cafeRows.map((c) => `• ${c.name}`).join('\n')
+      : '(no active cafe memberships yet)';
+    await sendTelegram(
+      chatIdStr,
+      `✅ Linked as ${rows[0].full_name}.\n\nYou'll receive notifications for:\n${cafeList}`,
+    );
     return NextResponse.json({ ok: true });
   }
 

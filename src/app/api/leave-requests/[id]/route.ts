@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { deleteMedicalCert } from '@/lib/storage';
 import { notifyLeaveDecision } from '@/lib/notifications';
@@ -20,11 +20,12 @@ interface LeaveRow {
   attachment_url: string | null;
 }
 
-async function loadRow(id: string): Promise<LeaveRow | null> {
+async function loadRow(id: string, cafeId: string): Promise<LeaveRow | null> {
   const { rows } = await sql<LeaveRow>`
     SELECT id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url
       FROM leave_requests
      WHERE id = ${id}
+       AND cafe_id = ${cafeId}
      LIMIT 1
   `;
   return rows[0] ?? null;
@@ -38,10 +39,8 @@ async function loadRow(id: string): Promise<LeaveRow | null> {
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
-    if (me.role !== 'manager' && me.role !== 'owner') {
-      throw new AuthError('forbidden', 'Manager or owner access required');
-    }
+    const ctx = await requireTenantUser();
+    requireManagerInCafe(ctx);
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -57,23 +56,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       throw new ValidationError('action must be "approve" or "reject"');
     }
 
-    const row = await loadRow(id);
+    const row = await loadRow(id, ctx.cafeId);
     if (!row) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
     if (row.status === 'approved' || row.status === 'rejected') {
       return NextResponse.json({ error: `Request already ${row.status}` }, { status: 409 });
     }
 
     // Managers cannot act on their own requests, and cannot final-approve owner-stage rows.
-    if (me.role === 'manager') {
-      if (row.user_id === me.id) throw new AuthError('forbidden', 'Cannot act on your own request');
+    if (ctx.role === 'manager') {
+      if (row.user_id === ctx.userId) throw new AuthError('forbidden', 'Cannot act on your own request');
       if (row.status !== 'pending_manager') {
         throw new AuthError('forbidden', 'This request is past the manager stage');
       }
     }
 
-    const updated = await withTx(me.id, async (tx) => {
+    const updated = await withTenantTx(ctx, async (tx) => {
       if (action === 'approve') {
-        if (me.role === 'manager') {
+        if (ctx.role === 'manager') {
           const r = await tx.query<LeaveRow>(
             `UPDATE leave_requests
                 SET status = 'pending_owner',
@@ -82,7 +81,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                     updated_at = NOW()
               WHERE id = $2
               RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-            [me.id, id],
+            [ctx.userId, id],
           );
           return r.rows[0];
         }
@@ -95,7 +94,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                   updated_at = NOW()
             WHERE id = $2
             RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-          [me.id, id],
+          [ctx.userId, id],
         );
         return r.rows[0];
       }
@@ -106,7 +105,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         `UPDATE profiles SET ${balanceCol} = ${balanceCol} + $1, updated_at = NOW() WHERE id = $2`,
         [row.days_requested, row.user_id],
       );
-      const isOwner = me.role === 'owner';
+      const isOwner = ctx.role === 'owner';
       const r = await tx.query<LeaveRow>(
         isOwner
           ? `UPDATE leave_requests
@@ -121,16 +120,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                     updated_at = NOW()
               WHERE id = $2
               RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-        [me.id, id],
+        [ctx.userId, id],
       );
       return r.rows[0];
     });
 
     if (updated.status === 'approved' || updated.status === 'rejected') {
       const approved = updated.status === 'approved';
+      const cafeId = ctx.cafeId;
       after(async () => {
         try {
           await notifyLeaveDecision({
+            cafeId,
             requesterUserId: updated.user_id,
             leaveType: updated.leave_type,
             startDate: updated.start_date,
@@ -166,15 +167,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
  */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-    const row = await loadRow(id);
+    const row = await loadRow(id, ctx.cafeId);
     if (!row) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
 
-    const isOwnRow = row.user_id === me.id;
-    const isAdmin = me.role === 'owner';
+    const isOwnRow = row.user_id === ctx.userId;
+    const isAdmin = ctx.role === 'owner';
     if (row.status === 'approved' || row.status === 'rejected') {
       // Only owners can purge decided records.
       if (!isAdmin) throw new AuthError('forbidden', 'Cannot delete a decided request');
@@ -187,7 +188,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       row.status === 'pending_owner' ||
       row.status === 'approved';
 
-    await withTx(me.id, async (tx) => {
+    await withTenantTx(ctx, async (tx) => {
       if (refundsBalance) {
         const balanceCol = row.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
         await tx.query(

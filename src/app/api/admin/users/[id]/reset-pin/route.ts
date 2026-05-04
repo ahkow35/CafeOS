@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { hashPin, requireOwner, AuthError } from '@/lib/auth';
+import { hashPin, requireTenantUser, requireOwnerInCafe, AuthError } from '@/lib/auth';
 import { parsePin, ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -17,9 +17,22 @@ function generatePin(): string {
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireOwner();
+    const ctx = await requireTenantUser();
+    requireOwnerInCafe(ctx);
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
+
+    // Verify the target user is a member of this cafe before touching their PIN.
+    const { rows: memberRows } = await sql`
+      SELECT 1 FROM cafe_memberships
+       WHERE cafe_id = ${ctx.cafeId}
+         AND user_id = ${id}
+         AND status  = 'active'
+       LIMIT 1
+    `;
+    if (memberRows.length === 0) {
+      return NextResponse.json({ error: 'User not found in this cafe' }, { status: 404 });
+    }
 
     let body: Record<string, unknown> = {};
     try {
@@ -35,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { rowCount } = await sql`
       UPDATE profiles
-         SET pin_hash       = ${pin_hash},
+         SET pin_hash        = ${pin_hash},
              failed_attempts = 0,
              locked_until    = NULL,
              updated_at      = NOW()

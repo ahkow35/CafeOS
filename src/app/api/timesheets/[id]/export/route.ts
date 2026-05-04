@@ -4,7 +4,7 @@ import JSZip from 'jszip';
 import * as path from 'path';
 import { fmt12 } from '@/lib/timeUtils';
 import { sql } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 import type { TimesheetEntry } from '@/lib/database.types';
 
 export const runtime = 'nodejs';
@@ -61,7 +61,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -71,13 +71,14 @@ export async function GET(
         FROM timesheets t
         JOIN profiles p ON p.id = t.user_id
        WHERE t.id = ${id}
+         AND t.cafe_id = ${ctx.cafeId}
        LIMIT 1
     `;
     const timesheet = rows[0];
     if (!timesheet) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const isAdmin = me.role === 'manager' || me.role === 'owner';
-    if (timesheet.user_id !== me.id && !isAdmin) {
+    const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
+    if (timesheet.user_id !== ctx.userId && !isAdmin) {
       throw new AuthError('forbidden', 'Cannot export this timesheet');
     }
 
@@ -87,6 +88,7 @@ export async function GET(
              break_hours, total_hours, remarks, created_at
         FROM timesheet_entries
        WHERE timesheet_id = ${id}
+         AND cafe_id = ${ctx.cafeId}
        ORDER BY entry_date ASC
     `;
 

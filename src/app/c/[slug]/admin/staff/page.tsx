@@ -245,7 +245,7 @@ export default function AdminStaffPage() {
 
     const copyCreds = async () => {
         if (!createdCreds) return;
-        const text = `Hi ${createdCreds.name}! 👋\n\nYour CafeOS login details:\n📱 Mobile: ${createdCreds.phone}\n🔑 PIN: ${createdCreds.tempPin}\n\nLogin at: https://cafe-os-six.vercel.app/login`;
+        const text = `Hi ${createdCreds.name}! 👋\n\nYour CafeOS login details:\n📱 Mobile: ${createdCreds.phone}\n🔑 PIN: ${createdCreds.tempPin}\n\nLogin at: ${window.location.origin}/login`;
         try {
             await navigator.clipboard.writeText(text);
             toast('Copied to clipboard', 'success');

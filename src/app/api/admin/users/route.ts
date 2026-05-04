@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
-import { hashPin, requireOwner, AuthError } from '@/lib/auth';
+import { withTenantTx, sql } from '@/lib/db';
+import { hashPin, requireTenantUser, requireOwnerInCafe, AuthError } from '@/lib/auth';
 import {
   parseE164,
   parsePin,
@@ -18,7 +18,7 @@ interface ProfileRow {
   phone_e164: string;
   full_name: string;
   job_title: string | null;
-  role: 'staff' | 'manager' | 'owner' | 'part_timer';
+  role: 'staff' | 'manager' | 'owner' | 'part_timer'; // per-cafe role from cafe_memberships
   annual_leave_balance: number;
   medical_leave_balance: number;
   hourly_rate: string | null;
@@ -33,13 +33,20 @@ function serialise(r: ProfileRow) {
 
 export async function GET() {
   try {
-    await requireOwner();
+    const ctx = await requireTenantUser();
+    requireOwnerInCafe(ctx);
+
+    // Return only members of this cafe, with the per-cafe role from cafe_memberships.
     const { rows } = await sql<ProfileRow>`
-      SELECT id, phone_e164, full_name, job_title, role,
-             annual_leave_balance, medical_leave_balance, hourly_rate,
-             is_active, email, created_at
-        FROM profiles
-        ORDER BY full_name ASC
+      SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+             m.role,
+             p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
+             p.is_active, p.email, p.created_at
+        FROM profiles p
+        JOIN cafe_memberships m ON m.user_id = p.id
+       WHERE m.cafe_id = ${ctx.cafeId}
+         AND m.status  = 'active'
+       ORDER BY p.full_name ASC
     `;
     return NextResponse.json({ users: rows.map(serialise) });
   } catch (e) {
@@ -54,7 +61,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await requireOwner();
+    const ctx = await requireTenantUser();
+    requireOwnerInCafe(ctx);
 
     let body: Record<string, unknown>;
     try {
@@ -77,20 +85,40 @@ export async function POST(req: Request) {
 
     const pin_hash = await hashPin(pin);
 
-    const { rows } = await sql`
-      INSERT INTO profiles (phone_e164, full_name, job_title, role, pin_hash, hourly_rate, is_active)
-      VALUES (${phone_e164}, ${full_name}, ${job_title}, ${role}, ${pin_hash}, ${hourly_rate}, TRUE)
-      RETURNING id, phone_e164, full_name, job_title, role, hourly_rate, is_active, created_at
-    `;
-    const created = rows[0];
+    // Create profile and cafe membership atomically.
+    const created = await withTenantTx(ctx, async (tx) => {
+      const { rows } = await tx.query(
+        `INSERT INTO profiles (phone_e164, full_name, job_title, pin_hash, hourly_rate, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)
+         RETURNING id, phone_e164, full_name, job_title, hourly_rate, is_active, created_at`,
+        [phone_e164, full_name, job_title, pin_hash, hourly_rate],
+      );
+      const profile = rows[0] as {
+        id: string;
+        phone_e164: string;
+        full_name: string;
+        job_title: string | null;
+        hourly_rate: string | null;
+        is_active: boolean;
+        created_at: string;
+      };
+
+      await tx.query(
+        `INSERT INTO cafe_memberships (cafe_id, user_id, role, status)
+         VALUES ($1, $2, $3, 'active')`,
+        [ctx.cafeId, profile.id, role],
+      );
+
+      return profile;
+    });
 
     return NextResponse.json({
       id: created.id,
       phone_e164: created.phone_e164,
       full_name: created.full_name,
       job_title: created.job_title,
-      role: created.role,
-      hourly_rate: created.hourly_rate,
+      role,
+      hourly_rate: created.hourly_rate === null ? null : Number(created.hourly_rate),
       // Echo back the PIN once so the admin can hand it off; we never store plaintext.
       tempPin: pin,
     });

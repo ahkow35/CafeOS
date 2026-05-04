@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, requireOwnerInCafe, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import {
   notifyTimesheetSubmitted,
@@ -51,7 +51,7 @@ const TS_SELECT = `
 
 type TimesheetWithSubmitterName = TimesheetRow & { submitter_name: string };
 
-async function loadTimesheet(id: string): Promise<TimesheetWithSubmitterName | null> {
+async function loadTimesheet(id: string, cafeId: string): Promise<TimesheetWithSubmitterName | null> {
   const { rows } = await sql<TimesheetWithSubmitterName>`
     SELECT t.id, t.user_id, t.month_year, t.status, t.comments, t.rejection_reason,
            t.approved_by, t.approved_at, t.manager_action_by, t.manager_action_at,
@@ -60,6 +60,7 @@ async function loadTimesheet(id: string): Promise<TimesheetWithSubmitterName | n
       FROM timesheets t
       JOIN profiles p ON p.id = t.user_id
      WHERE t.id = ${id}
+       AND t.cafe_id = ${cafeId}
      LIMIT 1
   `;
   return rows[0] ?? null;
@@ -68,11 +69,11 @@ async function loadTimesheet(id: string): Promise<TimesheetWithSubmitterName | n
 /**
  * GET /api/timesheets/[id]
  * Returns the timesheet + entries + profile fields needed by the admin view.
- * Auth: owner-of-row OR manager/owner role.
+ * Auth: owner-of-row OR manager/owner role; always cafe-scoped.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -88,18 +89,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
              t.employee_signature, t.manager_signature, t.created_at, t.updated_at,
              p.full_name AS profile_full_name,
              p.phone_e164 AS profile_phone_e164,
-             p.role AS profile_role,
+             m.role AS profile_role,
              p.hourly_rate AS profile_hourly_rate,
              p.email AS profile_email
         FROM timesheets t
         JOIN profiles p ON p.id = t.user_id
+        JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = t.cafe_id
        WHERE t.id = ${id}
+         AND t.cafe_id = ${ctx.cafeId}
        LIMIT 1
     `;
     const r = rows[0];
     if (!r) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
 
-    if (r.user_id !== me.id && me.role !== 'manager' && me.role !== 'owner') {
+    if (r.user_id !== ctx.userId && ctx.role !== 'manager' && ctx.role !== 'owner') {
       throw new AuthError('forbidden', 'Cannot view this timesheet');
     }
 
@@ -109,6 +112,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
              break_hours, total_hours, remarks, created_at
         FROM timesheet_entries
        WHERE timesheet_id = ${id}
+         AND cafe_id = ${ctx.cafeId}
        ORDER BY entry_date ASC
     `;
 
@@ -158,7 +162,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -169,13 +173,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const ts = await loadTimesheet(id);
+    const ts = await loadTimesheet(id, ctx.cafeId);
     if (!ts) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
 
-    const isManager = me.role === 'manager';
-    const isOwner = me.role === 'owner';
+    const isManager = ctx.role === 'manager';
+    const isOwner = ctx.role === 'owner';
     const isAdmin = isManager || isOwner;
-    const isOwnerOfRow = ts.user_id === me.id;
+    const isOwnerOfRow = ts.user_id === ctx.userId;
 
     type Update = Partial<{
       employee_signature: string | null;
@@ -229,17 +233,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         notifyEvent = 'submitted';
 
       } else if (target === 'pending_owner') {
-        if (!isAdmin) throw new AuthError('forbidden', 'Manager or owner access required');
+        requireManagerInCafe(ctx);
         if (ts.status !== 'submitted') throw new ValidationError('Only submitted timesheets can be forwarded');
         const nextMgrSig = update.manager_signature ?? ts.manager_signature;
         if (!nextMgrSig) throw new ValidationError('Manager signature required to forward to owner');
         update.status = 'pending_owner';
-        update.manager_action_by = me.id;
+        update.manager_action_by = ctx.userId;
         update.manager_action_at = new Date().toISOString();
         notifyEvent = 'pending_owner';
 
       } else if (target === 'approved') {
-        if (!isOwner) throw new AuthError('forbidden', 'Owner access required for final approval');
+        requireOwnerInCafe(ctx);
         if (ts.status !== 'submitted' && ts.status !== 'pending_owner') {
           throw new ValidationError('Only submitted or owner-pending timesheets can be approved');
         }
@@ -248,18 +252,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const nextMgrSig = update.manager_signature ?? ts.manager_signature;
         if (!nextMgrSig) throw new ValidationError('Manager signature required before approval');
         update.status = 'approved';
-        update.approved_by = me.id;
+        update.approved_by = ctx.userId;
         update.approved_at = new Date().toISOString();
         // Owner-direct approval: stamp manager_action so audit trail is complete.
         if (ts.status === 'submitted' && !ts.manager_action_by) {
-          update.manager_action_by = me.id;
+          update.manager_action_by = ctx.userId;
           update.manager_action_at = new Date().toISOString();
         }
         notifyEvent = 'approved';
 
       } else if (target === 'rejected') {
-        if (!isAdmin) throw new AuthError('forbidden', 'Manager or owner access required');
-        if (ts.status === 'pending_owner' && !isOwner) {
+        requireManagerInCafe(ctx);
+        if (ts.status === 'pending_owner' && ctx.role !== 'owner') {
           throw new AuthError('forbidden', 'Only the owner can reject at this stage');
         }
         if (ts.status !== 'submitted' && ts.status !== 'pending_owner') {
@@ -289,7 +293,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
-    const updated = await withTx(me.id, async (tx) => {
+    // Capture actor full_name before withTenantTx (needed for after() callbacks where
+    // request context is gone). For the submitted event the part-timer is the actor,
+    // which is ts.submitter_name. For pending_owner the manager is the actor — fetch it now.
+    const partTimerName = ts.submitter_name;
+    let actorFullName: string | null = null;
+    if (notifyEvent === 'pending_owner') {
+      const { rows: actorRows } = await sql<{ full_name: string }>`
+        SELECT full_name FROM profiles WHERE id = ${ctx.userId} LIMIT 1
+      `;
+      actorFullName = actorRows[0]?.full_name ?? null;
+    }
+
+    const updated = await withTenantTx(ctx, async (tx) => {
       const r = await tx.query<TimesheetRow>(
         `UPDATE timesheets SET
            employee_signature = CASE WHEN $1::boolean THEN $2 ELSE employee_signature END,
@@ -303,6 +319,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
            manager_action_at  = CASE WHEN $16::boolean THEN $17::timestamptz ELSE manager_action_at END,
            updated_at         = NOW()
          WHERE id = $18
+           AND cafe_id = $19
          RETURNING ${TS_SELECT}`,
         [
           'employee_signature' in update,
@@ -323,6 +340,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           'manager_action_at' in update,
           update.manager_action_at ?? null,
           id,
+          ctx.cafeId,
         ],
       );
       return r.rows[0];
@@ -330,25 +348,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     // Use after() so notifications keep running past the JSON response —
     // plain fire-and-forget gets cancelled by Vercel's serverless runtime.
-    const partTimerName = ts.submitter_name;
+    // Capture all needed values as local consts BEFORE after() — request context
+    // is gone inside the callback.
+    const updatedMonthYear = updated.month_year;
+    const updatedUserId = updated.user_id;
+    const updatedRejectionReason = updated.rejection_reason;
+    const capturedCafeId = ctx.cafeId;
+
     if (notifyEvent === 'submitted') {
       after(async () => {
         try {
           await notifyTimesheetSubmitted({
-            partTimerName: me.full_name,
-            monthYear: updated.month_year,
+            cafeId: capturedCafeId,
+            partTimerName,
+            monthYear: updatedMonthYear,
           });
         } catch (err) {
           console.error('notifyTimesheetSubmitted error:', err);
         }
       });
     } else if (notifyEvent === 'pending_owner') {
+      const managerName = actorFullName ?? ctx.userId;
       after(async () => {
         try {
           await notifyTimesheetForOwner({
+            cafeId: capturedCafeId,
             partTimerName,
-            managerName: me.full_name,
-            monthYear: updated.month_year,
+            managerName,
+            monthYear: updatedMonthYear,
           });
         } catch (err) {
           console.error('notifyTimesheetForOwner error:', err);
@@ -356,14 +383,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     } else if (notifyEvent === 'approved' || notifyEvent === 'rejected') {
       const approved = notifyEvent === 'approved';
-      const rejectionReason = updated.rejection_reason;
       after(async () => {
         try {
           await notifyTimesheetDecision({
-            partTimerUserId: updated.user_id,
-            monthYear: updated.month_year,
+            partTimerUserId: updatedUserId,
+            monthYear: updatedMonthYear,
             approved,
-            rejectionReason,
+            rejectionReason: updatedRejectionReason,
           });
         } catch (err) {
           console.error('notifyTimesheetDecision error:', err);
@@ -390,20 +416,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
  */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-    const ts = await loadTimesheet(id);
+    const ts = await loadTimesheet(id, ctx.cafeId);
     if (!ts) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
 
-    const isAdmin = me.role === 'manager' || me.role === 'owner';
-    if (ts.user_id !== me.id && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
+    const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
+    if (ts.user_id !== ctx.userId && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
     if (!isAdmin && ts.status !== 'draft') {
       throw new ValidationError('Only drafts can be deleted by the owner');
     }
 
-    await sql`DELETE FROM timesheets WHERE id = ${id}`;
+    await sql`DELETE FROM timesheets WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

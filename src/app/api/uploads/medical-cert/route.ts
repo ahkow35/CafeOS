@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 import { uploadMedicalCert } from '@/lib/storage';
 
 export const runtime = 'nodejs';
@@ -9,7 +9,7 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/heic', 'applica
 
 export async function POST(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) {
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
     }
 
     const { url, pathname } = await uploadMedicalCert({
-      userId: me.id,
+      userId: ctx.userId,
+      cafeId: ctx.cafeId,
       file,
       filename: file.name || 'mc',
       contentType: file.type || undefined,

@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { notifyLeaveSubmitted } from '@/lib/notifications';
 
@@ -71,7 +71,7 @@ function daysBetween(startISO: string, endISO: string): number {
  */
 export async function GET(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const url = new URL(req.url);
     const scope = url.searchParams.get('scope') ?? 'mine';
 
@@ -82,31 +82,32 @@ export async function GET(req: Request) {
                manager_action_by, manager_action_at, owner_action_by, owner_action_at,
                created_at, updated_at
           FROM leave_requests
-         WHERE user_id = ${me.id}
+         WHERE user_id = ${ctx.userId}
+           AND cafe_id = ${ctx.cafeId}
          ORDER BY created_at DESC
       `;
       return NextResponse.json({ requests: rows });
     }
 
     if (scope === 'pending') {
-      if (me.role !== 'manager' && me.role !== 'owner') {
-        throw new AuthError('forbidden', 'Manager or owner access required');
-      }
+      requireManagerInCafe(ctx);
       // Owners see both pending stages (they can approve directly).
       // Managers only see pending_manager and never their own requests.
-      const { rows } = me.role === 'owner'
+      const { rows } = ctx.role === 'owner'
         ? await sql<JoinedLeaveRow>`
             SELECT lr.id, lr.user_id, lr.leave_type, lr.start_date, lr.end_date,
                    lr.days_requested, lr.reason, lr.attachment_url, lr.is_retrospective,
                    lr.status, lr.manager_action_by, lr.manager_action_at,
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
-                   p.role AS profile_role,
+                   m.role AS profile_role,
                    p.annual_leave_balance AS profile_annual_balance,
                    p.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
+              JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
              WHERE lr.status IN ('pending_manager','pending_owner')
+               AND lr.cafe_id = ${ctx.cafeId}
              ORDER BY lr.created_at ASC
           `
         : await sql<JoinedLeaveRow>`
@@ -115,13 +116,15 @@ export async function GET(req: Request) {
                    lr.status, lr.manager_action_by, lr.manager_action_at,
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
-                   p.role AS profile_role,
+                   m.role AS profile_role,
                    p.annual_leave_balance AS profile_annual_balance,
                    p.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
+              JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
              WHERE lr.status = 'pending_manager'
-               AND lr.user_id <> ${me.id}
+               AND lr.cafe_id = ${ctx.cafeId}
+               AND lr.user_id <> ${ctx.userId}
              ORDER BY lr.created_at ASC
           `;
       return NextResponse.json({
@@ -139,22 +142,22 @@ export async function GET(req: Request) {
     }
 
     if (scope === 'history') {
-      if (me.role !== 'manager' && me.role !== 'owner') {
-        throw new AuthError('forbidden', 'Manager or owner access required');
-      }
-      const { rows } = me.role === 'owner'
+      requireManagerInCafe(ctx);
+      const { rows } = ctx.role === 'owner'
         ? await sql<JoinedLeaveRow>`
             SELECT lr.id, lr.user_id, lr.leave_type, lr.start_date, lr.end_date,
                    lr.days_requested, lr.reason, lr.attachment_url, lr.is_retrospective,
                    lr.status, lr.manager_action_by, lr.manager_action_at,
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
-                   p.role AS profile_role,
+                   m.role AS profile_role,
                    p.annual_leave_balance AS profile_annual_balance,
                    p.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
+              JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
              WHERE lr.status IN ('approved','rejected')
+               AND lr.cafe_id = ${ctx.cafeId}
              ORDER BY lr.created_at DESC
           `
         : await sql<JoinedLeaveRow>`
@@ -163,13 +166,15 @@ export async function GET(req: Request) {
                    lr.status, lr.manager_action_by, lr.manager_action_at,
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
-                   p.role AS profile_role,
+                   m.role AS profile_role,
                    p.annual_leave_balance AS profile_annual_balance,
                    p.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
+              JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
              WHERE lr.status IN ('approved','rejected')
-               AND p.role = 'staff'
+               AND lr.cafe_id = ${ctx.cafeId}
+               AND m.role = 'staff'
              ORDER BY lr.created_at DESC
           `;
       return NextResponse.json({
@@ -187,18 +192,21 @@ export async function GET(req: Request) {
     }
 
     if (scope === 'all') {
-      if (me.role !== 'owner') throw new AuthError('forbidden', 'Owner access required');
+      requireManagerInCafe(ctx);
+      if (ctx.role !== 'owner') throw new AuthError('forbidden', 'Owner access required');
       const { rows } = await sql<JoinedLeaveRow>`
         SELECT lr.id, lr.user_id, lr.leave_type, lr.start_date, lr.end_date,
                lr.days_requested, lr.reason, lr.attachment_url, lr.is_retrospective,
                lr.status, lr.manager_action_by, lr.manager_action_at,
                lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
-               p.role AS profile_role,
+               m.role AS profile_role,
                p.annual_leave_balance AS profile_annual_balance,
                p.medical_leave_balance AS profile_medical_balance
           FROM leave_requests lr
           JOIN profiles p ON p.id = lr.user_id
+          JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
+         WHERE lr.cafe_id = ${ctx.cafeId}
          ORDER BY lr.created_at DESC
       `;
       return NextResponse.json({
@@ -238,7 +246,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     let body: Record<string, unknown>;
     try {
       body = (await req.json()) as Record<string, unknown>;
@@ -268,10 +276,20 @@ export async function POST(req: Request) {
     const is_retrospective = start_date < today;
 
     const initialStatus =
-      me.role === 'owner' ? 'approved' :
-      me.role === 'manager' ? 'pending_owner' : 'pending_manager';
+      ctx.role === 'owner' ? 'approved' :
+      ctx.role === 'manager' ? 'pending_owner' : 'pending_manager';
+
+    // Fetch balance and name from DB — TenantCtx doesn't carry these fields.
+    const { rows: balRows } = await sql<{ full_name: string; annual_leave_balance: number; medical_leave_balance: number }>`
+      SELECT full_name, annual_leave_balance, medical_leave_balance
+        FROM profiles
+       WHERE id = ${ctx.userId}
+       LIMIT 1
+    `;
+    if (balRows.length === 0) throw new AuthError('unauthorized', 'Profile not found');
+    const balRow = balRows[0];
+    const currentBalance = leave_type === 'annual' ? balRow.annual_leave_balance : balRow.medical_leave_balance;
     const balanceField = leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-    const currentBalance = leave_type === 'annual' ? me.annual_leave_balance : me.medical_leave_balance;
 
     if (days > currentBalance) {
       return NextResponse.json(
@@ -280,11 +298,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Overlap check (against active requests).
+    // Overlap check (against active requests within this cafe).
     const { rows: overlap } = await sql<{ start_date: string; end_date: string; leave_type: LeaveType; status: string }>`
       SELECT start_date, end_date, leave_type, status
         FROM leave_requests
-       WHERE user_id = ${me.id}
+       WHERE user_id = ${ctx.userId}
+         AND cafe_id = ${ctx.cafeId}
          AND status IN ('pending_manager','pending_owner','approved')
          AND start_date <= ${end_date}::date
          AND end_date >= ${start_date}::date
@@ -298,44 +317,46 @@ export async function POST(req: Request) {
       );
     }
 
-    const created = await withTx(me.id, async (tx) => {
+    const created = await withTenantTx(ctx, async (tx) => {
       // Deduct balance — one query, no read-then-write race.
       if (balanceField === 'annual_leave_balance') {
         await tx.query(
           `UPDATE profiles SET annual_leave_balance = annual_leave_balance - $1, updated_at = NOW()
             WHERE id = $2 AND annual_leave_balance >= $1`,
-          [days, me.id],
+          [days, ctx.userId],
         );
       } else {
         await tx.query(
           `UPDATE profiles SET medical_leave_balance = medical_leave_balance - $1, updated_at = NOW()
             WHERE id = $2 AND medical_leave_balance >= $1`,
-          [days, me.id],
+          [days, ctx.userId],
         );
       }
 
       const insert = await tx.query<LeaveRow>(
         `INSERT INTO leave_requests
-            (user_id, leave_type, start_date, end_date, days_requested,
+            (cafe_id, user_id, leave_type, start_date, end_date, days_requested,
              reason, attachment_url, is_retrospective, status,
              owner_action_by, owner_action_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                  CASE WHEN $9 = 'approved' THEN $1::uuid ELSE NULL END,
-                  CASE WHEN $9 = 'approved' THEN NOW() ELSE NULL END)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                  CASE WHEN $10 = 'approved' THEN $2::uuid ELSE NULL END,
+                  CASE WHEN $10 = 'approved' THEN NOW() ELSE NULL END)
           RETURNING id, user_id, leave_type, start_date, end_date, days_requested,
                     reason, attachment_url, is_retrospective, status,
                     manager_action_by, manager_action_at, owner_action_by, owner_action_at,
                     created_at, updated_at`,
-        [me.id, leave_type, start_date, end_date, days, reason, attachment_url, is_retrospective, initialStatus],
+        [ctx.cafeId, ctx.userId, leave_type, start_date, end_date, days, reason, attachment_url, is_retrospective, initialStatus],
       );
       return insert.rows[0];
     });
 
     if (created.status !== 'approved') {
-      const requesterName = me.full_name;
+      const cafeId = ctx.cafeId;
+      const requesterName = balRow.full_name;
       after(async () => {
         try {
           await notifyLeaveSubmitted({
+            cafeId,
             requesterName,
             leaveType: created.leave_type,
             startDate: created.start_date,

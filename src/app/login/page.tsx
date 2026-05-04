@@ -19,17 +19,26 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const { error } = await signIn('+65' + phone, pin);
+    const { error, outcome } = await signIn('+65' + phone, pin);
 
     if (error) {
       setError(error.message);
       setLoading(false);
-    } else {
-      // Invalidate RSC prefetched while unauthenticated; otherwise the first
-      // post-login navigation reuses the middleware-redirect-to-/login payload.
-      router.refresh();
-      router.replace('/');
+      return;
     }
+
+    if (outcome?.kind === 'pick') {
+      // Multiple cafes — store data for the picker page and navigate there.
+      sessionStorage.setItem('cafeos_pick_memberships', JSON.stringify(outcome.memberships));
+      sessionStorage.setItem('cafeos_pick_super', String(outcome.isSuperAdmin));
+      router.replace('/login/select');
+      return;
+    }
+
+    // Single destination — session cookie already set.
+    // Invalidate RSC prefetched while unauthenticated before navigating.
+    router.refresh();
+    router.replace((outcome as { kind: 'redirect'; to: string } | undefined)?.to ?? '/');
   };
 
   return (
@@ -99,6 +108,9 @@ export default function LoginPage() {
 
         <div className="auth-footer">
           Forgot your PIN? Ask your manager to reset it.
+        </div>
+        <div className="auth-footer" style={{ marginTop: '8px' }}>
+          New cafe? <a href="/start" style={{ color: 'var(--color-primary)' }}>Apply for access</a>
         </div>
       </div>
     </div>

@@ -4,8 +4,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/context/ToastContext";
 
 export const metadata: Metadata = {
-  title: "CafeOS - Staff Portal",
-  description: "Easy to Use Leave Management and Task Management for small Cafes - hyperlocalized",
+  title: "CafeOS",
+  description: "HR operations platform for independent cafes.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

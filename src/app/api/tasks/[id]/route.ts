@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql, withTx } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { sql, withTenantTx } from '@/lib/db';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -20,12 +20,13 @@ interface TaskRow {
   created_at: string;
 }
 
-async function loadTask(id: string): Promise<TaskRow | null> {
+async function loadTask(id: string, cafeId: string): Promise<TaskRow | null> {
   const { rows } = await sql<TaskRow>`
     SELECT id, title, description, deadline, assigned_to, status,
            created_by, completed_by, completed_at, created_at
       FROM tasks
      WHERE id = ${id}
+       AND cafe_id = ${cafeId}
      LIMIT 1
   `;
   return rows[0] ?? null;
@@ -42,7 +43,7 @@ async function loadTask(id: string): Promise<TaskRow | null> {
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
+    const ctx = await requireTenantUser();
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
@@ -53,11 +54,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const task = await loadTask(id);
+    const task = await loadTask(id, ctx.cafeId);
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
-    const isAdmin = me.role === 'manager' || me.role === 'owner';
-    const isAssignee = task.assigned_to === me.id || task.assigned_to === 'all';
+    const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
+    const isAssignee = task.assigned_to === ctx.userId || task.assigned_to === 'all';
 
     type Update = Partial<{
       status: 'pending' | 'done';
@@ -79,7 +80,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
       update.status = body.status;
       if (body.status === 'done') {
-        update.completed_by = me.id;
+        update.completed_by = ctx.userId;
         update.completed_at = new Date().toISOString();
       } else {
         update.completed_by = null;
@@ -134,7 +135,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
-    const updated = await withTx(me.id, async (tx) => {
+    const updated = await withTenantTx(ctx, async (tx) => {
       const r = await tx.query<TaskRow>(
         `UPDATE tasks SET
            status       = COALESCE($1, status),
@@ -182,14 +183,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
  */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const me = await requireUser();
-    if (me.role !== 'manager' && me.role !== 'owner') {
-      throw new AuthError('forbidden', 'Manager or owner access required');
-    }
+    const ctx = await requireTenantUser();
+    requireManagerInCafe(ctx);
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-    const { rowCount } = await sql`DELETE FROM tasks WHERE id = ${id}`;
+    const { rowCount } = await sql`DELETE FROM tasks WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
     if (rowCount === 0) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (e) {

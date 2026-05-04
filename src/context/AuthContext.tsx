@@ -1,29 +1,50 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import type { MembershipRole } from '@/lib/validators';
 
-export type Role = 'staff' | 'manager' | 'owner' | 'part_timer';
+export type Role = MembershipRole;
+
+export interface CafeInfo {
+  id: string;
+  slug: string;
+  name: string;
+  logo_url: string | null;
+}
+
+export interface MembershipInfo {
+  cafe: CafeInfo;
+  role: Role;
+}
 
 export interface SessionUser {
   id: string;
   phone_e164: string;
   full_name: string;
   job_title: string | null;
-  role: Role;
+  role: Role | null;         // role in active_cafe; null for super-admin-only sessions
   annual_leave_balance: number;
   medical_leave_balance: number;
   hourly_rate: number | null;
   is_active: boolean;
+  is_super_admin: boolean;
   email: string | null;
+  active_cafe: CafeInfo | null;
+  memberships: MembershipInfo[];
 }
+
+export type LoginOutcome =
+  | { kind: 'redirect'; to: string }
+  | { kind: 'pick'; memberships: MembershipInfo[]; isSuperAdmin: boolean };
 
 interface AuthContextType {
   user: SessionUser | null;
-  profile: SessionUser | null; // alias for backwards-compat with existing pages
+  profile: SessionUser | null; // alias — backwards compat with existing pages
   loading: boolean;
   profileLoading: boolean;
-  signIn: (phone: string, pin: string) => Promise<{ error: Error | null }>;
+  signIn: (phone: string, pin: string) => Promise<{ error: Error | null; outcome?: LoginOutcome }>;
   signOut: () => Promise<void>;
+  switchCafe: (cafeId: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -41,14 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (!res.ok) {
-        // Transient error (503, 500, network blip) — keep existing auth state.
         console.warn('[AuthContext] /me transient failure', res.status);
         return;
       }
       const json = (await res.json()) as { user: SessionUser | null };
       setUser(json.user);
     } catch (err) {
-      // Network error — do NOT log the user out.
       console.warn('[AuthContext] /me network error', err);
     }
   }, []);
@@ -60,17 +79,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, pin }),
       });
+      const json = (await res.json().catch(() => ({}))) as {
+        user?: SessionUser;
+        error?: string;
+        code?: string;
+        redirect?: string;
+        memberships?: MembershipInfo[];
+        isSuperAdmin?: boolean;
+      };
+
       if (!res.ok) {
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
         return { error: new Error(json.error ?? 'Login failed') };
       }
-      const json = (await res.json()) as { user: SessionUser };
-      setUser(json.user);
-      return { error: null };
+
+      // Multi-cafe picker — caller shows selection UI.
+      if (json.memberships) {
+        return {
+          error: null,
+          outcome: {
+            kind: 'pick' as const,
+            memberships: json.memberships,
+            isSuperAdmin: json.isSuperAdmin ?? false,
+          } satisfies LoginOutcome,
+        };
+      }
+
+      // Single destination — session cookie already set.
+      if (json.user) setUser(json.user);
+      return {
+        error: null,
+        outcome: { kind: 'redirect' as const, to: json.redirect ?? '/' } satisfies LoginOutcome,
+      };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Login failed') };
     }
   }, []);
+
+  const switchCafe = useCallback(async (cafeId: string) => {
+    try {
+      const res = await fetch('/api/auth/switch-cafe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cafeId }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        return { error: new Error(json.error ?? 'Switch failed') };
+      }
+      await refreshProfile();
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error('Switch failed') };
+    }
+  }, [refreshProfile]);
 
   const signOut = useCallback(async () => {
     try {
@@ -87,12 +148,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await refreshProfile();
       if (mounted) setLoading(false);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [refreshProfile]);
 
-  // Re-check session when the page is restored from bfcache.
   useEffect(() => {
     const onShow = (e: PageTransitionEvent) => {
       if (e.persisted) refreshProfile();
@@ -110,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileLoading: loading,
         signIn,
         signOut,
+        switchCafe,
         refreshProfile,
       }}
     >

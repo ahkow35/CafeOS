@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { requireUser, AuthError } from '@/lib/auth';
+import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
 /**
  * GET /api/admin/stats
  * Returns the four counters shown on the admin dashboard.
- * Auth: manager or owner.
+ * Auth: manager or owner in the active cafe.
  */
 export async function GET() {
   try {
-    const me = await requireUser();
-    if (me.role !== 'manager' && me.role !== 'owner') {
-      throw new AuthError('forbidden', 'Manager or owner access required');
-    }
+    const ctx = await requireTenantUser();
+    requireManagerInCafe(ctx);
 
     const { rows } = await sql<{
       pending_manager_leave: number;
@@ -23,10 +21,16 @@ export async function GET() {
       staff_count: number;
     }>`
       SELECT
-        (SELECT COUNT(*) FROM leave_requests WHERE status = 'pending_manager')::int AS pending_manager_leave,
-        (SELECT COUNT(*) FROM leave_requests WHERE status = 'pending_owner')::int   AS pending_owner_leave,
-        (SELECT COUNT(*) FROM tasks WHERE status = 'pending')::int                  AS pending_tasks,
-        (SELECT COUNT(*) FROM profiles WHERE role = 'staff' AND is_active = TRUE)::int AS staff_count
+        (SELECT COUNT(*) FROM leave_requests WHERE status = 'pending_manager' AND cafe_id = ${ctx.cafeId})::int AS pending_manager_leave,
+        (SELECT COUNT(*) FROM leave_requests WHERE status = 'pending_owner'   AND cafe_id = ${ctx.cafeId})::int AS pending_owner_leave,
+        (SELECT COUNT(*) FROM tasks         WHERE status = 'pending'          AND cafe_id = ${ctx.cafeId})::int AS pending_tasks,
+        (SELECT COUNT(*)
+           FROM cafe_memberships m
+           JOIN profiles p ON p.id = m.user_id
+          WHERE m.cafe_id = ${ctx.cafeId}
+            AND m.role    = 'staff'
+            AND m.status  = 'active'
+            AND p.is_active = TRUE)::int AS staff_count
     `;
     const r = rows[0];
     return NextResponse.json({
