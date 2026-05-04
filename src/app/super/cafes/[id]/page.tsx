@@ -45,6 +45,22 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handleReject = async () => {
+    if (!confirm(`Reject and delete "${cafe?.name}"? This cannot be undone.`)) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/super/cafes/${id}/reject`, { method: 'DELETE' });
+      const data = await res.json() as Record<string, unknown>;
+      if (!res.ok) { setActionError(String(data.error ?? 'Action failed')); return; }
+      router.push('/super');
+    } catch {
+      setActionError('Network error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const post = async (path: string, body?: Record<string, unknown>) => {
     setBusy(true);
     setActionError(null);
@@ -104,13 +120,23 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {cafe.status === 'pending' && (
-              <button
-                className="btn btn-primary"
-                onClick={handleApprove}
-                disabled={busy}
-              >
-                {busy ? 'Approving…' : 'Approve'}
-              </button>
+              <>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleApprove}
+                  disabled={busy}
+                >
+                  {busy ? 'Approving…' : 'Approve'}
+                </button>
+                <button
+                  className="btn"
+                  style={{ background: 'var(--color-error)', color: '#fff' }}
+                  onClick={handleReject}
+                  disabled={busy}
+                >
+                  Reject
+                </button>
+              </>
             )}
             {cafe.status === 'active' && (
               <button
