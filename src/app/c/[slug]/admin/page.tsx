@@ -211,20 +211,34 @@ export default function AdminPage() {
                             </div>
                         </Link>
 
-                        {/* Archive link for managers (owners have it in Command Center) */}
+                        {/* Archive + Timesheets links for managers (owners have them in Command Center) */}
                         {!isOwner && (
-                            <Link href={`${base}/admin/archive`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
-                                <div className="flex items-center gap-md">
-                                    <div className="stat-icon">
-                                        <Calendar size={28} />
+                            <>
+                                <Link href={`${base}/admin/timesheets`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                                    <div className="flex items-center gap-md">
+                                        <div className="stat-icon">
+                                            <Clock size={28} />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div className="card-title">Timesheets</div>
+                                            <div className="card-subtitle">Part-timer timesheet approval</div>
+                                        </div>
+                                        <ChevronRight size={20} className="text-muted" />
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div className="card-title">Leave Archive</div>
-                                        <div className="card-subtitle">View leave history records</div>
+                                </Link>
+                                <Link href={`${base}/admin/archive`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                                    <div className="flex items-center gap-md">
+                                        <div className="stat-icon">
+                                            <Calendar size={28} />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div className="card-title">Leave Archive</div>
+                                            <div className="card-subtitle">View leave history records</div>
+                                        </div>
+                                        <ChevronRight size={20} className="text-muted" />
                                     </div>
-                                    <ChevronRight size={20} className="text-muted" />
-                                </div>
-                            </Link>
+                                </Link>
+                            </>
                         )}
                     </section>
                 </div>
