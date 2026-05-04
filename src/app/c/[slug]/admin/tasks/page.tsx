@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Task, User } from '@/lib/database.types';
 import Header from '@/components/Header';
@@ -23,6 +23,7 @@ async function jsonOrError(res: Response): Promise<unknown> {
 export default function AdminTasksPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
 
     const [staff, setStaff] = useState<User[]>([]);
     const [recentTasks, setRecentTasks] = useState<Task[]>([]);
@@ -56,7 +57,7 @@ export default function AdminTasksPage() {
     useEffect(() => {
         if (loading) return;
         if (!user) { router.push('/login'); return; }
-        if (profile && !isManagerOrOwner) { router.push('/'); return; }
+        if (profile && !isManagerOrOwner) { router.push(`/c/${slug}/leave`); return; }
         if (isManagerOrOwner) fetchData();
     }, [user, profile, loading, isManagerOrOwner, fetchData, router]);
 
@@ -246,7 +247,7 @@ export default function AdminTasksPage() {
 
                     <button
                         className="btn btn-ghost btn-block mt-lg"
-                        onClick={() => router.push('/admin')}
+                        onClick={() => router.push(`/c/${slug}/admin`)}
                     >
                         <ArrowLeft size={18} />
                         <span>Back to Admin</span>

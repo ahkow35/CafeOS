@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { LeaveRequest, User } from '@/lib/database.types';
 import Header from '@/components/Header';
@@ -34,6 +34,7 @@ async function jsonOrError(res: Response): Promise<unknown> {
 
 export default function AdminLeavePage() {
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
     const toast = useToast();
     const { user, profile, loading: authLoading } = useAuth();
 
@@ -69,7 +70,7 @@ export default function AdminLeavePage() {
     useEffect(() => {
         if (authLoading) return;
         if (!user) { router.push('/login'); return; }
-        if (profile && !isAdmin) { router.push('/'); return; }
+        if (profile && !isAdmin) { router.push(`/c/${slug}/leave`); return; }
         if (isAdmin) loadPageData();
     }, [user, profile, authLoading, isAdmin, loadPageData, router]);
 
@@ -231,7 +232,7 @@ export default function AdminLeavePage() {
 
                     <button
                         className="btn btn-ghost btn-block mt-lg"
-                        onClick={() => router.push('/admin')}
+                        onClick={() => router.push(`/c/${slug}/admin`)}
                     >
                         <ArrowLeft size={18} />
                         <span>Back to Admin</span>

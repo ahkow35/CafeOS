@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
@@ -18,6 +18,8 @@ interface AdminStats {
 export default function AdminPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
+    const base = `/c/${slug}`;
 
     const [stats, setStats] = useState<AdminStats>({
         pendingManagerLeave: 0,
@@ -36,7 +38,7 @@ export default function AdminPage() {
     useEffect(() => {
         if (loading) return;
         if (!user) { router.push('/login'); return; }
-        if (profile && !isManagerOrOwner) { router.push('/'); return; }
+        if (profile && !isManagerOrOwner) { router.push(`${base}/leave`); return; }
     }, [user, profile, loading, router, isManagerOrOwner]);
 
     useEffect(() => {
@@ -120,7 +122,7 @@ export default function AdminPage() {
                                 <span>Command Center</span>
                             </h2>
 
-                            <Link href="/admin/leave" className="card mb-md" style={{ display: 'block', textDecoration: 'none', border: '2px solid var(--color-primary)' }}>
+                            <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none', border: '2px solid var(--color-primary)' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <ClipboardList size={28} />
@@ -133,7 +135,7 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href="/admin/staff" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/staff`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <Users size={28} />
@@ -146,7 +148,7 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href="/admin/archive" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/archive`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <CheckSquare size={28} />
@@ -159,7 +161,7 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href="/admin/timesheets" className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/timesheets`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <Clock size={28} />
@@ -182,7 +184,7 @@ export default function AdminPage() {
                         </h2>
 
                         {!isOwner && (
-                            <Link href="/admin/leave" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <ClipboardList size={28} />
@@ -196,7 +198,7 @@ export default function AdminPage() {
                             </Link>
                         )}
 
-                        <Link href="/admin/tasks" className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                        <Link href={`${base}/admin/tasks`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                             <div className="flex items-center gap-md">
                                 <div className="stat-icon">
                                     <CheckSquare size={28} />
@@ -211,7 +213,7 @@ export default function AdminPage() {
 
                         {/* Archive link for managers (owners have it in Command Center) */}
                         {!isOwner && (
-                            <Link href="/admin/archive" className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/archive`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <Calendar size={28} />

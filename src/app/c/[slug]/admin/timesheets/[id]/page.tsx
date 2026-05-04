@@ -36,7 +36,7 @@ async function jsonOrError<T>(res: Response): Promise<T> {
 }
 
 export default function AdminTimesheetDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id: string; slug: string }>();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
 
@@ -75,7 +75,7 @@ export default function AdminTimesheetDetailPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
-    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push('/'); return; }
+    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push(`/c/${slug}/leave`); return; }
     load();
   }, [user, profile, authLoading, load, router]);
 
@@ -107,7 +107,7 @@ export default function AdminTimesheetDetailPage() {
     setError('');
     try {
       await jsonOrError(await fetch(`/api/timesheets/${timesheet.id}`, { method: 'DELETE' }));
-      router.push('/admin/timesheets');
+      router.push(`/c/${slug}/admin/timesheets`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
       setDeleting(false);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Upload, FileText } from 'lucide-react';
 
@@ -20,6 +20,7 @@ export default function LeaveApplicationForm() {
     const { user, profile, refreshProfile } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { slug } = useParams<{ slug: string }>();
 
     const endDateRef = useRef<HTMLInputElement>(null);
     const reasonRef = useRef<HTMLTextAreaElement>(null);
@@ -142,7 +143,7 @@ export default function LeaveApplicationForm() {
             }));
 
             await refreshProfile();
-            router.push('/leave');
+            router.push(`/c/${slug}/leave`);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
             setError(errorMessage);

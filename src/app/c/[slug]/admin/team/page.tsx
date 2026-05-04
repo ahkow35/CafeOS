@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
@@ -24,6 +24,7 @@ async function jsonOrError(res: Response): Promise<unknown> {
 export default function ManageTeamPage() {
     const { user, profile, loading: authLoading } = useAuth();
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
     const toast = useToast();
 
     const [profiles, setProfiles] = useState<User[]>([]);
@@ -49,7 +50,7 @@ export default function ManageTeamPage() {
     useEffect(() => {
         if (authLoading) return;
         if (!user) { router.push('/login'); return; }
-        if (profile && !isOwner) { router.push('/'); return; }
+        if (profile && !isOwner) { router.push(`/c/${slug}/admin`); return; }
         if (isOwner) loadData();
     }, [user, profile, authLoading, isOwner, loadData, router]);
 
@@ -224,7 +225,7 @@ export default function ManageTeamPage() {
                             </div>
                             <button
                                 className="btn btn-ghost btn-block mt-lg"
-                                onClick={() => router.push('/admin')}
+                                onClick={() => router.push(`/c/${slug}/admin`)}
                             >
                                 <ArrowLeft size={18} />
                                 <span>Back to Admin</span>

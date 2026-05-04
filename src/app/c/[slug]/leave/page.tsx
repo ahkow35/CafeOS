@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { LeaveRequest } from '@/lib/database.types';
@@ -26,6 +26,7 @@ async function jsonOrError(res: Response): Promise<unknown> {
 export default function LeavePage() {
     const { user, profile, loading, refreshProfile } = useAuth();
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
     const toast = useToast();
 
     const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -109,7 +110,7 @@ export default function LeavePage() {
                     </section>
 
                     <section className="section animate-in">
-                        <Link href="/leave/apply" className="btn btn-primary btn-block btn-lg">
+                        <Link href={`/c/${slug}/leave/apply`} className="btn btn-primary btn-block btn-lg">
                             <Plus size={20} />
                             <span>Apply for Leave</span>
                         </Link>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Home, CheckSquare, Calendar, Settings, Clock } from 'lucide-react';
 
@@ -10,34 +10,34 @@ const ROLE_CACHE_KEY = 'cafeos_role';
 
 export default function BottomNav() {
     const pathname = usePathname();
+    const { slug } = useParams<{ slug: string }>();
     const { profile } = useAuth();
+    const base = `/c/${slug}`;
 
-    // Persist role to localStorage so bfcache restores use the correct tab layout
     useEffect(() => {
         if (profile?.role) {
             localStorage.setItem(ROLE_CACHE_KEY, profile.role);
         }
     }, [profile?.role]);
 
-    // Use live profile role, fall back to cached role during bfcache hydration
     const role = profile?.role ?? (typeof window !== 'undefined' ? localStorage.getItem(ROLE_CACHE_KEY) ?? '' : '');
 
     const isManagerOrOwner = role === 'manager' || role === 'owner';
     const isPartTimer = role === 'part_timer';
 
     const navItems = [
-        { href: '/', label: 'Home', icon: Home },
-        { href: '/tasks', label: 'Tasks', icon: CheckSquare },
+        { href: `${base}/admin`, label: 'Home', icon: Home },
+        { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
     ];
 
     if (isPartTimer) {
-        navItems.push({ href: '/timesheet', label: 'Timesheet', icon: Clock });
+        navItems.push({ href: `${base}/timesheet`, label: 'Timesheet', icon: Clock });
     } else {
-        navItems.push({ href: '/leave', label: 'Leave', icon: Calendar });
+        navItems.push({ href: `${base}/leave`, label: 'Leave', icon: Calendar });
     }
 
     if (isManagerOrOwner) {
-        navItems.push({ href: '/admin', label: 'Admin', icon: Settings });
+        navItems.push({ href: `${base}/admin`, label: 'Admin', icon: Settings });
     }
 
     return (
@@ -45,10 +45,10 @@ export default function BottomNav() {
             <div className="bottom-nav-content">
                 {navItems.map(item => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
                         <Link
-                            key={item.href}
+                            key={item.label}
                             href={item.href}
                             className={`bottom-nav-item ${isActive ? 'active' : ''}`}
                         >

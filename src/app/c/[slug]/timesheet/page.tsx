@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Timesheet } from '@/lib/database.types';
 import Header from '@/components/Header';
@@ -32,6 +32,7 @@ function statusBadge(status: Timesheet['status']): { label: string; color: strin
 
 export default function TimesheetPage() {
   const router = useRouter();
+  const { slug } = useParams<{ slug: string }>();
   const { user, profile, loading: authLoading } = useAuth();
 
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
@@ -56,7 +57,7 @@ export default function TimesheetPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
-    if (profile && profile.role !== 'part_timer') { router.push('/'); return; }
+    if (profile && profile.role !== 'part_timer') { router.push(`/c/${slug}/admin`); return; }
     loadTimesheets();
   }, [user, profile, authLoading, loadTimesheets, router]);
 
@@ -112,7 +113,7 @@ export default function TimesheetPage() {
                     key={ts.id}
                     className="card mb-md"
                     style={{ cursor: 'pointer' }}
-                    onClick={() => router.push(`/timesheet/${ts.id}`)}
+                    onClick={() => router.push(`/c/${slug}/timesheet/${ts.id}`)}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

@@ -2,10 +2,12 @@
 
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { Coffee, LogOut } from 'lucide-react';
 
 export default function Header() {
     const { profile, signOut } = useAuth();
+    const { slug } = useParams<{ slug: string }>();
 
     const getInitials = (name: string | undefined | null) => {
         if (!name) return '?';
@@ -20,7 +22,7 @@ export default function Header() {
     return (
         <header className="header">
             <div className="header-content">
-                <Link href="/" className="header-logo" style={{ textDecoration: 'none' }}>
+                <Link href={`/c/${slug}/admin`} className="header-logo" style={{ textDecoration: 'none' }}>
                     <Coffee size={24} />
                     <span>CafeOS</span>
                 </Link>

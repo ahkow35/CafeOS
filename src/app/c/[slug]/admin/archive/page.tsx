@@ -3,7 +3,7 @@
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { ArrowLeft, Calendar, CheckCircle, XCircle, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useEffect, useState, useCallback } from 'react';
@@ -29,6 +29,7 @@ async function jsonOrError(res: Response): Promise<unknown> {
 export default function AdminArchivePage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
+    const { slug } = useParams<{ slug: string }>();
     const toast = useToast();
 
     const [leaves, setLeaves] = useState<LeaveWithProfile[]>([]);
@@ -53,7 +54,7 @@ export default function AdminArchivePage() {
     useEffect(() => {
         if (loading) return;
         if (!user) { router.push('/login'); return; }
-        if (profile && !isAdmin) { router.push('/admin'); return; }
+        if (profile && !isAdmin) { router.push(`/c/${slug}/admin`); return; }
         if (isAdmin) fetchLeaveHistory();
     }, [user, profile, loading, isAdmin, fetchLeaveHistory, router]);
 
@@ -254,7 +255,7 @@ export default function AdminArchivePage() {
 
                     <button
                         className="btn btn-ghost btn-block mt-lg"
-                        onClick={() => router.push('/admin')}
+                        onClick={() => router.push(`/c/${slug}/admin`)}
                     >
                         <ArrowLeft size={18} />
                         <span>Back to Command Center</span>

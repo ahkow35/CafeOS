@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Timesheet, TimesheetStatus, User } from '@/lib/database.types';
 import Header from '@/components/Header';
@@ -22,6 +22,7 @@ const STATUS_BADGE: Record<TimesheetStatus, { label: string; color: string }> = 
 
 export default function AdminTimesheetsPage() {
   const router = useRouter();
+  const { slug } = useParams<{ slug: string }>();
   const { user, profile, loading: authLoading } = useAuth();
 
   const [timesheets, setTimesheets] = useState<TimesheetWithProfile[]>([]);
@@ -47,7 +48,7 @@ export default function AdminTimesheetsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push('/login'); return; }
-    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push('/'); return; }
+    if (profile && profile.role !== 'manager' && profile.role !== 'owner') { router.push(`/c/${slug}/leave`); return; }
     load();
   }, [user, profile, authLoading, load, router]);
 
@@ -128,7 +129,7 @@ export default function AdminTimesheetsPage() {
                 const badge = STATUS_BADGE[ts.status];
                 return (
                   <div key={ts.id} className="card mb-md" style={{ cursor: 'pointer' }}
-                    onClick={() => router.push(`/admin/timesheets/${ts.id}`)}>
+                    onClick={() => router.push(`/c/${slug}/admin/timesheets/${ts.id}`)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div className="stat-icon"><Clock size={22} /></div>

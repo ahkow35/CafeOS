@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
 interface LeaveBalanceCardProps {
     annualBalance: number;
@@ -8,9 +9,12 @@ interface LeaveBalanceCardProps {
 }
 
 export default function LeaveBalanceCard({ annualBalance, medicalBalance }: LeaveBalanceCardProps) {
+    const { slug } = useParams<{ slug: string }>();
+    const base = `/c/${slug}`;
+
     return (
         <div className="stats-grid">
-            <Link href="/leave/apply?type=annual" style={{ textDecoration: 'none' }}>
+            <Link href={`${base}/leave/apply?type=annual`} style={{ textDecoration: 'none' }}>
                 <div className="stat-card" style={{ cursor: 'pointer' }}>
                     <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
                         Annual Leave
@@ -28,7 +32,7 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
                     </div>
                 </div>
             </Link>
-            <Link href="/leave/apply?type=medical" style={{ textDecoration: 'none' }}>
+            <Link href={`${base}/leave/apply?type=medical`} style={{ textDecoration: 'none' }}>
                 <div className="stat-card" style={{ cursor: 'pointer' }}>
                     <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
                         Medical Leave
