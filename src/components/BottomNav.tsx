@@ -25,8 +25,14 @@ export default function BottomNav() {
     const isManagerOrOwner = role === 'manager' || role === 'owner';
     const isPartTimer = role === 'part_timer';
 
+    const homeHref = isManagerOrOwner
+        ? `${base}/admin`
+        : isPartTimer
+        ? `${base}/timesheet`
+        : `${base}/tasks`;
+
     const navItems = [
-        { href: `${base}/admin`, label: 'Home', icon: Home },
+        { href: homeHref, label: 'Home', icon: Home },
         { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
     ];
 
