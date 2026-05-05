@@ -206,12 +206,15 @@ export async function GET(
     const outBuf = await zip.generateAsync({ type: 'nodebuffer' });
 
     const filename = `${staffName.replace(/\s+/g, '-')}-${timesheet.month_year}.xlsx`;
+    // ASCII fallback strips chars that would break the quoted-string token;
+    // filename* (RFC 5987) carries the full UTF-8 name for clients that support it.
+    const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\\r\n]/g, '_');
 
     return new NextResponse(new Uint8Array(outBuf), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       },
     });
   } catch (e) {

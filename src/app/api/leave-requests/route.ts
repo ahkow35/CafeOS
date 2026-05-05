@@ -174,7 +174,7 @@ export async function GET(req: Request) {
               JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
              WHERE lr.status IN ('approved','rejected')
                AND lr.cafe_id = ${ctx.cafeId}
-               AND m.role = 'staff'
+               AND m.role IN ('staff','part_timer')
              ORDER BY lr.created_at DESC
           `;
       return NextResponse.json({
@@ -272,6 +272,20 @@ export async function POST(req: Request) {
       throw new ValidationError('Medical certificate attachment required for medical leave');
     }
 
+    // Validate attachment_url belongs to this user/cafe — prevents referencing
+    // another user's blob or arbitrary external URLs.
+    if (leave_type === 'medical' && attachment_url) {
+      try {
+        const { pathname } = new URL(attachment_url);
+        if (!pathname.startsWith(`/medical-certificates/${ctx.cafeId}/${ctx.userId}/`)) {
+          throw new ValidationError('Invalid attachment URL');
+        }
+      } catch (e) {
+        if (e instanceof ValidationError) throw e;
+        throw new ValidationError('Invalid attachment URL');
+      }
+    }
+
     const today = new Date().toISOString().slice(0, 10);
     const is_retrospective = start_date < today;
 
@@ -279,59 +293,56 @@ export async function POST(req: Request) {
       ctx.role === 'owner' ? 'approved' :
       ctx.role === 'manager' ? 'pending_owner' : 'pending_manager';
 
-    // Fetch balance and name from DB — TenantCtx doesn't carry these fields.
-    const { rows: balRows } = await sql<{ full_name: string; annual_leave_balance: number; medical_leave_balance: number }>`
-      SELECT full_name, annual_leave_balance, medical_leave_balance
-        FROM profiles
-       WHERE id = ${ctx.userId}
-       LIMIT 1
-    `;
-    if (balRows.length === 0) throw new AuthError('unauthorized', 'Profile not found');
-    const balRow = balRows[0];
-    const currentBalance = leave_type === 'annual' ? balRow.annual_leave_balance : balRow.medical_leave_balance;
-    const balanceField = leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+    const balanceCol = leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
 
-    if (days > currentBalance) {
-      return NextResponse.json(
-        { error: `Insufficient ${leave_type} leave balance. Requested ${days}, available ${currentBalance}.` },
-        { status: 400 },
+    // All checks run inside the transaction with a FOR UPDATE lock on the profile row.
+    // This serializes concurrent submissions for the same user, preventing balance
+    // overdraw and duplicate overlapping requests.
+    const { created, requesterName } = await withTenantTx(ctx, async (tx) => {
+      const { rows: balRows } = await tx.query<{
+        full_name: string;
+        annual_leave_balance: number;
+        medical_leave_balance: number;
+      }>(
+        `SELECT full_name, annual_leave_balance, medical_leave_balance
+           FROM profiles WHERE id = $1 FOR UPDATE`,
+        [ctx.userId],
       );
-    }
+      if (balRows.length === 0) throw new AuthError('unauthorized', 'Profile not found');
+      const balRow = balRows[0];
 
-    // Overlap check (against active requests within this cafe).
-    const { rows: overlap } = await sql<{ start_date: string; end_date: string; leave_type: LeaveType; status: string }>`
-      SELECT start_date, end_date, leave_type, status
-        FROM leave_requests
-       WHERE user_id = ${ctx.userId}
-         AND cafe_id = ${ctx.cafeId}
-         AND status IN ('pending_manager','pending_owner','approved')
-         AND start_date <= ${end_date}::date
-         AND end_date >= ${start_date}::date
-       LIMIT 1
-    `;
-    if (overlap.length > 0) {
-      const o = overlap[0];
-      return NextResponse.json(
-        { error: `Overlaps with existing ${o.leave_type} request (${o.status}) ${o.start_date} – ${o.end_date}.` },
-        { status: 409 },
-      );
-    }
-
-    const created = await withTenantTx(ctx, async (tx) => {
-      // Deduct balance — one query, no read-then-write race.
-      if (balanceField === 'annual_leave_balance') {
-        await tx.query(
-          `UPDATE profiles SET annual_leave_balance = annual_leave_balance - $1, updated_at = NOW()
-            WHERE id = $2 AND annual_leave_balance >= $1`,
-          [days, ctx.userId],
-        );
-      } else {
-        await tx.query(
-          `UPDATE profiles SET medical_leave_balance = medical_leave_balance - $1, updated_at = NOW()
-            WHERE id = $2 AND medical_leave_balance >= $1`,
-          [days, ctx.userId],
+      const currentBalance = leave_type === 'annual'
+        ? balRow.annual_leave_balance
+        : balRow.medical_leave_balance;
+      if (days > currentBalance) {
+        throw new ValidationError(
+          `Insufficient ${leave_type} leave balance. Requested ${days}, available ${currentBalance}.`,
         );
       }
+
+      // Overlap check — serialized by the FOR UPDATE lock.
+      const { rows: overlap } = await tx.query<{
+        start_date: string; end_date: string; leave_type: LeaveType; status: string;
+      }>(
+        `SELECT start_date, end_date, leave_type, status
+           FROM leave_requests
+          WHERE user_id = $1 AND cafe_id = $2
+            AND status IN ('pending_manager','pending_owner','approved')
+            AND start_date <= $3::date AND end_date >= $4::date
+          LIMIT 1`,
+        [ctx.userId, ctx.cafeId, end_date, start_date],
+      );
+      if (overlap.length > 0) {
+        const o = overlap[0];
+        throw new ValidationError(
+          `Overlaps with existing ${o.leave_type} request (${o.status}) ${o.start_date} – ${o.end_date}.`,
+        );
+      }
+
+      await tx.query(
+        `UPDATE profiles SET ${balanceCol} = ${balanceCol} - $1, updated_at = NOW() WHERE id = $2`,
+        [days, ctx.userId],
+      );
 
       const insert = await tx.query<LeaveRow>(
         `INSERT INTO leave_requests
@@ -347,12 +358,11 @@ export async function POST(req: Request) {
                     created_at, updated_at`,
         [ctx.cafeId, ctx.userId, leave_type, start_date, end_date, days, reason, attachment_url, is_retrospective, initialStatus],
       );
-      return insert.rows[0];
+      return { created: insert.rows[0], requesterName: balRow.full_name };
     });
 
     if (created.status !== 'approved') {
       const cafeId = ctx.cafeId;
-      const requesterName = balRow.full_name;
       after(async () => {
         try {
           await notifyLeaveSubmitted({

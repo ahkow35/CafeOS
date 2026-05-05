@@ -72,7 +72,12 @@ export async function GET(req: Request) {
 
     if (scope === 'all') {
       requireManagerInCafe(ctx);
-      const userId = url.searchParams.get('user_id');
+      const userIdParam = url.searchParams.get('user_id');
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (userIdParam !== null && !UUID_RE.test(userIdParam)) {
+        return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 });
+      }
+      const userId = userIdParam;
       const status = url.searchParams.get('status');
       const { rows } = await sql<JoinedTimesheetRow>`
         SELECT t.id, t.user_id, t.month_year, t.status, t.comments, t.rejection_reason,
