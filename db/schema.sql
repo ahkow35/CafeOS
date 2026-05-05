@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     hourly_rate           NUMERIC(10,2),
     is_active             BOOLEAN NOT NULL DEFAULT TRUE,
     email                 TEXT, -- legacy display only; not used for auth
-    telegram_chat_id      TEXT, -- bound via /api/telegram/webhook /link command
+    telegram_chat_id      TEXT UNIQUE, -- bound via /api/telegram/webhook /link command
     is_super_admin        BOOLEAN NOT NULL DEFAULT FALSE,
     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()

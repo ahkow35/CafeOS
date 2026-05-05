@@ -43,7 +43,14 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ ok: true });
     }
 
-    // Single round-trip: bind chat_id to an active profile and return the name.
+    // Clear any existing binding for this chat_id before setting the new one.
+    // profiles.telegram_chat_id has a UNIQUE constraint, so skipping this causes a
+    // duplicate-key error when re-linking to a different phone.
+    await sql`
+      UPDATE profiles SET telegram_chat_id = NULL, updated_at = NOW()
+       WHERE telegram_chat_id = ${chatIdStr}
+    `;
+
     const { rows } = await sql<{ full_name: string }>`
       UPDATE profiles
          SET telegram_chat_id = ${chatIdStr}, updated_at = NOW()
