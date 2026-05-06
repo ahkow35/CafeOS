@@ -157,7 +157,7 @@ export default function TimesheetPage() {
           onCreated={(ts) => {
             setTimesheets(prev => [ts, ...prev]);
             setShowNewModal(false);
-            router.push(`/timesheet/${ts.id}`);
+            router.push(`/c/${slug}/timesheet/${ts.id}`);
           }}
         />
       )}
