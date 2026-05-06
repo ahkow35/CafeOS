@@ -122,11 +122,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!a) throw new ValidationError('assigned_to is required ("all" or a user id)');
       if (a !== 'all' && !UUID_RE.test(a)) throw new ValidationError('assigned_to must be "all" or a UUID');
       if (a !== 'all') {
-        const { rows: target } = await sql<{ id: string; is_active: boolean }>`
-          SELECT id, is_active FROM profiles WHERE id = ${a} LIMIT 1
+        const { rows: target } = await sql<{ is_active: boolean; in_cafe: boolean }>`
+          SELECT p.is_active,
+                 EXISTS(
+                   SELECT 1 FROM cafe_memberships m
+                    WHERE m.user_id = p.id AND m.cafe_id = ${ctx.cafeId} AND m.status = 'active'
+                 ) AS in_cafe
+            FROM profiles p
+           WHERE p.id = ${a}
+           LIMIT 1
         `;
         if (target.length === 0) throw new ValidationError('Assignee does not exist');
         if (!target[0].is_active) throw new ValidationError('Assignee is inactive');
+        if (!target[0].in_cafe) throw new ValidationError('Assignee is not a member of this cafe');
       }
       update.assigned_to = a;
     }

@@ -62,7 +62,8 @@ export async function POST(req: Request) {
       return res;
     }
 
-    if (typeof cafeId !== 'string') {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof cafeId !== 'string' || !UUID_RE.test(cafeId)) {
       return NextResponse.json({ error: 'cafeId is required' }, { status: 400 });
     }
 
