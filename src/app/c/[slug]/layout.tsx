@@ -69,7 +69,15 @@ export default async function TenantLayout({
           background: '#7c3aed', color: '#fff', textAlign: 'center',
           padding: '6px 16px', fontSize: '13px', fontWeight: 600,
         }}>
-          👁 Impersonation mode — <a href="/super" style={{ color: '#e9d5ff', textDecoration: 'underline' }}>back to super admin</a>
+          👁 Impersonation mode —{' '}
+          <form action="/api/auth/stop-impersonating" method="post" style={{ display: 'inline' }}>
+            <button
+              type="submit"
+              style={{ color: '#e9d5ff', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0 }}
+            >
+              back to super admin
+            </button>
+          </form>
         </div>
       )}
       <div style={impersonatorId ? { paddingTop: '32px' } : undefined}>

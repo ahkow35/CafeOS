@@ -14,6 +14,7 @@ const PUBLIC_PREFIX = [
   '/icons',
   '/api/auth/',
   '/api/telegram/',
+  '/api/webhooks/stripe', // authenticated by Stripe signature, not the session cookie
   '/api/start',
   '/api/ping',
 ];

@@ -474,6 +474,9 @@ export async function requireSuperAdmin(): Promise<SessionUser> {
   if (!claims.is_super_admin) throw new AuthError('forbidden', 'Super admin access required');
   const u = await getCurrentUser();
   if (!u) throw new AuthError('unauthorized', 'Not signed in');
+  // The JWT claim is only a cheap early-out; the DB is the source of truth.
+  // A super admin revoked after their token was issued must lose access immediately.
+  if (!u.is_super_admin) throw new AuthError('forbidden', 'Super admin access required');
   return u;
 }
 
@@ -515,6 +518,15 @@ export async function signPickToken(sub: string): Promise<string> {
 /** Read and verify the pick cookie — used by /api/auth/select-cafe. */
 export async function getPickClaims(): Promise<PickClaims | null> {
   return getPickClaimsFromCookies();
+}
+
+/**
+ * Read and verify the raw session claims (including impersonator_id) without the
+ * membership/DB checks in requireTenantUser. Used by /api/super/stop-impersonating,
+ * which must inspect an impersonation session whose is_super_admin claim is false.
+ */
+export async function getSessionClaims(): Promise<SessionClaims | null> {
+  return getSessionClaimsFromCookies();
 }
 
 // Legacy compat aliases — used by existing /api/admin/* routes until Phase D rewrites them.

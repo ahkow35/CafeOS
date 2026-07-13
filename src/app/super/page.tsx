@@ -36,6 +36,11 @@ export default function SuperPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function signOut() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+
   const pending = cafes.filter((c) => c.status === 'pending');
   const active = cafes.filter((c) => c.status === 'active');
   const suspended = cafes.filter((c) => c.status === 'suspended');
@@ -48,9 +53,13 @@ export default function SuperPage() {
           <Link href="/super/admins" style={{ color: 'var(--color-primary)', fontSize: '14px' }}>
             Manage admins
           </Link>
-          <a href="/api/auth/logout" style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>
+          <button
+            type="button"
+            onClick={signOut}
+            style={{ color: 'var(--color-text-muted)', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
             Sign out
-          </a>
+          </button>
         </div>
       </div>
 

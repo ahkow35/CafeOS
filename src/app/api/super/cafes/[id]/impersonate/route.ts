@@ -6,7 +6,6 @@ import {
   signFullSession,
   SESSION_COOKIE,
   SESSION_COOKIE_OPTIONS,
-  SESSION_COOKIE_MAX_AGE,
   AuthError,
 } from '@/lib/auth';
 import type { MembershipRole } from '@/lib/validators';
@@ -14,6 +13,10 @@ import type { MembershipRole } from '@/lib/validators';
 export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Impersonation sessions are short-lived — they should not outlive the admin's
+// working window the way a normal 7-day session does.
+const IMPERSONATION_MAX_AGE = 60 * 60; // 1 hour
 
 export async function POST(
   req: Request,
@@ -35,15 +38,18 @@ export async function POST(
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    // Verify the target has an active membership in this cafe.
+    // Verify the target has an active membership in this cafe AND an active profile.
+    // Disabled users must not be impersonable.
     const { rows } = await sql<{ role: MembershipRole; cafe_slug: string }>`
       SELECT m.role, c.slug AS cafe_slug
         FROM cafe_memberships m
         JOIN cafes c ON c.id = m.cafe_id
+        JOIN profiles p ON p.id = m.user_id
        WHERE m.user_id = ${targetUserId}
          AND m.cafe_id = ${cafeId}
          AND m.status = 'active'
          AND c.status = 'active'
+         AND p.is_active = TRUE
        LIMIT 1
     `;
     if (rows.length === 0) {
@@ -63,7 +69,7 @@ export async function POST(
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE, token, {
       ...SESSION_COOKIE_OPTIONS,
-      maxAge: SESSION_COOKIE_MAX_AGE,
+      maxAge: IMPERSONATION_MAX_AGE,
     });
 
     return NextResponse.json({ ok: true, redirect: `/c/${cafe_slug}/` });

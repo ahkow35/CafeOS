@@ -1,7 +1,19 @@
 import { sql } from '@/lib/db';
 import { formatMonthYear } from '@/lib/dateUtils';
 
-const BASE_URL = (process.env.APP_BASE_URL ?? 'https://cafeos.app').replace(/\/$/, '');
+// Resolved at call time (not module load) so a missing var fails when a
+// notification is actually sent, not during the production build's page-data
+// collection where env vars are absent.
+function baseUrl(): string {
+  const raw = process.env.APP_BASE_URL;
+  if (raw) return raw.replace(/\/$/, '');
+  // No silent wrong-host default: in production a missing APP_BASE_URL would put
+  // broken links in HR/billing notifications, so fail loud instead.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('APP_BASE_URL must be set in production');
+  }
+  return 'http://localhost:3000';
+}
 
 const SHORT_DATE = (d: string) => {
   const dt = new Date(d.split('T')[0] + 'T00:00:00');
@@ -78,13 +90,18 @@ export async function notifyLeaveSubmitted(args: NotifyLeaveSubmittedArgs): Prom
     getManagerRecipients(args.cafeId),
     getCafeSlug(args.cafeId),
   ]);
-  if (recipients.length === 0) return;
+  if (recipients.length === 0) {
+    // Not an error, but the most common cause of "manager got no alert": no active
+    // manager/owner in this cafe has linked Telegram. Logged so it's not silent.
+    console.warn(`notifyLeaveSubmitted: no linked manager/owner recipients in cafe ${args.cafeId}`);
+    return;
+  }
 
   const dateRange = args.startDate === args.endDate
     ? SHORT_DATE(args.startDate)
     : `${SHORT_DATE(args.startDate)} – ${SHORT_DATE(args.endDate)}`;
 
-  const reviewUrl = slug ? `${BASE_URL}/c/${slug}/admin/leave` : BASE_URL;
+  const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/leave` : baseUrl();
   const text = `📋 <b>New Leave Request</b>\n\n${args.requesterName} submitted a ${args.days}-day ${args.leaveType} leave (${dateRange}).\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
@@ -139,7 +156,7 @@ export async function notifyTimesheetSubmitted(args: NotifyTimesheetSubmittedArg
   ]);
   if (recipients.length === 0) return;
 
-  const reviewUrl = slug ? `${BASE_URL}/c/${slug}/admin/timesheets` : BASE_URL;
+  const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/timesheets` : baseUrl();
   const text = `🕒 <b>New Timesheet Submitted</b>\n\n${args.partTimerName} submitted their ${formatMonthYear(args.monthYear)} timesheet for review.\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
@@ -160,7 +177,7 @@ export async function notifyTimesheetForOwner(args: NotifyTimesheetForOwnerArgs)
   ]);
   if (recipients.length === 0) return;
 
-  const reviewUrl = slug ? `${BASE_URL}/c/${slug}/admin/timesheets` : BASE_URL;
+  const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/timesheets` : baseUrl();
   const text = `📋 <b>Timesheet Awaiting Owner Approval</b>\n\n${args.managerName} approved ${args.partTimerName}'s ${formatMonthYear(args.monthYear)} timesheet. Final approval needed.\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
@@ -213,7 +230,7 @@ export async function notifyCafeSignup(args: NotifyCafeSignupArgs): Promise<void
   `;
   if (rows.length === 0) return;
 
-  const reviewUrl = `${BASE_URL}/super`;
+  const reviewUrl = `${baseUrl()}/super`;
   const text = `🆕 <b>New Cafe Application</b>\n\n<b>${args.cafeName}</b>\nOwner: ${args.ownerName} (${args.ownerPhone})\n\nReview: ${reviewUrl}`;
 
   await Promise.all(rows.map((r) => sendTelegram(r.telegram_chat_id, text)));
