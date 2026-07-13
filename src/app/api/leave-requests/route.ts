@@ -3,6 +3,7 @@ import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { notifyLeaveSubmitted } from '@/lib/notifications';
+import { isValidOwnCertUrl } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 
@@ -282,18 +283,11 @@ export async function POST(req: Request) {
       throw new ValidationError('Medical certificate attachment required for medical leave');
     }
 
-    // Validate attachment_url belongs to this user/cafe — prevents referencing
-    // another user's blob or arbitrary external URLs.
-    if (leave_type === 'medical' && attachment_url) {
-      try {
-        const { pathname } = new URL(attachment_url);
-        if (!pathname.startsWith(`/medical-certificates/${ctx.cafeId}/${ctx.userId}/`)) {
-          throw new ValidationError('Invalid attachment URL');
-        }
-      } catch (e) {
-        if (e instanceof ValidationError) throw e;
-        throw new ValidationError('Invalid attachment URL');
-      }
+    // Validate ANY supplied attachment (not just medical) is https, on our Blob
+    // host, and inside this user's own cert path. Blocks SSRF, cross-user blobs,
+    // and arbitrary external URLs before the value is ever stored.
+    if (attachment_url && !isValidOwnCertUrl(attachment_url, ctx.cafeId, ctx.userId)) {
+      throw new ValidationError('Invalid attachment URL');
     }
 
     const today = new Date().toISOString().slice(0, 10);

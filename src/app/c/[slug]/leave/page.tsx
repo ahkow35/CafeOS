@@ -9,6 +9,7 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
+import TelegramLinkButton from '@/components/TelegramLinkButton';
 import { BarChart3, Plus, Clock, History, Inbox } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
@@ -114,6 +115,10 @@ export default function LeavePage() {
                             <Plus size={20} />
                             <span>Apply for Leave</span>
                         </Link>
+                    </section>
+
+                    <section className="section animate-in">
+                        <TelegramLinkButton />
                     </section>
 
                     {pendingRequests.length > 0 && (

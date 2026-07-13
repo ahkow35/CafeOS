@@ -89,6 +89,20 @@ CREATE INDEX IF NOT EXISTS idx_memberships_user ON public.cafe_memberships(user_
 CREATE INDEX IF NOT EXISTS idx_memberships_cafe ON public.cafe_memberships(cafe_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- TELEGRAM LINK CODES (authenticated, single-use, short-lived)
+-- Replaces phone-based linking: a signed-in user mints a code, then sends
+-- "/link CODE" from a private Telegram chat to bind their notifications.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.telegram_link_codes (
+    code       TEXT PRIMARY KEY,
+    user_id    UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_link_codes_user ON public.telegram_link_codes(user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- LEAVE REQUESTS
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.leave_requests (

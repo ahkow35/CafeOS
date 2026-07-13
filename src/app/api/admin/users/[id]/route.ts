@@ -191,11 +191,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'You cannot remove yourself from the cafe' }, { status: 400 });
     }
 
-    // Remove user from this cafe only (not a global profile delete).
+    // Soft-remove from this cafe: suspend the membership rather than DELETE it.
+    // The membership row now holds café-scoped pay/leave history (Option A), so a
+    // hard delete would destroy payroll records and break timesheet export for
+    // ex-staff. Suspending drops them from the active roster and revokes access
+    // (login + requireTenantUser both require status = 'active') while retaining data.
     const { rowCount } = await sql`
-      DELETE FROM cafe_memberships
+      UPDATE cafe_memberships
+         SET status = 'suspended'
        WHERE cafe_id = ${ctx.cafeId}
          AND user_id = ${id}
+         AND status <> 'suspended'
     `;
     if (!rowCount) return NextResponse.json({ error: 'User not found in this cafe' }, { status: 404 });
     return NextResponse.json({ ok: true });
