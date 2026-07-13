@@ -63,6 +63,8 @@ export async function GET(req: Request) {
     }
 
     if (scope === 'recent-done') {
+      // Scope to the caller's own tasks — a staffer's "Show Completed" must not
+      // list other employees' completed tasks.
       const { rows } = await sql<TaskRow>`
         SELECT id, title, description, deadline, assigned_to, status,
                created_by, completed_by, completed_at, created_at
@@ -70,6 +72,7 @@ export async function GET(req: Request) {
          WHERE cafe_id = ${ctx.cafeId}
            AND status = 'done'
            AND completed_at >= NOW() - INTERVAL '7 days'
+           AND (assigned_to = ${ctx.userId} OR assigned_to = 'all')
          ORDER BY completed_at DESC
          LIMIT 10
       `;

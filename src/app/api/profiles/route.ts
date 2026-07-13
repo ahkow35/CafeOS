@@ -52,9 +52,32 @@ export async function GET() {
            ORDER BY p.full_name ASC
         `;
 
-    return NextResponse.json({
-      users: rows.map((r) => ({ ...r, hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate) })),
+    // Privacy: only managers/owners may see contact + pay + leave fields. Staff and
+    // part-timers get a minimal roster (their own sensitive data is on /api/auth/me).
+    const isManager = ctx.role === 'manager' || ctx.role === 'owner';
+    const users = rows.map((r) => {
+      const base = {
+        id: r.id,
+        full_name: r.full_name,
+        job_title: r.job_title,
+        role: r.role,
+        is_active: r.is_active,
+        created_at: r.created_at,
+      };
+      if (!isManager) {
+        return { ...base, phone_e164: null, email: null, hourly_rate: null, annual_leave_balance: null, medical_leave_balance: null };
+      }
+      return {
+        ...base,
+        phone_e164: r.phone_e164,
+        email: r.email,
+        hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate),
+        annual_leave_balance: r.annual_leave_balance,
+        medical_leave_balance: r.medical_leave_balance,
+      };
     });
+
+    return NextResponse.json({ users });
   } catch (e) {
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;

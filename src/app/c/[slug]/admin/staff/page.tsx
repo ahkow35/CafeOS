@@ -137,15 +137,14 @@ export default function AdminStaffPage() {
     };
 
     const removeUser = async (userId: string, userName: string) => {
-        if (!confirm(`⚠️ WARNING: Are you sure you want to PERMANENTLY DELETE ${userName}?\n\nThis will:\n- Delete their profile\n- Remove all their leave requests\n- Remove all their task assignments\n\nThis action CANNOT be undone!`)) return;
-        if (!confirm(`Final confirmation: delete ${userName}? This cannot be undone.`)) return;
+        if (!confirm(`Remove ${userName} from this café?\n\nThey will lose access and drop off the active roster. Their records — leave, timesheets, and pay history — are kept, and you can re-add them later.`)) return;
 
         setUpdating(userId);
         const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
         const { ok, error } = await jsonOrError(res);
         if (ok) {
             setStaff(staff.filter(s => s.id !== userId));
-            toast(`${userName} has been removed from the system.`, 'success');
+            toast(`${userName} has been removed from this café.`, 'success');
         } else {
             toast(`Failed to remove user: ${error}`, 'error');
         }

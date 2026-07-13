@@ -114,7 +114,11 @@ export default function AdminTasksPage() {
         );
     }
 
-    const today = new Date().toISOString().slice(0, 16);
+    // datetime-local expects LOCAL wall-clock time. Using toISOString() (UTC) here
+    // shifts the min by the timezone offset (8h for SGT), so build it from local parts.
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
     return (
         <>

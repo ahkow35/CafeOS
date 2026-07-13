@@ -290,7 +290,9 @@ export async function POST(req: Request) {
       throw new ValidationError('Invalid attachment URL');
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // "Today" must be evaluated in Singapore time, not UTC — before 08:00 SGT the
+    // UTC date is still yesterday, which would mis-flag same-day leave as retrospective.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
     const is_retrospective = start_date < today;
 
     const initialStatus =
