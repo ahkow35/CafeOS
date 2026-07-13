@@ -59,6 +59,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
     const isAssignee = task.assigned_to === ctx.userId || task.assigned_to === 'all';
+    const isEveryoneTask = task.assigned_to === 'all';
 
     type Update = Partial<{
       status: 'pending' | 'done';
@@ -70,6 +71,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       completed_at: string | null;
     }>;
     const update: Update = {};
+    // For 'all' tasks completion is per-user (task_completions), not a column write.
+    let completionChange: 'done' | 'pending' | null = null;
 
     if ('status' in body) {
       if (body.status !== 'pending' && body.status !== 'done') {
@@ -78,13 +81,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!isAdmin && !isAssignee) {
         throw new AuthError('forbidden', 'Cannot change this task');
       }
-      update.status = body.status;
-      if (body.status === 'done') {
-        update.completed_by = ctx.userId;
-        update.completed_at = new Date().toISOString();
+      if (isEveryoneTask) {
+        // Each person completes their OWN copy of an everyone-task.
+        completionChange = body.status;
       } else {
-        update.completed_by = null;
-        update.completed_at = null;
+        update.status = body.status;
+        if (body.status === 'done') {
+          update.completed_by = ctx.userId;
+          update.completed_at = new Date().toISOString();
+        } else {
+          update.completed_by = null;
+          update.completed_at = null;
+        }
       }
     }
 
@@ -139,38 +147,77 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       update.assigned_to = a;
     }
 
-    if (Object.keys(update).length === 0) {
+    const hasColumnUpdate = Object.keys(update).length > 0;
+    if (!hasColumnUpdate && completionChange === null) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
     const updated = await withTenantTx(ctx, async (tx) => {
-      const r = await tx.query<TaskRow>(
-        `UPDATE tasks SET
-           status       = COALESCE($1, status),
-           title        = COALESCE($2, title),
-           description  = CASE WHEN $3::boolean THEN $4 ELSE description END,
-           deadline     = COALESCE($5::timestamptz, deadline),
-           assigned_to  = COALESCE($6, assigned_to),
-           completed_by = CASE WHEN $7::boolean THEN $8::uuid ELSE completed_by END,
-           completed_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE completed_at END
-         WHERE id = $11
-         RETURNING id, title, description, deadline, assigned_to, status,
-                   created_by, completed_by, completed_at, created_at`,
-        [
-          update.status ?? null,
-          update.title ?? null,
-          'description' in update,
-          update.description ?? null,
-          update.deadline ?? null,
-          update.assigned_to ?? null,
-          'completed_by' in update,
-          update.completed_by ?? null,
-          'completed_at' in update,
-          update.completed_at ?? null,
-          id,
-        ],
-      );
-      return r.rows[0];
+      // Per-user completion for everyone-tasks.
+      if (completionChange === 'done') {
+        await tx.query(
+          `INSERT INTO task_completions (task_id, user_id) VALUES ($1, $2)
+           ON CONFLICT (task_id, user_id) DO NOTHING`,
+          [id, ctx.userId],
+        );
+      } else if (completionChange === 'pending') {
+        await tx.query(`DELETE FROM task_completions WHERE task_id = $1 AND user_id = $2`, [id, ctx.userId]);
+      }
+
+      // Apply tasks-column updates (admin fields + individual-task status), or just
+      // reload the row if this was a pure everyone-task completion.
+      let row: TaskRow;
+      if (hasColumnUpdate) {
+        const r = await tx.query<TaskRow>(
+          `UPDATE tasks SET
+             status       = COALESCE($1, status),
+             title        = COALESCE($2, title),
+             description  = CASE WHEN $3::boolean THEN $4 ELSE description END,
+             deadline     = COALESCE($5::timestamptz, deadline),
+             assigned_to  = COALESCE($6, assigned_to),
+             completed_by = CASE WHEN $7::boolean THEN $8::uuid ELSE completed_by END,
+             completed_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE completed_at END
+           WHERE id = $11
+           RETURNING id, title, description, deadline, assigned_to, status,
+                     created_by, completed_by, completed_at, created_at`,
+          [
+            update.status ?? null,
+            update.title ?? null,
+            'description' in update,
+            update.description ?? null,
+            update.deadline ?? null,
+            update.assigned_to ?? null,
+            'completed_by' in update,
+            update.completed_by ?? null,
+            'completed_at' in update,
+            update.completed_at ?? null,
+            id,
+          ],
+        );
+        row = r.rows[0];
+      } else {
+        const r = await tx.query<TaskRow>(
+          `SELECT id, title, description, deadline, assigned_to, status,
+                  created_by, completed_by, completed_at, created_at
+             FROM tasks WHERE id = $1`,
+          [id],
+        );
+        row = r.rows[0];
+      }
+
+      // Return the CALLER's effective status (for an everyone-task, based on their
+      // own completion row) so the client reflects the right state after the toggle.
+      if (row.assigned_to === 'all') {
+        const c = await tx.query<{ completed_at: string }>(
+          `SELECT completed_at FROM task_completions WHERE task_id = $1 AND user_id = $2`,
+          [id, ctx.userId],
+        );
+        if (c.rows[0]) {
+          return { ...row, status: 'done' as const, completed_at: c.rows[0].completed_at, completed_by: ctx.userId };
+        }
+        return { ...row, status: 'pending' as const, completed_at: null, completed_by: null };
+      }
+      return row;
     });
 
     return NextResponse.json({ task: updated });

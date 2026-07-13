@@ -33,13 +33,22 @@ export async function GET(req: Request) {
     const scope = url.searchParams.get('scope') ?? 'mine';
 
     if (scope === 'mine') {
+      // For everyone-tasks, the caller's status comes from their own task_completions
+      // row; individual tasks use tasks.status. So each person sees their own progress.
       const { rows } = await sql<TaskRow>`
-        SELECT id, title, description, deadline, assigned_to, status,
-               created_by, completed_by, completed_at, created_at
-          FROM tasks
-         WHERE cafe_id = ${ctx.cafeId}
-           AND (assigned_to = ${ctx.userId} OR assigned_to = 'all')
-         ORDER BY status ASC, deadline ASC
+        SELECT t.id, t.title, t.description, t.deadline, t.assigned_to,
+               CASE WHEN t.assigned_to = 'all'
+                    THEN (CASE WHEN tc.user_id IS NOT NULL THEN 'done' ELSE 'pending' END)
+                    ELSE t.status END AS status,
+               t.created_by,
+               CASE WHEN t.assigned_to = 'all' THEN tc.user_id ELSE t.completed_by END AS completed_by,
+               CASE WHEN t.assigned_to = 'all' THEN tc.completed_at ELSE t.completed_at END AS completed_at,
+               t.created_at
+          FROM tasks t
+          LEFT JOIN task_completions tc ON tc.task_id = t.id AND tc.user_id = ${ctx.userId}
+         WHERE t.cafe_id = ${ctx.cafeId}
+           AND (t.assigned_to = ${ctx.userId} OR t.assigned_to = 'all')
+         ORDER BY t.deadline ASC
       `;
       return NextResponse.json({ tasks: rows });
     }
@@ -63,19 +72,42 @@ export async function GET(req: Request) {
     }
 
     if (scope === 'recent-done') {
-      // Scope to the caller's own tasks — a staffer's "Show Completed" must not
-      // list other employees' completed tasks.
-      const { rows } = await sql<TaskRow>`
-        SELECT id, title, description, deadline, assigned_to, status,
-               created_by, completed_by, completed_at, created_at
-          FROM tasks
-         WHERE cafe_id = ${ctx.cafeId}
-           AND status = 'done'
-           AND completed_at >= NOW() - INTERVAL '7 days'
-           AND (assigned_to = ${ctx.userId} OR assigned_to = 'all')
-         ORDER BY completed_at DESC
-         LIMIT 10
-      `;
+      // Managers see team-wide recent completions; everyone else sees only their own.
+      // Everyone-task completions come from task_completions, individual from tasks.
+      const isManager = ctx.role === 'manager' || ctx.role === 'owner';
+      const { rows } = isManager
+        ? await sql<TaskRow>`
+            SELECT * FROM (
+              SELECT t.id, t.title, t.description, t.deadline, t.assigned_to, 'done'::text AS status,
+                     t.created_by, t.completed_by, t.completed_at, t.created_at
+                FROM tasks t
+               WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to <> 'all'
+                 AND t.status = 'done' AND t.completed_at >= NOW() - INTERVAL '7 days'
+              UNION ALL
+              SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.deadline, t.assigned_to,
+                     'done'::text AS status, t.created_by, tc.user_id AS completed_by,
+                     tc.completed_at, t.created_at
+                FROM task_completions tc JOIN tasks t ON t.id = tc.task_id
+               WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to = 'all'
+                 AND tc.completed_at >= NOW() - INTERVAL '7 days'
+               ORDER BY t.id, tc.completed_at DESC
+            ) x ORDER BY completed_at DESC LIMIT 10
+          `
+        : await sql<TaskRow>`
+            SELECT * FROM (
+              SELECT t.id, t.title, t.description, t.deadline, t.assigned_to, 'done'::text AS status,
+                     t.created_by, t.completed_by, t.completed_at, t.created_at
+                FROM tasks t
+               WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to = ${ctx.userId}
+                 AND t.status = 'done' AND t.completed_at >= NOW() - INTERVAL '7 days'
+              UNION ALL
+              SELECT t.id, t.title, t.description, t.deadline, t.assigned_to, 'done'::text AS status,
+                     t.created_by, tc.user_id AS completed_by, tc.completed_at, t.created_at
+                FROM task_completions tc JOIN tasks t ON t.id = tc.task_id
+               WHERE t.cafe_id = ${ctx.cafeId} AND tc.user_id = ${ctx.userId} AND t.assigned_to = 'all'
+                 AND tc.completed_at >= NOW() - INTERVAL '7 days'
+            ) x ORDER BY completed_at DESC LIMIT 10
+          `;
       return NextResponse.json({ tasks: rows });
     }
 

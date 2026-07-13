@@ -153,6 +153,16 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status         ON public.tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_cafe_status    ON public.tasks(cafe_id, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_cafe_assigned  ON public.tasks(cafe_id, assigned_to);
 
+-- Per-user completion for 'all' (everyone) tasks. Individual tasks use tasks.status.
+CREATE TABLE IF NOT EXISTS public.task_completions (
+    task_id      UUID NOT NULL REFERENCES public.tasks(id)    ON DELETE CASCADE,
+    user_id      UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (task_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_completions_user ON public.task_completions(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_completions_task ON public.task_completions(task_id);
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- TIMESHEETS
 -- ─────────────────────────────────────────────────────────────────────────────
