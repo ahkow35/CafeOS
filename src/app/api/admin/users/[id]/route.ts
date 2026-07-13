@@ -52,31 +52,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    // Build typed update objects — profile fields vs. membership role are split.
-    const profileUpdate: {
-      full_name?: string;
+    // Split updates by scope. Employment data (job title, leave, pay, per-café
+    // active flag) is café-scoped and written to cafe_memberships — an owner can
+    // only change a person's terms in THEIR café. Only full_name is global identity.
+    const identityUpdate: { full_name?: string } = {};
+    const employmentUpdate: {
       job_title?: string | null;
       annual_leave_balance?: number;
       medical_leave_balance?: number;
       hourly_rate?: number | null;
-      is_active?: boolean;
+      employment_active?: boolean;
     } = {};
 
     let newRole: 'staff' | 'manager' | 'owner' | 'part_timer' | undefined;
 
-    if ('full_name' in body) profileUpdate.full_name = parseFullName(body.full_name);
-    if ('job_title' in body) profileUpdate.job_title = parseJobTitle(body.job_title);
+    if ('full_name' in body) identityUpdate.full_name = parseFullName(body.full_name);
+    if ('job_title' in body) employmentUpdate.job_title = parseJobTitle(body.job_title);
     if ('role' in body) newRole = parseRole(body.role);
     if ('annual_leave_balance' in body) {
-      profileUpdate.annual_leave_balance = parseBalance(body.annual_leave_balance, 'Annual leave balance');
+      employmentUpdate.annual_leave_balance = parseBalance(body.annual_leave_balance, 'Annual leave balance');
     }
     if ('medical_leave_balance' in body) {
-      profileUpdate.medical_leave_balance = parseBalance(body.medical_leave_balance, 'Medical leave balance');
+      employmentUpdate.medical_leave_balance = parseBalance(body.medical_leave_balance, 'Medical leave balance');
     }
-    if ('hourly_rate' in body) profileUpdate.hourly_rate = parseHourlyRate(body.hourly_rate);
-    if ('is_active' in body) profileUpdate.is_active = parseBool(body.is_active, 'is_active');
+    if ('hourly_rate' in body) employmentUpdate.hourly_rate = parseHourlyRate(body.hourly_rate);
+    // The UI's "is_active" toggle maps to café-scoped employment, not the global account.
+    if ('is_active' in body) employmentUpdate.employment_active = parseBool(body.is_active, 'is_active');
 
-    if (Object.keys(profileUpdate).length === 0 && newRole === undefined) {
+    const hasIdentity = Object.keys(identityUpdate).length > 0;
+    const hasEmployment = Object.keys(employmentUpdate).length > 0;
+    if (!hasIdentity && !hasEmployment && newRole === undefined) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
@@ -85,13 +90,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (newRole && newRole !== 'owner') {
         return NextResponse.json({ error: 'You cannot change your own role' }, { status: 400 });
       }
-      if (profileUpdate.is_active === false) {
+      if (employmentUpdate.employment_active === false) {
         return NextResponse.json({ error: 'You cannot disable your own account' }, { status: 400 });
       }
     }
 
-    const result = await withTenantTx(ctx, async (tx) => {
-      // Update membership role if requested.
+    await withTenantTx(ctx, async (tx) => {
+      // Membership role.
       if (newRole !== undefined) {
         await tx.query(
           `UPDATE cafe_memberships SET role = $1
@@ -100,50 +105,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         );
       }
 
-      // Update profile fields if any.
-      if (Object.keys(profileUpdate).length > 0) {
-        const { rows } = await tx.query(
-          `UPDATE profiles SET
-            full_name             = COALESCE($1, full_name),
-            job_title             = CASE WHEN $2::boolean THEN $3 ELSE job_title END,
-            annual_leave_balance  = COALESCE($4, annual_leave_balance),
-            medical_leave_balance = COALESCE($5, medical_leave_balance),
-            hourly_rate           = CASE WHEN $6::boolean THEN $7 ELSE hourly_rate END,
-            is_active             = COALESCE($8, is_active),
-            updated_at            = NOW()
-           WHERE id = $9
-           RETURNING id, phone_e164, full_name, job_title,
-                     annual_leave_balance, medical_leave_balance, hourly_rate,
-                     is_active, email, created_at`,
+      // Café-scoped employment fields — scoped to (cafe_id, user_id).
+      if (hasEmployment) {
+        await tx.query(
+          `UPDATE cafe_memberships SET
+            job_title             = CASE WHEN $1::boolean THEN $2 ELSE job_title END,
+            annual_leave_balance  = COALESCE($3, annual_leave_balance),
+            medical_leave_balance = COALESCE($4, medical_leave_balance),
+            hourly_rate           = CASE WHEN $5::boolean THEN $6 ELSE hourly_rate END,
+            employment_active     = COALESCE($7, employment_active)
+           WHERE cafe_id = $8 AND user_id = $9`,
           [
-            profileUpdate.full_name ?? null,
-            'job_title' in profileUpdate,
-            profileUpdate.job_title ?? null,
-            profileUpdate.annual_leave_balance ?? null,
-            profileUpdate.medical_leave_balance ?? null,
-            'hourly_rate' in profileUpdate,
-            profileUpdate.hourly_rate ?? null,
-            profileUpdate.is_active ?? null,
+            'job_title' in employmentUpdate,
+            employmentUpdate.job_title ?? null,
+            employmentUpdate.annual_leave_balance ?? null,
+            employmentUpdate.medical_leave_balance ?? null,
+            'hourly_rate' in employmentUpdate,
+            employmentUpdate.hourly_rate ?? null,
+            employmentUpdate.employment_active ?? null,
+            ctx.cafeId,
             id,
           ],
         );
-        return rows[0] as {
-          id: string;
-          phone_e164: string;
-          full_name: string;
-          job_title: string | null;
-          annual_leave_balance: number;
-          medical_leave_balance: number;
-          hourly_rate: string | null;
-          is_active: boolean;
-          email: string | null;
-          created_at: string;
-        } | undefined;
       }
-      return undefined;
+
+      // Global identity — full_name only.
+      if (hasIdentity) {
+        await tx.query(
+          `UPDATE profiles SET full_name = COALESCE($1, full_name), updated_at = NOW() WHERE id = $2`,
+          [identityUpdate.full_name ?? null, id],
+        );
+      }
     });
 
-    // Fetch the final state to return (role may have changed in memberships, profile may have changed).
+    // Fetch the final merged state (identity from profiles, employment from membership).
+    // is_active in the response reflects the per-café employment flag.
     const { rows: finalRows } = await sql<{
       id: string;
       phone_e164: string;
@@ -157,10 +153,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       email: string | null;
       created_at: string;
     }>`
-      SELECT p.id, p.phone_e164, p.full_name, p.job_title,
-             m.role,
-             p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
-             p.is_active, p.email, p.created_at
+      SELECT p.id, p.phone_e164, p.full_name,
+             m.role, m.job_title,
+             m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+             m.employment_active AS is_active, p.email, p.created_at
         FROM profiles p
         JOIN cafe_memberships m ON m.user_id = p.id
        WHERE p.id = ${id}

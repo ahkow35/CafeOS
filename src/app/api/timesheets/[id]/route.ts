@@ -90,7 +90,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
              p.full_name AS profile_full_name,
              p.phone_e164 AS profile_phone_e164,
              m.role AS profile_role,
-             p.hourly_rate AS profile_hourly_rate,
+             m.hourly_rate AS profile_hourly_rate,
              p.email AS profile_email
         FROM timesheets t
         JOIN profiles p ON p.id = t.user_id

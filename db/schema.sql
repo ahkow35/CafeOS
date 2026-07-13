@@ -21,10 +21,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     pin_hash              TEXT NOT NULL,
     failed_attempts       INTEGER NOT NULL DEFAULT 0,
     locked_until          TIMESTAMPTZ,
+    -- ↓ DEPRECATED: café-scoped employment data moved to cafe_memberships
+    --   (Option A). Kept until a later phase drops them after prod soak.
     annual_leave_balance  INTEGER NOT NULL DEFAULT 14,
     medical_leave_balance INTEGER NOT NULL DEFAULT 14,
     hourly_rate           NUMERIC(10,2),
+    -- is_active remains the GLOBAL account flag (not deprecated).
     is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Bumped on PIN reset / global disable to invalidate older JWTs immediately.
+    token_version         INTEGER NOT NULL DEFAULT 0,
     email                 TEXT, -- legacy display only; not used for auth
     telegram_chat_id      TEXT UNIQUE, -- bound via /api/telegram/webhook /link command
     is_super_admin        BOOLEAN NOT NULL DEFAULT FALSE,
@@ -63,13 +68,21 @@ CREATE TABLE IF NOT EXISTS public.cafes (
 -- CAFE_MEMBERSHIPS (one phone = one profile = many cafes, role per cafe)
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.cafe_memberships (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cafe_id    UUID NOT NULL REFERENCES public.cafes(id) ON DELETE CASCADE,
-    user_id    UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    role       TEXT NOT NULL CHECK (role IN ('staff', 'manager', 'owner', 'part_timer')),
-    status     TEXT NOT NULL DEFAULT 'active'
-                 CHECK (status IN ('pending', 'active', 'suspended')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cafe_id               UUID NOT NULL REFERENCES public.cafes(id) ON DELETE CASCADE,
+    user_id               UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    role                  TEXT NOT NULL CHECK (role IN ('staff', 'manager', 'owner', 'part_timer')),
+    status                TEXT NOT NULL DEFAULT 'active'
+                            CHECK (status IN ('pending', 'active', 'suspended')),
+    -- Café-scoped employment data (Option A). Lives here, not on profiles, so a
+    -- café owner can only edit a person's employment terms in THEIR café.
+    job_title             TEXT,
+    annual_leave_balance  INTEGER NOT NULL DEFAULT 14,
+    medical_leave_balance INTEGER NOT NULL DEFAULT 14,
+    hourly_rate           NUMERIC(10,2),
+    -- Per-café employment switch (distinct from `status` and profiles.is_active).
+    employment_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (cafe_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON public.cafe_memberships(user_id);
@@ -146,7 +159,9 @@ CREATE TABLE IF NOT EXISTS public.timesheets (
     approved_at         TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, month_year)
+    -- Per-cafe uniqueness: a multi-cafe user may hold one timesheet per month
+    -- in each cafe. (Was UNIQUE(user_id, month_year) — global per user.)
+    CONSTRAINT timesheets_cafe_user_month_key UNIQUE (cafe_id, user_id, month_year)
 );
 
 CREATE INDEX IF NOT EXISTS idx_timesheets_user        ON public.timesheets(user_id);

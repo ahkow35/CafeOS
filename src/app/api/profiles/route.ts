@@ -33,22 +33,22 @@ export async function GET() {
 
     const { rows } = includeInactive
       ? await sql<ProfileRow>`
-          SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+          SELECT p.id, p.phone_e164, p.full_name, m.job_title,
                  m.role,
-                 p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
-                 p.is_active, p.email, p.created_at
+                 m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+                 m.employment_active AS is_active, p.email, p.created_at
             FROM profiles p
             JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${ctx.cafeId}
            ORDER BY p.full_name ASC
         `
       : await sql<ProfileRow>`
-          SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+          SELECT p.id, p.phone_e164, p.full_name, m.job_title,
                  m.role,
-                 p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
-                 p.is_active, p.email, p.created_at
+                 m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+                 m.employment_active AS is_active, p.email, p.created_at
             FROM profiles p
             JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${ctx.cafeId}
-           WHERE p.is_active = TRUE AND m.status = 'active'
+           WHERE m.employment_active = TRUE AND m.status = 'active'
            ORDER BY p.full_name ASC
         `;
 

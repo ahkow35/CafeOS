@@ -34,6 +34,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'User not found in this cafe' }, { status: 404 });
     }
 
+    // The PIN is a GLOBAL login credential. If this person also belongs to other
+    // cafés, an owner resetting it could then log in as them elsewhere — so an
+    // owner may only reset the PIN of a user who belongs solely to this café.
+    // Multi-café users must recover their PIN through their own session.
+    const { rows: cafeCountRows } = await sql<{ n: number }>`
+      SELECT COUNT(*)::int AS n FROM cafe_memberships
+       WHERE user_id = ${id} AND status = 'active'
+    `;
+    if ((cafeCountRows[0]?.n ?? 0) > 1) {
+      return NextResponse.json(
+        { error: 'This user belongs to other cafés. They must reset their own PIN from their account.' },
+        { status: 409 },
+      );
+    }
+
     let body: Record<string, unknown> = {};
     try {
       const text = await req.text();
@@ -46,11 +61,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const pin = body.pin === undefined ? generatePin() : parsePin(body.pin);
     const pin_hash = await hashPin(pin);
 
+    // Bump token_version to revoke any sessions the user (or anyone holding a
+    // stale/hijacked token) currently has — a reset must invalidate old logins.
     const { rowCount } = await sql`
       UPDATE profiles
          SET pin_hash        = ${pin_hash},
              failed_attempts = 0,
              locked_until    = NULL,
+             token_version   = token_version + 1,
              updated_at      = NOW()
        WHERE id = ${id}
     `;

@@ -67,9 +67,10 @@ export async function GET(
 
     const { rows } = await sql<TimesheetExportRow>`
       SELECT t.id, t.user_id, t.month_year, t.employee_signature, t.manager_signature,
-             p.full_name, p.email, p.phone_e164, p.hourly_rate
+             p.full_name, p.email, p.phone_e164, m.hourly_rate
         FROM timesheets t
         JOIN profiles p ON p.id = t.user_id
+        JOIN cafe_memberships m ON m.user_id = t.user_id AND m.cafe_id = t.cafe_id
        WHERE t.id = ${id}
          AND t.cafe_id = ${ctx.cafeId}
        LIMIT 1

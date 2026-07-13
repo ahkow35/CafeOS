@@ -82,6 +82,9 @@ interface SessionClaims {
   role: MembershipRole | null;
   is_super_admin: boolean;
   impersonator_id?: string;
+  // Snapshot of profiles.token_version at sign time. A later bump (PIN reset /
+  // global disable) makes this token stale and it is rejected on next request.
+  token_version: number;
 }
 
 /** Shape of the cafeos_pick JWT payload (pre-selection). */
@@ -121,6 +124,7 @@ async function signSessionJwt(claims: SessionClaims): Promise<string> {
     cafe_slug: claims.cafe_slug,
     role: claims.role,
     is_super_admin: claims.is_super_admin,
+    token_version: claims.token_version,
     ...(claims.impersonator_id ? { impersonator_id: claims.impersonator_id } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
@@ -150,6 +154,9 @@ async function verifySessionJwt(token: string): Promise<SessionClaims | null> {
       role: (payload.role as MembershipRole | null) ?? null,
       is_super_admin: Boolean(payload.is_super_admin),
       impersonator_id: payload.impersonator_id as string | undefined,
+      // Tokens minted before this field existed are treated as version 0, which
+      // matches the pre-migration default so no one is force-logged-out on deploy.
+      token_version: typeof payload.token_version === 'number' ? payload.token_version : 0,
     };
   } catch {
     return null;
@@ -188,20 +195,32 @@ interface ProfileRow {
   id: string;
   phone_e164: string;
   full_name: string;
-  job_title: string | null;
   pin_hash: string;
   failed_attempts: number;
   locked_until: string | null;
-  annual_leave_balance: number;
-  medical_leave_balance: number;
-  hourly_rate: string | null;
   is_active: boolean;
   is_super_admin: boolean;
   email: string | null;
   telegram_chat_id: string | null;
+  token_version: number;
 }
 
-interface MembershipRow {
+/** Café-scoped employment data, now sourced from cafe_memberships (Option A). */
+interface Employment {
+  job_title: string | null;
+  annual_leave_balance: number;
+  medical_leave_balance: number;
+  hourly_rate: string | null;
+}
+
+const NO_EMPLOYMENT: Employment = {
+  job_title: null,
+  annual_leave_balance: 0,
+  medical_leave_balance: 0,
+  hourly_rate: null,
+};
+
+interface MembershipRow extends Employment {
   cafe_id: string;
   cafe_slug: string;
   cafe_name: string;
@@ -222,9 +241,9 @@ export type LoginResult =
  */
 export async function login(phoneE164: string, pin: string): Promise<LoginResult> {
   const { rows } = await sql<ProfileRow>`
-    SELECT id, phone_e164, full_name, job_title, pin_hash, failed_attempts,
-           locked_until, annual_leave_balance, medical_leave_balance, hourly_rate,
-           is_active, is_super_admin, email, telegram_chat_id
+    SELECT id, phone_e164, full_name, pin_hash, failed_attempts,
+           locked_until, is_active, is_super_admin, email, telegram_chat_id,
+           token_version
       FROM profiles
      WHERE phone_e164 = ${phoneE164}
      LIMIT 1
@@ -265,14 +284,16 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
     await sql`UPDATE profiles SET failed_attempts = 0, locked_until = NULL WHERE id = ${row.id}`;
   }
 
-  // Fetch active memberships.
+  // Fetch active memberships (with café-scoped employment for the active seat).
   const { rows: memRows } = await sql<MembershipRow>`
     SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
-           c.logo_url AS cafe_logo_url, m.role
+           c.logo_url AS cafe_logo_url, m.role,
+           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate
       FROM cafe_memberships m
       JOIN cafes c ON c.id = m.cafe_id
      WHERE m.user_id = ${row.id}
        AND m.status  = 'active'
+       AND m.employment_active = TRUE
        AND c.status  = 'active'
      ORDER BY c.name
   `;
@@ -298,8 +319,9 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
       cafe_slug: m.cafe.slug,
       role: m.role,
       is_super_admin: false,
+      token_version: row.token_version,
     });
-    return { kind: 'session', user: buildUser(row, m.cafe, m.role, memberships), token };
+    return { kind: 'session', user: buildUser(row, m.cafe, m.role, memberships, employmentOf(memRows[0])), token };
   }
 
   // Super admin with exactly one cafe — land them there (they can visit /super later).
@@ -311,8 +333,9 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
       cafe_slug: m.cafe.slug,
       role: m.role,
       is_super_admin: true,
+      token_version: row.token_version,
     });
-    return { kind: 'session', user: buildUser(row, m.cafe, m.role, memberships), token };
+    return { kind: 'session', user: buildUser(row, m.cafe, m.role, memberships, employmentOf(memRows[0])), token };
   }
 
   // Super admin with zero cafe memberships — land at /super with no cafe context.
@@ -323,8 +346,9 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
       cafe_slug: null,
       role: null,
       is_super_admin: true,
+      token_version: row.token_version,
     });
-    return { kind: 'session', user: buildUser(row, null, null, []), token };
+    return { kind: 'session', user: buildUser(row, null, null, [], NO_EMPLOYMENT), token };
   }
 
   // Multiple destinations → issue pick token; caller sets cafeos_pick cookie.
@@ -337,22 +361,33 @@ function buildUser(
   cafe: CafeInfo | null,
   role: MembershipRole | null,
   memberships: MembershipInfo[],
+  employment: Employment,
 ): SessionUser {
   return {
     id: row.id,
     phone_e164: row.phone_e164,
     full_name: row.full_name,
-    job_title: row.job_title,
+    job_title: employment.job_title,
     role,
-    annual_leave_balance: row.annual_leave_balance,
-    medical_leave_balance: row.medical_leave_balance,
-    hourly_rate: row.hourly_rate === null ? null : Number(row.hourly_rate),
+    annual_leave_balance: employment.annual_leave_balance,
+    medical_leave_balance: employment.medical_leave_balance,
+    hourly_rate: employment.hourly_rate === null ? null : Number(employment.hourly_rate),
     is_active: row.is_active,
     is_super_admin: row.is_super_admin,
     email: row.email,
     telegram_chat_id: row.telegram_chat_id,
     active_cafe: cafe,
     memberships,
+  };
+}
+
+/** Pull the café-scoped employment fields off a membership row. */
+function employmentOf(m: MembershipRow): Employment {
+  return {
+    job_title: m.job_title,
+    annual_leave_balance: m.annual_leave_balance,
+    medical_leave_balance: m.medical_leave_balance,
+    hourly_rate: m.hourly_rate,
   };
 }
 
@@ -378,24 +413,28 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!claims) return null;
 
   const { rows } = await sql<ProfileRow>`
-    SELECT id, phone_e164, full_name, job_title, '' AS pin_hash,
+    SELECT id, phone_e164, full_name, '' AS pin_hash,
            0 AS failed_attempts, NULL AS locked_until,
-           annual_leave_balance, medical_leave_balance, hourly_rate,
-           is_active, is_super_admin, email, telegram_chat_id
+           is_active, is_super_admin, email, telegram_chat_id, token_version
       FROM profiles
      WHERE id = ${claims.sub}
      LIMIT 1
   `;
   const row = rows[0];
   if (!row || !row.is_active) return null;
+  // Session revocation: a bumped token_version (PIN reset / disable) invalidates
+  // any token minted before the bump.
+  if (row.token_version !== claims.token_version) return null;
 
   const { rows: memRows } = await sql<MembershipRow>`
     SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
-           c.logo_url AS cafe_logo_url, m.role
+           c.logo_url AS cafe_logo_url, m.role,
+           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate
       FROM cafe_memberships m
       JOIN cafes c ON c.id = m.cafe_id
      WHERE m.user_id = ${row.id}
        AND m.status  = 'active'
+       AND m.employment_active = TRUE
        AND c.status  = 'active'
      ORDER BY c.name
   `;
@@ -404,14 +443,16 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     role: m.role,
   }));
 
-  const activeCafe: CafeInfo | null = claims.cafe_id
-    ? memberships.find((m) => m.cafe.id === claims.cafe_id)?.cafe ?? null
+  const activeMemRow = claims.cafe_id
+    ? memRows.find((m) => m.cafe_id === claims.cafe_id) ?? null
     : null;
-  const activeRole: MembershipRole | null = claims.cafe_id
-    ? memberships.find((m) => m.cafe.id === claims.cafe_id)?.role ?? null
+  const activeCafe: CafeInfo | null = activeMemRow
+    ? { id: activeMemRow.cafe_id, slug: activeMemRow.cafe_slug, name: activeMemRow.cafe_name, logo_url: activeMemRow.cafe_logo_url }
     : null;
+  const activeRole: MembershipRole | null = activeMemRow?.role ?? null;
+  const employment = activeMemRow ? employmentOf(activeMemRow) : NO_EMPLOYMENT;
 
-  return buildUser(row, activeCafe, activeRole, memberships);
+  return buildUser(row, activeCafe, activeRole, memberships, employment);
 }
 
 // ─── route-level guards ───────────────────────────────────────────────────────
@@ -437,11 +478,21 @@ export async function requireTenantUser(): Promise<TenantCtx> {
     throw new AuthError('need_cafe_selection', 'No active cafe — go to /login/select');
   }
 
-  // Validate the membership is still active (catches suspension after session issue).
-  const { rows } = await sql<{ role: MembershipRole; cafe_status: string }>`
-    SELECT m.role, c.status AS cafe_status
+  // Re-validate everything live on each request — the JWT is only a claim, the DB
+  // is truth. Catches: global account disable, session revocation (token_version
+  // bump), café-scoped employment disable, membership removal, café suspension.
+  const { rows } = await sql<{
+    role: MembershipRole;
+    cafe_status: string;
+    employment_active: boolean;
+    is_active: boolean;
+    token_version: number;
+  }>`
+    SELECT m.role, c.status AS cafe_status, m.employment_active,
+           p.is_active, p.token_version
       FROM cafe_memberships m
-      JOIN cafes c ON c.id = m.cafe_id
+      JOIN cafes c    ON c.id = m.cafe_id
+      JOIN profiles p ON p.id = m.user_id
      WHERE m.user_id = ${claims.sub}
        AND m.cafe_id = ${claims.cafe_id}
        AND m.status  = 'active'
@@ -450,6 +501,15 @@ export async function requireTenantUser(): Promise<TenantCtx> {
   const membership = rows[0];
   if (!membership) {
     throw new AuthError('no_active_membership', 'Your membership in this cafe is no longer active');
+  }
+  if (!membership.is_active) {
+    throw new AuthError('inactive', 'This account is disabled. Contact your manager.');
+  }
+  if (membership.token_version !== claims.token_version) {
+    throw new AuthError('unauthorized', 'Your session has expired. Please sign in again.');
+  }
+  if (!membership.employment_active) {
+    throw new AuthError('no_active_membership', 'Your access to this cafe has been disabled');
   }
   if (membership.cafe_status === 'suspended') {
     throw new AuthError('cafe_suspended', 'This cafe has been suspended');
@@ -508,7 +568,13 @@ export async function signFullSession(
   isSuperAdmin: boolean,
   impersonatorId?: string,
 ): Promise<string> {
-  return signSessionJwt({ sub, cafe_id: cafeId, cafe_slug: cafeSlug, role, is_super_admin: isSuperAdmin, impersonator_id: impersonatorId });
+  // Stamp the current token_version so the minted token is bound to the live
+  // revocation counter (a later bump invalidates it).
+  const { rows } = await sql<{ token_version: number }>`
+    SELECT token_version FROM profiles WHERE id = ${sub} LIMIT 1
+  `;
+  const tokenVersion = rows[0]?.token_version ?? 0;
+  return signSessionJwt({ sub, cafe_id: cafeId, cafe_slug: cafeSlug, role, is_super_admin: isSuperAdmin, impersonator_id: impersonatorId, token_version: tokenVersion });
 }
 
 export async function signPickToken(sub: string): Promise<string> {

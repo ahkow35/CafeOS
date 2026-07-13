@@ -9,6 +9,9 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      // NOTE: café-scoped employment fields (job_title, leave balances, hourly_rate)
+      // are DEPRECATED on profiles and now live on cafe_memberships (Option A).
+      // They remain here until the columns are dropped after prod soak.
       profiles: {
         Row: {
           id: string;
@@ -22,6 +25,7 @@ export interface Database {
           hourly_rate: number | null;
           email: string | null;
           telegram_chat_id: string | null;
+          token_version: number;
           created_at: string;
         };
         Insert: {
@@ -49,7 +53,45 @@ export interface Database {
           hourly_rate?: number | null;
           email?: string | null;
           telegram_chat_id?: string | null;
+          token_version?: number;
           created_at?: string;
+        };
+      };
+      cafe_memberships: {
+        Row: {
+          id: string;
+          cafe_id: string;
+          user_id: string;
+          role: 'staff' | 'manager' | 'owner' | 'part_timer';
+          status: 'pending' | 'active' | 'suspended';
+          job_title: string | null;
+          annual_leave_balance: number;
+          medical_leave_balance: number;
+          hourly_rate: number | null;
+          employment_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          cafe_id: string;
+          user_id: string;
+          role: 'staff' | 'manager' | 'owner' | 'part_timer';
+          status?: 'pending' | 'active' | 'suspended';
+          job_title?: string | null;
+          annual_leave_balance?: number;
+          medical_leave_balance?: number;
+          hourly_rate?: number | null;
+          employment_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          role?: 'staff' | 'manager' | 'owner' | 'part_timer';
+          status?: 'pending' | 'active' | 'suspended';
+          job_title?: string | null;
+          annual_leave_balance?: number;
+          medical_leave_balance?: number;
+          hourly_rate?: number | null;
+          employment_active?: boolean;
         };
       };
       leave_requests: {

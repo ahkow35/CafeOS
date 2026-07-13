@@ -26,11 +26,10 @@ export async function GET() {
         (SELECT COUNT(*) FROM tasks         WHERE status = 'pending'          AND cafe_id = ${ctx.cafeId})::int AS pending_tasks,
         (SELECT COUNT(*)
            FROM cafe_memberships m
-           JOIN profiles p ON p.id = m.user_id
           WHERE m.cafe_id = ${ctx.cafeId}
             AND m.role    = 'staff'
             AND m.status  = 'active'
-            AND p.is_active = TRUE)::int AS staff_count
+            AND m.employment_active = TRUE)::int AS staff_count
     `;
     const r = rows[0];
     return NextResponse.json({

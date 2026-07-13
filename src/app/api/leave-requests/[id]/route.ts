@@ -9,6 +9,14 @@ export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Raised when a concurrent request already changed the row's state under us. → HTTP 409. */
+class RequestConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RequestConflictError';
+  }
+}
+
 interface LeaveRow {
   id: string;
   user_id: string;
@@ -70,59 +78,79 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
+    const RETURNING =
+      'id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url';
+
     const updated = await withTenantTx(ctx, async (tx) => {
+      // Lock the row and re-read its status inside the transaction. Two concurrent
+      // reject/approve requests serialize here: the second blocks until the first
+      // commits, then sees the already-decided status and bails — no double refund.
+      const lock = await tx.query<{ status: LeaveRow['status'] }>(
+        `SELECT status FROM leave_requests WHERE id = $1 AND cafe_id = $2 FOR UPDATE`,
+        [id, ctx.cafeId],
+      );
+      const current = lock.rows[0];
+      if (!current) throw new RequestConflictError('Request not found');
+      if (current.status === 'approved' || current.status === 'rejected') {
+        throw new RequestConflictError(`Request already ${current.status}`);
+      }
+      if (ctx.role === 'manager' && current.status !== 'pending_manager') {
+        throw new AuthError('forbidden', 'This request is past the manager stage');
+      }
+
       if (action === 'approve') {
         if (ctx.role === 'manager') {
           const r = await tx.query<LeaveRow>(
             `UPDATE leave_requests
                 SET status = 'pending_owner',
-                    manager_action_by = $1,
-                    manager_action_at = NOW(),
-                    updated_at = NOW()
-              WHERE id = $2
-              RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-            [ctx.userId, id],
+                    manager_action_by = $1, manager_action_at = NOW(), updated_at = NOW()
+              WHERE id = $2 AND cafe_id = $3 AND status = 'pending_manager'
+              RETURNING ${RETURNING}`,
+            [ctx.userId, id, ctx.cafeId],
           );
+          if (!r.rows[0]) throw new RequestConflictError('Request already decided');
           return r.rows[0];
         }
         // owner — final approval (also closes the manager stage if it was skipped)
         const r = await tx.query<LeaveRow>(
           `UPDATE leave_requests
               SET status = 'approved',
-                  owner_action_by = $1,
-                  owner_action_at = NOW(),
-                  updated_at = NOW()
-            WHERE id = $2
-            RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-          [ctx.userId, id],
+                  owner_action_by = $1, owner_action_at = NOW(), updated_at = NOW()
+            WHERE id = $2 AND cafe_id = $3 AND status IN ('pending_manager', 'pending_owner')
+            RETURNING ${RETURNING}`,
+          [ctx.userId, id, ctx.cafeId],
         );
+        if (!r.rows[0]) throw new RequestConflictError('Request already decided');
         return r.rows[0];
       }
 
-      // reject: restore balance + mark rejected
-      const balanceCol = row.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
-      await tx.query(
-        `UPDATE profiles SET ${balanceCol} = ${balanceCol} + $1, updated_at = NOW() WHERE id = $2`,
-        [row.days_requested, row.user_id],
-      );
+      // reject: transition the row FIRST; only refund if this request owns the transition.
       const isOwner = ctx.role === 'owner';
       const r = await tx.query<LeaveRow>(
         isOwner
           ? `UPDATE leave_requests
                 SET status = 'rejected',
-                    owner_action_by = $1, owner_action_at = NOW(),
-                    updated_at = NOW()
-              WHERE id = $2
-              RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`
+                    owner_action_by = $1, owner_action_at = NOW(), updated_at = NOW()
+              WHERE id = $2 AND cafe_id = $3 AND status IN ('pending_manager', 'pending_owner')
+              RETURNING ${RETURNING}`
           : `UPDATE leave_requests
                 SET status = 'rejected',
-                    manager_action_by = $1, manager_action_at = NOW(),
-                    updated_at = NOW()
-              WHERE id = $2
-              RETURNING id, user_id, leave_type, start_date, end_date, days_requested, status, attachment_url`,
-        [ctx.userId, id],
+                    manager_action_by = $1, manager_action_at = NOW(), updated_at = NOW()
+              WHERE id = $2 AND cafe_id = $3 AND status = 'pending_manager'
+              RETURNING ${RETURNING}`,
+        [ctx.userId, id, ctx.cafeId],
       );
-      return r.rows[0];
+      const rejected = r.rows[0];
+      if (!rejected) throw new RequestConflictError('Request already decided');
+
+      // The status transition is ours — now restore the café-scoped balance exactly once.
+      const balanceCol = row.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+      await tx.query(
+        `UPDATE cafe_memberships SET ${balanceCol} = ${balanceCol} + $1
+          WHERE user_id = $2 AND cafe_id = $3`,
+        [row.days_requested, row.user_id, ctx.cafeId],
+      );
+      return rejected;
     });
 
     if (updated.status === 'approved' || updated.status === 'rejected') {
@@ -145,9 +173,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
 
-    return NextResponse.json({ request: updated });
+    // Never hand the raw blob URL back — point at the gated read route instead.
+    const request = updated.attachment_url
+      ? { ...updated, attachment_url: `/api/leave-requests/${updated.id}/attachment` }
+      : updated;
+    return NextResponse.json({ request });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
+    if (e instanceof RequestConflictError) return NextResponse.json({ error: e.message }, { status: 409 });
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;
       return NextResponse.json({ error: e.message }, { status });
@@ -183,20 +216,35 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       throw new AuthError('forbidden', 'Cannot delete this request');
     }
 
-    const refundsBalance =
-      row.status === 'pending_manager' ||
-      row.status === 'pending_owner' ||
-      row.status === 'approved';
-
     await withTenantTx(ctx, async (tx) => {
-      if (refundsBalance) {
-        const balanceCol = row.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
+      // Lock + re-read status inside the tx so concurrent deletes can't both refund.
+      const lock = await tx.query<{
+        status: LeaveRow['status'];
+        leave_type: LeaveRow['leave_type'];
+        days_requested: number;
+        user_id: string;
+      }>(
+        `SELECT status, leave_type, days_requested, user_id
+           FROM leave_requests WHERE id = $1 AND cafe_id = $2 FOR UPDATE`,
+        [id, ctx.cafeId],
+      );
+      const cur = lock.rows[0];
+      if (!cur) throw new RequestConflictError('Request not found');
+
+      const refundsBalance =
+        cur.status === 'pending_manager' ||
+        cur.status === 'pending_owner' ||
+        cur.status === 'approved';
+
+      const del = await tx.query(`DELETE FROM leave_requests WHERE id = $1 AND cafe_id = $2`, [id, ctx.cafeId]);
+      if (del.rowCount === 1 && refundsBalance) {
+        const balanceCol = cur.leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
         await tx.query(
-          `UPDATE profiles SET ${balanceCol} = ${balanceCol} + $1, updated_at = NOW() WHERE id = $2`,
-          [row.days_requested, row.user_id],
+          `UPDATE cafe_memberships SET ${balanceCol} = ${balanceCol} + $1
+            WHERE user_id = $2 AND cafe_id = $3`,
+          [cur.days_requested, cur.user_id, ctx.cafeId],
         );
       }
-      await tx.query(`DELETE FROM leave_requests WHERE id = $1`, [id]);
     });
 
     if (row.attachment_url) {
@@ -207,6 +255,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (e instanceof RequestConflictError) return NextResponse.json({ error: e.message }, { status: 409 });
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;
       return NextResponse.json({ error: e.message }, { status });

@@ -36,12 +36,13 @@ export async function GET() {
     const ctx = await requireTenantUser();
     requireOwnerInCafe(ctx);
 
-    // Return only members of this cafe, with the per-cafe role from cafe_memberships.
+    // Return only members of this cafe. Employment fields (job title, leave, pay,
+    // active) are café-scoped and come from cafe_memberships; identity from profiles.
     const { rows } = await sql<ProfileRow>`
-      SELECT p.id, p.phone_e164, p.full_name, p.job_title,
+      SELECT p.id, p.phone_e164, p.full_name, m.job_title,
              m.role,
-             p.annual_leave_balance, p.medical_leave_balance, p.hourly_rate,
-             p.is_active, p.email, p.created_at
+             m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+             m.employment_active AS is_active, p.email, p.created_at
         FROM profiles p
         JOIN cafe_memberships m ON m.user_id = p.id
        WHERE m.cafe_id = ${ctx.cafeId}
@@ -85,28 +86,26 @@ export async function POST(req: Request) {
 
     const pin_hash = await hashPin(pin);
 
-    // Create profile and cafe membership atomically.
+    // Create the global profile (identity) and the café membership (which now
+    // carries employment: job title, pay, leave defaults, active flag) atomically.
     const created = await withTenantTx(ctx, async (tx) => {
       const { rows } = await tx.query(
-        `INSERT INTO profiles (phone_e164, full_name, job_title, pin_hash, hourly_rate, is_active)
-         VALUES ($1, $2, $3, $4, $5, TRUE)
-         RETURNING id, phone_e164, full_name, job_title, hourly_rate, is_active, created_at`,
-        [phone_e164, full_name, job_title, pin_hash, hourly_rate],
+        `INSERT INTO profiles (phone_e164, full_name, pin_hash, is_active)
+         VALUES ($1, $2, $3, TRUE)
+         RETURNING id, phone_e164, full_name, created_at`,
+        [phone_e164, full_name, pin_hash],
       );
       const profile = rows[0] as {
         id: string;
         phone_e164: string;
         full_name: string;
-        job_title: string | null;
-        hourly_rate: string | null;
-        is_active: boolean;
         created_at: string;
       };
 
       await tx.query(
-        `INSERT INTO cafe_memberships (cafe_id, user_id, role, status)
-         VALUES ($1, $2, $3, 'active')`,
-        [ctx.cafeId, profile.id, role],
+        `INSERT INTO cafe_memberships (cafe_id, user_id, role, status, job_title, hourly_rate)
+         VALUES ($1, $2, $3, 'active', $4, $5)`,
+        [ctx.cafeId, profile.id, role, job_title, hourly_rate],
       );
 
       return profile;
@@ -116,9 +115,9 @@ export async function POST(req: Request) {
       id: created.id,
       phone_e164: created.phone_e164,
       full_name: created.full_name,
-      job_title: created.job_title,
+      job_title,
       role,
-      hourly_rate: created.hourly_rate === null ? null : Number(created.hourly_rate),
+      hourly_rate: hourly_rate === null ? null : Number(hourly_rate),
       // Echo back the PIN once so the admin can hand it off; we never store plaintext.
       tempPin: pin,
     });

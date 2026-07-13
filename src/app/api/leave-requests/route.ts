@@ -37,6 +37,16 @@ interface JoinedLeaveRow extends LeaveRow {
   profile_medical_balance: number;
 }
 
+/**
+ * Replace the raw Vercel Blob URL with the gated read route so the durable
+ * public URL never reaches a client. Reads go through /api/leave-requests/[id]/attachment.
+ */
+function gateAttachment<T extends { id: string; attachment_url: string | null }>(r: T): T {
+  return r.attachment_url
+    ? { ...r, attachment_url: `/api/leave-requests/${r.id}/attachment` }
+    : r;
+}
+
 function parseLeaveType(input: unknown): LeaveType {
   if (typeof input !== 'string' || !LEAVE_TYPES.includes(input as LeaveType)) {
     throw new ValidationError('leave_type must be "annual" or "medical"');
@@ -86,7 +96,7 @@ export async function GET(req: Request) {
            AND cafe_id = ${ctx.cafeId}
          ORDER BY created_at DESC
       `;
-      return NextResponse.json({ requests: rows });
+      return NextResponse.json({ requests: rows.map(gateAttachment) });
     }
 
     if (scope === 'pending') {
@@ -101,8 +111,8 @@ export async function GET(req: Request) {
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
                    m.role AS profile_role,
-                   p.annual_leave_balance AS profile_annual_balance,
-                   p.medical_leave_balance AS profile_medical_balance
+                   m.annual_leave_balance AS profile_annual_balance,
+                   m.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
               JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
@@ -117,8 +127,8 @@ export async function GET(req: Request) {
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
                    m.role AS profile_role,
-                   p.annual_leave_balance AS profile_annual_balance,
-                   p.medical_leave_balance AS profile_medical_balance
+                   m.annual_leave_balance AS profile_annual_balance,
+                   m.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
               JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
@@ -129,7 +139,7 @@ export async function GET(req: Request) {
           `;
       return NextResponse.json({
         requests: rows.map((r: JoinedLeaveRow) => ({
-          ...r,
+          ...gateAttachment(r),
           profile: {
             full_name: r.profile_full_name,
             phone_e164: r.profile_phone_e164,
@@ -151,8 +161,8 @@ export async function GET(req: Request) {
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
                    m.role AS profile_role,
-                   p.annual_leave_balance AS profile_annual_balance,
-                   p.medical_leave_balance AS profile_medical_balance
+                   m.annual_leave_balance AS profile_annual_balance,
+                   m.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
               JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
@@ -167,8 +177,8 @@ export async function GET(req: Request) {
                    lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                    p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
                    m.role AS profile_role,
-                   p.annual_leave_balance AS profile_annual_balance,
-                   p.medical_leave_balance AS profile_medical_balance
+                   m.annual_leave_balance AS profile_annual_balance,
+                   m.medical_leave_balance AS profile_medical_balance
               FROM leave_requests lr
               JOIN profiles p ON p.id = lr.user_id
               JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
@@ -179,7 +189,7 @@ export async function GET(req: Request) {
           `;
       return NextResponse.json({
         requests: rows.map((r: JoinedLeaveRow) => ({
-          ...r,
+          ...gateAttachment(r),
           profile: {
             full_name: r.profile_full_name,
             phone_e164: r.profile_phone_e164,
@@ -201,8 +211,8 @@ export async function GET(req: Request) {
                lr.owner_action_by, lr.owner_action_at, lr.created_at, lr.updated_at,
                p.full_name AS profile_full_name, p.phone_e164 AS profile_phone_e164,
                m.role AS profile_role,
-               p.annual_leave_balance AS profile_annual_balance,
-               p.medical_leave_balance AS profile_medical_balance
+               m.annual_leave_balance AS profile_annual_balance,
+               m.medical_leave_balance AS profile_medical_balance
           FROM leave_requests lr
           JOIN profiles p ON p.id = lr.user_id
           JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = lr.cafe_id
@@ -211,7 +221,7 @@ export async function GET(req: Request) {
       `;
       return NextResponse.json({
         requests: rows.map((r: JoinedLeaveRow) => ({
-          ...r,
+          ...gateAttachment(r),
           profile: {
             full_name: r.profile_full_name,
             phone_e164: r.profile_phone_e164,
@@ -295,20 +305,23 @@ export async function POST(req: Request) {
 
     const balanceCol = leave_type === 'annual' ? 'annual_leave_balance' : 'medical_leave_balance';
 
-    // All checks run inside the transaction with a FOR UPDATE lock on the profile row.
-    // This serializes concurrent submissions for the same user, preventing balance
-    // overdraw and duplicate overlapping requests.
+    // All checks run inside the transaction with a FOR UPDATE lock on the caller's
+    // membership row (café-scoped balances live there now). This serializes
+    // concurrent submissions for the same user, preventing overdraw and overlaps.
     const { created, requesterName } = await withTenantTx(ctx, async (tx) => {
       const { rows: balRows } = await tx.query<{
         full_name: string;
         annual_leave_balance: number;
         medical_leave_balance: number;
       }>(
-        `SELECT full_name, annual_leave_balance, medical_leave_balance
-           FROM profiles WHERE id = $1 FOR UPDATE`,
-        [ctx.userId],
+        `SELECT p.full_name, m.annual_leave_balance, m.medical_leave_balance
+           FROM cafe_memberships m
+           JOIN profiles p ON p.id = m.user_id
+          WHERE m.user_id = $1 AND m.cafe_id = $2
+          FOR UPDATE OF m`,
+        [ctx.userId, ctx.cafeId],
       );
-      if (balRows.length === 0) throw new AuthError('unauthorized', 'Profile not found');
+      if (balRows.length === 0) throw new AuthError('unauthorized', 'Membership not found');
       const balRow = balRows[0];
 
       const currentBalance = leave_type === 'annual'
@@ -340,8 +353,9 @@ export async function POST(req: Request) {
       }
 
       await tx.query(
-        `UPDATE profiles SET ${balanceCol} = ${balanceCol} - $1, updated_at = NOW() WHERE id = $2`,
-        [days, ctx.userId],
+        `UPDATE cafe_memberships SET ${balanceCol} = ${balanceCol} - $1
+          WHERE user_id = $2 AND cafe_id = $3`,
+        [days, ctx.userId, ctx.cafeId],
       );
 
       const insert = await tx.query<LeaveRow>(
@@ -379,7 +393,7 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ request: created }, { status: 201 });
+    return NextResponse.json({ request: gateAttachment(created) }, { status: 201 });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {
