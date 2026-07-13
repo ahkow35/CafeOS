@@ -20,6 +20,16 @@ const SHORT_DATE = (d: string) => {
   return dt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 };
 
+/**
+ * Escape a dynamic value before it goes into a parse_mode:'HTML' message. Without
+ * this, a name/reason containing &, < or > produces malformed HTML — Telegram
+ * rejects the whole message (so the notification silently never arrives) and a
+ * crafted value could inject markup.
+ */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export async function sendTelegram(chatId: string, text: string, botToken?: string): Promise<void> {
   const token = botToken ?? process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
@@ -102,7 +112,7 @@ export async function notifyLeaveSubmitted(args: NotifyLeaveSubmittedArgs): Prom
     : `${SHORT_DATE(args.startDate)} – ${SHORT_DATE(args.endDate)}`;
 
   const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/leave` : baseUrl();
-  const text = `📋 <b>New Leave Request</b>\n\n${args.requesterName} submitted a ${args.days}-day ${args.leaveType} leave (${dateRange}).\n\nReview: ${reviewUrl}`;
+  const text = `📋 <b>New Leave Request</b>\n\n${esc(args.requesterName)} submitted a ${args.days}-day ${args.leaveType} leave (${dateRange}).\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
 }
@@ -157,7 +167,7 @@ export async function notifyTimesheetSubmitted(args: NotifyTimesheetSubmittedArg
   if (recipients.length === 0) return;
 
   const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/timesheets` : baseUrl();
-  const text = `🕒 <b>New Timesheet Submitted</b>\n\n${args.partTimerName} submitted their ${formatMonthYear(args.monthYear)} timesheet for review.\n\nReview: ${reviewUrl}`;
+  const text = `🕒 <b>New Timesheet Submitted</b>\n\n${esc(args.partTimerName)} submitted their ${formatMonthYear(args.monthYear)} timesheet for review.\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
 }
@@ -178,7 +188,7 @@ export async function notifyTimesheetForOwner(args: NotifyTimesheetForOwnerArgs)
   if (recipients.length === 0) return;
 
   const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/timesheets` : baseUrl();
-  const text = `📋 <b>Timesheet Awaiting Owner Approval</b>\n\n${args.managerName} approved ${args.partTimerName}'s ${formatMonthYear(args.monthYear)} timesheet. Final approval needed.\n\nReview: ${reviewUrl}`;
+  const text = `📋 <b>Timesheet Awaiting Owner Approval</b>\n\n${esc(args.managerName)} approved ${esc(args.partTimerName)}'s ${formatMonthYear(args.monthYear)} timesheet. Final approval needed.\n\nReview: ${reviewUrl}`;
 
   await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
 }
@@ -203,7 +213,7 @@ export async function notifyTimesheetDecision(args: NotifyTimesheetDecisionArgs)
   const icon = args.approved ? '✅' : '❌';
   const verb = args.approved ? 'approved' : 'rejected';
   const reasonLine = !args.approved && args.rejectionReason
-    ? `\n\nReason: ${args.rejectionReason}`
+    ? `\n\nReason: ${esc(args.rejectionReason)}`
     : '';
   const text = `${icon} <b>Timesheet ${verb.charAt(0).toUpperCase() + verb.slice(1)}</b>\n\nYour ${formatMonthYear(args.monthYear)} timesheet has been <b>${verb}</b>.${reasonLine}`;
 
@@ -231,7 +241,7 @@ export async function notifyCafeSignup(args: NotifyCafeSignupArgs): Promise<void
   if (rows.length === 0) return;
 
   const reviewUrl = `${baseUrl()}/super`;
-  const text = `🆕 <b>New Cafe Application</b>\n\n<b>${args.cafeName}</b>\nOwner: ${args.ownerName} (${args.ownerPhone})\n\nReview: ${reviewUrl}`;
+  const text = `🆕 <b>New Cafe Application</b>\n\n<b>${esc(args.cafeName)}</b>\nOwner: ${esc(args.ownerName)} (${esc(args.ownerPhone)})\n\nReview: ${reviewUrl}`;
 
   await Promise.all(rows.map((r) => sendTelegram(r.telegram_chat_id, text)));
 }
