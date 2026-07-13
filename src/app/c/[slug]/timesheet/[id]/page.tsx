@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Timesheet, TimesheetEntry, TimesheetStatus } from '@/lib/database.types';
@@ -40,8 +40,13 @@ export default function TimesheetDetailPage() {
   const [reopening, setReopening] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [savingDate, setSavingDate] = useState<string | null>(null);
+  const [savingCount, setSavingCount] = useState(0); // in-flight row saves; blocks submit
   const [error, setError] = useState('');
   const [signModal, setSignModal] = useState(false);
+
+  // Per-date promise chain so edits to the same day persist IN ORDER — a slow
+  // earlier save can't land after a newer one and overwrite it on the server.
+  const saveChains = useRef<Record<string, Promise<void>>>({});
 
   const isDraft = timesheet?.status === 'draft';
 
@@ -146,8 +151,20 @@ export default function TimesheetDetailPage() {
     setRows(prev => ({ ...prev, [date]: { ...(prev[date] ?? emptyRow()), ...updates } }));
   }
 
+  // Queue a save behind any in-flight save for the SAME date, and count it as
+  // in-flight so submit is blocked until it settles.
+  function scheduleSave(date: string, data: RowState) {
+    setSavingCount(c => c + 1);
+    const prev = saveChains.current[date] ?? Promise.resolve();
+    const next = prev
+      .catch(() => {})
+      .then(() => saveRowData(date, data))
+      .finally(() => setSavingCount(c => Math.max(0, c - 1)));
+    saveChains.current[date] = next;
+  }
+
   function handleRowBlur(date: string, updatedRow: RowState) {
-    if (isDraft) saveRowData(date, updatedRow);
+    if (isDraft) scheduleSave(date, updatedRow);
   }
 
   async function patchTimesheet(body: Record<string, unknown>) {
@@ -174,6 +191,8 @@ export default function TimesheetDetailPage() {
     setSubmitting(true);
     setError('');
     try {
+      // Flush any in-flight/queued row saves first so no edit is lost on submit.
+      await Promise.allSettled(Object.values(saveChains.current));
       const { timesheet: updated } = await patchTimesheet({ status: 'submitted' });
       setTimesheet(updated);
     } catch (err) {
@@ -384,12 +403,12 @@ export default function TimesheetDetailPage() {
           </button>
           <button
             onClick={submitTimesheet}
-            disabled={submitting || !timesheet.employee_signature}
+            disabled={submitting || savingCount > 0 || !timesheet.employee_signature}
             className="btn btn-primary"
             style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, fontSize: 'var(--font-size-xs)' }}
           >
             <Send size={14} />
-            {submitting ? 'SUBMITTING...' : 'NEED MANAGER SIGN-OFF'}
+            {submitting ? 'SUBMITTING...' : savingCount > 0 ? 'SAVING...' : 'NEED MANAGER SIGN-OFF'}
           </button>
         </div>
       )}

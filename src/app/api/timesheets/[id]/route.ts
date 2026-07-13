@@ -12,6 +12,22 @@ export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Raised when the timesheet changed state between our read and our write. */
+class ConflictError extends Error {}
+
+// A signature is a canvas data-URL PNG. Cap the length so a caller cannot store
+// an unbounded blob on the row.
+const MAX_SIGNATURE_LEN = 512 * 1024; // ~512 KB of base64
+const MAX_COMMENT_LEN = 2000;
+
+function parseSignature(input: unknown, label: string): string | null {
+  if (input == null) return null;
+  const s = String(input);
+  if (!s.startsWith('data:image/')) throw new ValidationError(`${label} must be an image data URL`);
+  if (s.length > MAX_SIGNATURE_LEN) throw new ValidationError(`${label} is too large`);
+  return s;
+}
+
 type TimesheetStatus = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 
 interface TimesheetRow {
@@ -197,17 +213,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if ('employee_signature' in body) {
       if (!isOwnerOfRow) throw new AuthError('forbidden', 'Only the timesheet owner can sign');
       if (ts.status !== 'draft') throw new ValidationError('Can only sign while in draft');
-      update.employee_signature = body.employee_signature == null ? null : String(body.employee_signature);
+      update.employee_signature = parseSignature(body.employee_signature, 'Employee signature');
     }
 
     if ('manager_signature' in body) {
       if (!isAdmin) throw new AuthError('forbidden', 'Manager or owner access required');
-      update.manager_signature = body.manager_signature == null ? null : String(body.manager_signature);
+      // Manager may only sign during the review stages — not on a draft or a
+      // finalised (approved/rejected) sheet.
+      if (ts.status !== 'submitted' && ts.status !== 'pending_owner') {
+        throw new ValidationError('Manager can only sign a timesheet under review');
+      }
+      update.manager_signature = parseSignature(body.manager_signature, 'Manager signature');
     }
 
     if ('comments' in body) {
       if (!isOwnerOfRow && !isAdmin) throw new AuthError('forbidden', 'Cannot edit comments');
-      update.comments = body.comments == null ? null : String(body.comments);
+      // Comments are locked once the sheet is approved.
+      if (ts.status === 'approved') throw new ValidationError('Cannot edit comments on an approved timesheet');
+      const c = body.comments == null ? null : String(body.comments);
+      if (c !== null && c.length > MAX_COMMENT_LEN) throw new ValidationError('Comments too long');
+      update.comments = c;
     }
 
     if ('rejection_reason' in body) {
@@ -306,6 +331,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const updated = await withTenantTx(ctx, async (tx) => {
+      // Optimistic concurrency: only write if the row is STILL in the status we
+      // validated against. Two racing approve/reject requests both read the same
+      // status, but only the first UPDATE matches — the second gets 0 rows and is
+      // rejected, so states can't clobber each other and only one notification fires.
       const r = await tx.query<TimesheetRow>(
         `UPDATE timesheets SET
            employee_signature = CASE WHEN $1::boolean THEN $2 ELSE employee_signature END,
@@ -320,6 +349,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
            updated_at         = NOW()
          WHERE id = $18
            AND cafe_id = $19
+           AND status = $20
          RETURNING ${TS_SELECT}`,
         [
           'employee_signature' in update,
@@ -341,8 +371,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           update.manager_action_at ?? null,
           id,
           ctx.cafeId,
+          ts.status,
         ],
       );
+      if (r.rowCount === 0) {
+        throw new ConflictError('This timesheet was just changed by someone else. Reload and try again.');
+      }
       return r.rows[0];
     });
 
@@ -399,6 +433,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json({ timesheet: updated });
   } catch (e) {
+    if (e instanceof ConflictError) return NextResponse.json({ error: e.message }, { status: 409 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;
@@ -427,6 +462,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (ts.user_id !== ctx.userId && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
     if (!isAdmin && ts.status !== 'draft') {
       throw new ValidationError('Only drafts can be deleted by the owner');
+    }
+    // An approved timesheet is a finalised payroll record — deleting it silently
+    // would erase pay history. Block it for everyone; correcting an approved sheet
+    // is a deliberate operation, not a delete.
+    if (ts.status === 'approved') {
+      throw new ValidationError('Approved timesheets cannot be deleted');
     }
 
     await sql`DELETE FROM timesheets WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
