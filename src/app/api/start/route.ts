@@ -1,12 +1,19 @@
 import { NextResponse, after } from 'next/server';
 import { headers } from 'next/headers';
 import crypto from 'crypto';
-import { sql } from '@/lib/db';
-import { parseE164, parseFullName, parseCafeName, slugifyName, ValidationError } from '@/lib/validators';
+import { sql, withPlainTx } from '@/lib/db';
+import { parseE164, parseFullName, parseCafeName, parseEmail, slugifyName, ValidationError } from '@/lib/validators';
 import { hashPin } from '@/lib/auth';
 import { notifyCafeSignup } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
+
+/** The applicant already owns a pending/active cafe — reject without mutating anything. */
+class DuplicateApplicationError extends Error {}
+
+function isUniqueViolation(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505';
+}
 
 // Per-instance rate limiter: max 5 submissions per 10 minutes from the same IP.
 const RATE_LIMIT = 5;
@@ -43,81 +50,85 @@ export async function POST(req: Request): Promise<Response> {
     const cafeName = parseCafeName(body.cafeName);
     const ownerName = parseFullName(body.ownerName);
     const ownerPhone = parseE164(body.ownerPhone);
+    const ownerEmail = body.ownerEmail != null
+      ? parseEmail(String(body.ownerEmail))
+      : null;
 
-    // Generate a unique slug. Try up to 10 suffixes (-2 through -10).
-    let slug: string | null = null;
-    for (let i = 0; i <= 9; i++) {
-      const candidate = slugifyName(cafeName, i === 0 ? undefined : i + 1);
-      const { rows } = await sql<{ slug: string }>`SELECT slug FROM cafes WHERE slug = ${candidate} LIMIT 1`;
-      if (rows.length === 0) {
-        slug = candidate;
-        break;
+    // Placeholder hash — cannot match any real 6-digit PIN. A new profile stays
+    // is_active=false until super admin approves and issues a real PIN. Computed
+    // once; unused for existing profiles (their pin_hash is preserved).
+    const placeholderHash = await hashPin(crypto.randomBytes(32).toString('hex'));
+
+    // Everything below is atomic and idempotent, and the "already applied" check
+    // runs INSIDE the transaction BEFORE any cafe is created. Retry on a slug
+    // unique-violation (another signup raced for the same slug).
+    let attempt = 0;
+    for (;;) {
+      const slug = slugifyName(cafeName, attempt === 0 ? undefined : attempt + 1);
+      try {
+        await withPlainTx(async (tx) => {
+          // Find-or-create the owner profile atomically. On an existing phone we
+          // NEVER overwrite the stored email — COALESCE keeps the current value —
+          // so this endpoint can't be used to tamper with someone's account.
+          const { rows: prof } = await tx.query<{ id: string }>(
+            `INSERT INTO profiles (phone_e164, full_name, pin_hash, is_active, is_super_admin, email)
+             VALUES ($1, $2, $3, FALSE, FALSE, $4)
+             ON CONFLICT (phone_e164)
+               DO UPDATE SET email = COALESCE(profiles.email, EXCLUDED.email)
+             RETURNING id`,
+            [ownerPhone, ownerName, placeholderHash, ownerEmail],
+          );
+          const profileId = prof[0].id;
+
+          // Reject a duplicate application BEFORE creating anything.
+          const { rows: existing } = await tx.query<{ status: string }>(
+            `SELECT c.status FROM cafes c
+               JOIN cafe_memberships m ON m.cafe_id = c.id
+              WHERE m.user_id = $1 AND m.role = 'owner'
+              ORDER BY c.created_at DESC LIMIT 1`,
+            [profileId],
+          );
+          if (existing.length > 0 && (existing[0].status === 'pending' || existing[0].status === 'active')) {
+            throw new DuplicateApplicationError(existing[0].status);
+          }
+
+          const { rows: cafeRows } = await tx.query<{ id: string }>(
+            `INSERT INTO cafes (slug, name, status, created_by)
+             VALUES ($1, $2, 'pending', $3) RETURNING id`,
+            [slug, cafeName, profileId],
+          );
+          await tx.query(
+            `INSERT INTO cafe_memberships (cafe_id, user_id, role, status)
+             VALUES ($1, $2, 'owner', 'pending')`,
+            [cafeRows[0].id, profileId],
+          );
+        });
+        break; // success
+      } catch (e) {
+        if (e instanceof DuplicateApplicationError) {
+          return NextResponse.json(
+            {
+              error: e.message === 'active'
+                ? 'This phone number already has an active cafe. Log in at /login.'
+                : 'A signup request for this phone number is already pending review.',
+            },
+            { status: 409 },
+          );
+        }
+        // Slug raced — try the next suffix. Give up after a handful of attempts.
+        if (isUniqueViolation(e) && attempt < 9) {
+          attempt += 1;
+          continue;
+        }
+        if (isUniqueViolation(e)) {
+          return NextResponse.json(
+            { error: 'Could not generate a unique slug for this name. Try a slightly different name.' },
+            { status: 409 },
+          );
+        }
+        throw e;
       }
     }
-    if (!slug) {
-      return NextResponse.json(
-        { error: 'Could not generate a unique slug for this name. Try a slightly different name.' },
-        { status: 409 },
-      );
-    }
-
-    // Find or create the owner profile.
-    const { rows: existingProfile } = await sql<{ id: string }>`
-      SELECT id FROM profiles WHERE phone_e164 = ${ownerPhone} LIMIT 1
-    `;
-
-    let profileId: string;
-    if (existingProfile.length > 0) {
-      profileId = existingProfile[0].id;
-    } else {
-      // Placeholder hash — cannot match any real 6-digit PIN. Profile stays
-      // is_active=false until super admin approves and issues a real PIN.
-      const placeholderHash = await hashPin(crypto.randomBytes(32).toString('hex'));
-      const { rows: created } = await sql<{ id: string }>`
-        INSERT INTO profiles (phone_e164, full_name, pin_hash, is_active, is_super_admin)
-        VALUES (${ownerPhone}, ${ownerName}, ${placeholderHash}, FALSE, FALSE)
-        RETURNING id
-      `;
-      profileId = created[0].id;
-    }
-
-    // Prevent duplicate applications.
-    const { rows: existing } = await sql<{ status: string }>`
-      SELECT c.status FROM cafes c
-        JOIN cafe_memberships m ON m.cafe_id = c.id
-       WHERE m.user_id = ${profileId}
-         AND m.role = 'owner'
-       ORDER BY c.created_at DESC
-       LIMIT 1
-    `;
-    if (existing.length > 0) {
-      const status = existing[0].status;
-      if (status === 'pending') {
-        return NextResponse.json(
-          { error: 'A signup request for this phone number is already pending review.' },
-          { status: 409 },
-        );
-      }
-      if (status === 'active') {
-        return NextResponse.json(
-          { error: 'This phone number already has an active cafe. Log in at /login.' },
-          { status: 409 },
-        );
-      }
-    }
-
-    // Insert cafe + ownership membership atomically.
-    const { rows: cafeRows } = await sql<{ id: string }>`
-      INSERT INTO cafes (slug, name, status, created_by)
-      VALUES (${slug}, ${cafeName}, 'pending', ${profileId})
-      RETURNING id
-    `;
-    const cafeId = cafeRows[0].id;
-
-    await sql`
-      INSERT INTO cafe_memberships (cafe_id, user_id, role, status)
-      VALUES (${cafeId}, ${profileId}, 'owner', 'pending')
-    `;
 
     // Notify super admins out-of-band.
     const capturedCafeName = cafeName;

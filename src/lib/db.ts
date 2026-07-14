@@ -48,6 +48,28 @@ export async function withTx<T>(
   }
 }
 
+/**
+ * Plain transaction with no audit GUCs — for unauthenticated flows (e.g. /api/start
+ * self-serve onboarding) where there is no actor/tenant context yet. Only use on
+ * tables without audit triggers that require app.actor_id.
+ */
+export async function withPlainTx<T>(
+  fn: (client: VercelPoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await vercelDb.connect();
+  try {
+    await client.query('BEGIN');
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function withTenantTx<T>(
   ctx: TenantCtx,
   fn: (client: VercelPoolClient) => Promise<T>,
