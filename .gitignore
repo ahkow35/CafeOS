@@ -47,3 +47,6 @@ next-env.d.ts
 
 # claude artifacts
 /.claude/
+
+# Claude Code worktrees (nested git dirs — must never be committed as gitlinks)
+.claude/worktrees/
