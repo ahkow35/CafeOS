@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS public.cafes (
     created_by  UUID REFERENCES public.profiles(id),
     approved_by UUID REFERENCES public.profiles(id),
     approved_at TIMESTAMPTZ,
+    -- Stripe billing (SGD 49/mo per cafe, 14-day trial). See 2026-05-09-billing.sql.
+    stripe_customer_id     TEXT UNIQUE,
+    stripe_subscription_id TEXT UNIQUE,
+    trial_ends_at          TIMESTAMPTZ,
+    subscription_status    TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT cafes_slug_format

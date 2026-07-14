@@ -1,19 +1,6 @@
 import { sql } from '@/lib/db';
 import { formatMonthYear } from '@/lib/dateUtils';
-
-// Resolved at call time (not module load) so a missing var fails when a
-// notification is actually sent, not during the production build's page-data
-// collection where env vars are absent.
-function baseUrl(): string {
-  const raw = process.env.APP_BASE_URL;
-  if (raw) return raw.replace(/\/$/, '');
-  // No silent wrong-host default: in production a missing APP_BASE_URL would put
-  // broken links in HR/billing notifications, so fail loud instead.
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('APP_BASE_URL must be set in production');
-  }
-  return 'http://localhost:3000';
-}
+import { appBaseUrl as baseUrl } from '@/lib/appUrl';
 
 const SHORT_DATE = (d: string) => {
   const dt = new Date(d.split('T')[0] + 'T00:00:00');
@@ -228,6 +215,22 @@ interface NotifyCafeSignupArgs {
   cafeName: string;
   ownerName: string;
   ownerPhone: string;
+}
+
+/** Alert a cafe's owners that a subscription payment failed, so they can fix billing. */
+export async function notifyPaymentFailed(subscriptionId: string): Promise<void> {
+  const { rows: cafeRows } = await sql<{ id: string; name: string; slug: string }>`
+    SELECT id, name, slug FROM cafes WHERE stripe_subscription_id = ${subscriptionId} LIMIT 1
+  `;
+  if (cafeRows.length === 0) return;
+  const cafe = cafeRows[0];
+  const recipients = await getOwnerRecipients(cafe.id);
+  if (recipients.length === 0) {
+    console.warn(`notifyPaymentFailed: no linked owner recipients for cafe ${cafe.id}`);
+    return;
+  }
+  const text = `⚠️ <b>Payment Failed</b>\n\nA payment for <b>${esc(cafe.name)}</b> could not be processed. Please update your billing details to avoid an interruption in service.\n\nBilling: ${baseUrl()}/c/${cafe.slug}/billing`;
+  await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
 }
 
 /** Notify all super admins that a new cafe has applied for access. */
