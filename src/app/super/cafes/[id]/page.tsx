@@ -11,6 +11,27 @@ interface Cafe {
   status: 'pending' | 'active' | 'suspended';
   created_at: string;
   approved_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  trial_ends_at: string | null;
+  subscription_status: string | null;
+}
+
+function billingBadgeVariant(status: string | null): string {
+  switch (status) {
+    case 'trialing':
+    case 'active':
+      return 'success';
+    case 'past_due':
+      return 'warning';
+    case 'canceled':
+    case 'unpaid':
+    case 'paused':
+    case 'incomplete_expired':
+      return 'error';
+    default:
+      return 'neutral';
+  }
 }
 
 interface Member {
@@ -208,6 +229,52 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
         ))}
         {members.length === 0 && (
           <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>No members yet.</p>
+        )}
+      </div>
+
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginTop: '24px' }}>
+        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+          Billing
+        </h2>
+        {cafe.stripe_customer_id ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Subscription status</span>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: billingBadgeVariant(cafe.subscription_status) === 'success' ? '#dcfce7' :
+                            billingBadgeVariant(cafe.subscription_status) === 'warning' ? '#fef9c3' :
+                            billingBadgeVariant(cafe.subscription_status) === 'error' ? '#fee2e2' : '#f3f4f6',
+                color: billingBadgeVariant(cafe.subscription_status) === 'success' ? '#166534' :
+                       billingBadgeVariant(cafe.subscription_status) === 'warning' ? '#713f12' :
+                       billingBadgeVariant(cafe.subscription_status) === 'error' ? '#991b1b' : '#374151',
+              }}>
+                {cafe.subscription_status ?? 'unknown'}
+              </span>
+            </div>
+            {cafe.trial_ends_at && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Trial ends</span>
+                <span>{new Date(cafe.trial_ends_at).toLocaleDateString('en-SG', { dateStyle: 'medium' })}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Stripe customer</span>
+              <a
+                href={`https://dashboard.stripe.com/customers/${cafe.stripe_customer_id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+              >
+                {cafe.stripe_customer_id}
+              </a>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>No Stripe billing account linked to this cafe.</p>
         )}
       </div>
     </div>

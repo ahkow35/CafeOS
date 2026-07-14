@@ -7,6 +7,7 @@ export default function StartPage() {
   const [cafeName, setCafeName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,7 @@ export default function StartPage() {
       const res = await fetch('/api/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cafeName, ownerName, ownerPhone: '+65' + phone }),
+        body: JSON.stringify({ cafeName, ownerName, ownerPhone: '+65' + phone, ownerEmail: ownerEmail || null }),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) {
@@ -120,6 +121,23 @@ export default function StartPage() {
                 maxLength={8}
               />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="ownerEmail" className="form-label">
+              Email address
+            </label>
+            <input
+              id="ownerEmail"
+              name="ownerEmail"
+              type="email"
+              autoComplete="email"
+              className="form-input"
+              placeholder="you@example.com"
+              value={ownerEmail}
+              onChange={(e) => setOwnerEmail(e.target.value)}
+            />
+            <p className="form-hint">Used for billing notifications. Optional.</p>
           </div>
 
           {error && <div className="form-error mb-md">{error}</div>}

@@ -14,6 +14,10 @@ interface CafeRow {
   status: 'pending' | 'active' | 'suspended';
   created_at: string;
   approved_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  trial_ends_at: string | null;
+  subscription_status: string | null;
 }
 
 interface MemberRow {
@@ -35,7 +39,8 @@ export async function GET(
     if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     const { rows: cafeRows } = await sql<CafeRow>`
-      SELECT id, slug, name, logo_url, status, created_at, approved_at
+      SELECT id, slug, name, logo_url, status, created_at, approved_at,
+             stripe_customer_id, stripe_subscription_id, trial_ends_at, subscription_status
         FROM cafes WHERE id = ${id} LIMIT 1
     `;
     if (cafeRows.length === 0) return NextResponse.json({ error: 'Cafe not found' }, { status: 404 });

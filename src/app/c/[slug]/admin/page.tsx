@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock } from 'lucide-react';
+import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock, CreditCard } from 'lucide-react';
 
 interface AdminStats {
     pendingManagerLeave: number;
@@ -67,7 +67,12 @@ export default function AdminPage() {
         );
     }
 
-    const pendingLeaveCount = isOwner ? stats.pendingOwnerLeave : stats.pendingManagerLeave;
+    // Owners can act on BOTH stages (the Decision Desk shows pending_manager + pending_owner),
+    // so the Overview count must include both — otherwise staff requests sitting at
+    // pending_manager (e.g. no manager to escalate) show as 0 on the owner's dashboard.
+    const pendingLeaveCount = isOwner
+        ? stats.pendingOwnerLeave + stats.pendingManagerLeave
+        : stats.pendingManagerLeave;
     const leaveSubtitle = isOwner
         ? 'Final approval for leave requests'
         : 'Review and escalate to owner';
@@ -161,7 +166,7 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
-                            <Link href={`${base}/admin/timesheets`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                            <Link href={`${base}/admin/timesheets`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <Clock size={28} />
@@ -169,6 +174,19 @@ export default function AdminPage() {
                                     <div style={{ flex: 1 }}>
                                         <div className="card-title">TIMESHEETS</div>
                                         <div className="card-subtitle">Part-timer timesheet approval</div>
+                                    </div>
+                                    <ChevronRight size={20} className="text-muted" />
+                                </div>
+                            </Link>
+
+                            <Link href={`${base}/billing`} className="card" style={{ display: 'block', textDecoration: 'none' }}>
+                                <div className="flex items-center gap-md">
+                                    <div className="stat-icon">
+                                        <CreditCard size={28} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div className="card-title">BILLING</div>
+                                        <div className="card-subtitle">Manage subscription & payment</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
                                 </div>

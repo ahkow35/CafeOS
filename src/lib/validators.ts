@@ -95,6 +95,16 @@ export function parseCafeName(input: unknown): string {
   return s;
 }
 
+export function parseEmail(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new ValidationError('Invalid email address');
+  }
+  if (trimmed.length > 254) throw new ValidationError('Email address is too long');
+  return trimmed;
+}
+
 /** Derive a URL-safe slug from a display name. Auto-appends -2/-3 etc if given
  *  a suffix number (caller is responsible for collision-checking in the DB). */
 export function slugifyName(name: string, suffix?: number): string {
