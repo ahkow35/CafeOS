@@ -8,6 +8,7 @@ import {
   SESSION_COOKIE_MAX_AGE,
 } from '@/lib/auth';
 import { parseE164, parsePin, ValidationError } from '@/lib/validators';
+import { isDbUnavailable } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
@@ -64,7 +65,25 @@ export async function POST(req: Request) {
         : 401;
       return NextResponse.json({ error: e.message, code: e.code }, { status });
     }
+    // Never let a server-side failure read as a rejected PIN — staff spent an outage
+    // retyping correct credentials against a generic "Login failed" (2026-08-06).
+    if (isDbUnavailable(e)) {
+      console.error('[login] database unavailable', e);
+      return NextResponse.json(
+        {
+          error: "Can't reach CafeOS right now. This isn't your PIN — please try again in a moment.",
+          code: 'service_unavailable',
+        },
+        { status: 503 },
+      );
+    }
     console.error('[login]', e);
-    return NextResponse.json({ error: 'Login failed' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Something went wrong on our end. This isn't your PIN — please tell your manager.",
+        code: 'server_error',
+      },
+      { status: 500 },
+    );
   }
 }

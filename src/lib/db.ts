@@ -20,6 +20,43 @@ import type { MembershipRole } from '@/lib/validators';
 
 export const sql = vercelSql;
 
+/**
+ * Patterns that mean "we could not talk to the database", as opposed to "the query
+ * was wrong". Matched on the message because Neon's HTTP driver reports connection
+ * and auth failures with an empty SQLSTATE `code` — the 2026-08-06 outage surfaced as
+ * `NeonDbError: password authentication failed for user 'neondb_owner'` with
+ * `code: ''`, so code-based detection alone would have missed it.
+ */
+const DB_UNAVAILABLE_PATTERNS = [
+  /password authentication failed/i,
+  /role .+ does not exist/i,
+  /database .+ does not exist/i,
+  /could not connect/i,
+  /connection (refused|reset|closed|terminated|timeout)/i,
+  /fetch failed/i,
+  /too many connections/i,
+  /missing_connection_string/i,
+  /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/,
+];
+
+/**
+ * True when an error means the database was unreachable — a deploy/infrastructure
+ * problem the caller should surface as 503, not as a generic 500. A malformed query
+ * or a missing column is a code bug and deliberately does NOT match.
+ */
+export function isDbUnavailable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+
+  // Prefer SQLSTATE when the driver supplies one: class 08 = connection exception,
+  // 28 = invalid authorization, 53300 = too many connections, 57P03 = cannot connect now.
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === 'string' && code !== '') {
+    return code.startsWith('08') || code.startsWith('28') || code === '53300' || code === '57P03';
+  }
+
+  return DB_UNAVAILABLE_PATTERNS.some((re) => re.test(`${err.name}: ${err.message}`));
+}
+
 export interface TenantCtx {
   userId: string;
   cafeId: string;

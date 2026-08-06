@@ -89,7 +89,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       if (!res.ok) {
-        return { error: new Error(json.error ?? 'Login failed') };
+        // No parseable body means the request never reached the route (platform 502,
+        // gateway timeout) — that is never a credentials problem, so don't imply it is.
+        return {
+          error: new Error(
+            json.error ?? "Can't reach CafeOS right now. Please try again in a moment.",
+          ),
+        };
       }
 
       // Multi-cafe picker — caller shows selection UI.
@@ -111,7 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         outcome: { kind: 'redirect' as const, to: json.redirect ?? '/' } satisfies LoginOutcome,
       };
     } catch (err) {
-      return { error: err instanceof Error ? err : new Error('Login failed') };
+      // fetch() only rejects on network failure; its raw message ("Failed to fetch")
+      // means nothing to a barista standing at the till.
+      console.error('[AuthContext] /login network error', err);
+      return {
+        error: new Error("Can't reach CafeOS right now. Check your connection and try again."),
+      };
     }
   }, []);
 
