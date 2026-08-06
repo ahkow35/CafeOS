@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { usePathname, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Home, CheckSquare, Calendar, Settings, Clock } from 'lucide-react';
+import { Home, CheckSquare, Calendar, Clock, UserRound } from 'lucide-react';
 
 const ROLE_CACHE_KEY = 'cafeos_role';
 
@@ -25,26 +25,27 @@ export default function BottomNav() {
     const isManagerOrOwner = role === 'manager' || role === 'owner';
     const isPartTimer = role === 'part_timer';
 
-    const homeHref = isManagerOrOwner
-        ? `${base}/admin`
+    // Each destination is unique. Previously every role received a duplicate
+    // pair (Home/Tasks, Home/Timesheet, or Home/Admin), which also made two tabs
+    // appear active at the same time.
+    const navItems = isManagerOrOwner
+        ? [
+            { href: `${base}/admin`, label: 'Dashboard', icon: Home },
+            { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
+            { href: `${base}/leave`, label: 'Leave', icon: Calendar },
+            { href: `${base}/account`, label: 'Account', icon: UserRound },
+        ]
         : isPartTimer
-        ? `${base}/timesheet`
-        : `${base}/tasks`;
-
-    const navItems = [
-        { href: homeHref, label: 'Home', icon: Home },
-        { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
-    ];
-
-    if (isPartTimer) {
-        navItems.push({ href: `${base}/timesheet`, label: 'Timesheet', icon: Clock });
-    } else {
-        navItems.push({ href: `${base}/leave`, label: 'Leave', icon: Calendar });
-    }
-
-    if (isManagerOrOwner) {
-        navItems.push({ href: `${base}/admin`, label: 'Admin', icon: Settings });
-    }
+        ? [
+            { href: `${base}/timesheet`, label: 'Timesheet', icon: Clock },
+            { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
+            { href: `${base}/account`, label: 'Account', icon: UserRound },
+        ]
+        : [
+            { href: `${base}/tasks`, label: 'Tasks', icon: CheckSquare },
+            { href: `${base}/leave`, label: 'Leave', icon: Calendar },
+            { href: `${base}/account`, label: 'Account', icon: UserRound },
+        ];
 
     return (
         <nav className="bottom-nav">

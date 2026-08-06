@@ -5,6 +5,7 @@ import { jwtVerify } from 'jose';
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
+  '/login/reset',
   '/login/select',
   '/start',
 ]);

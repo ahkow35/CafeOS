@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Coffee } from 'lucide-react';
+import { Coffee, KeyRound } from 'lucide-react';
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -52,15 +53,14 @@ export default function LoginPage() {
             <label htmlFor="phone" className="form-label">
               Mobile number
             </label>
-            <div style={{ display: 'flex' }}>
-              <span className="form-input" style={{ width: 'auto', padding: '0 12px', borderRight: 'none', color: 'var(--color-text-muted)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <div className="phone-field">
+              <span className="phone-prefix" aria-hidden="true">
                 +65
               </span>
               <input
                 id="phone"
                 type="tel"
                 className="form-input"
-                style={{ borderLeft: 'none', flex: 1 }}
                 placeholder="91234567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 8))}
@@ -84,7 +84,7 @@ export default function LoginPage() {
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
               required
-              autoComplete="one-time-code"
+              autoComplete="current-password"
               inputMode="numeric"
               pattern="\d{6}"
               maxLength={6}
@@ -92,7 +92,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="form-error mb-md">
+            <div className="form-error form-message mb-md" role="alert">
               {error}
             </div>
           )}
@@ -106,11 +106,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="auth-footer">
-          Forgot your PIN? Ask your manager to reset it.
-        </div>
+        <Link href="/login/reset" className="auth-recovery-link">
+          <KeyRound size={16} />
+          Reset a forgotten PIN
+        </Link>
         <div className="auth-footer" style={{ marginTop: '8px' }}>
-          New cafe? <a href="/start" style={{ color: 'var(--color-primary)' }}>Apply for access</a>
+          New cafe? <Link href="/start">Apply for access</Link>
         </div>
       </div>
     </div>
