@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { deriveTotalHours } from '@/lib/timeUtils';
 
 export const runtime = 'nodejs';
 
@@ -43,22 +44,6 @@ function parseHours(input: unknown, label: string): number {
   const n = Number(input);
   if (!Number.isFinite(n) || n < 0) throw new ValidationError(`${label} must be a non-negative number`);
   return n;
-}
-
-/**
- * Derive payable hours SERVER-SIDE from the clock times — never trust a
- * client-supplied total. Mirrors the client's computeHours: overnight-aware,
- * rounded to the nearest 0.25h, minus the break, clamped at zero. If either
- * clock time is missing the entry counts as zero hours.
- */
-function deriveTotalHours(start: string | null, end: string | null, breakHours: number): number {
-  if (!start || !end) return 0;
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  let mins = (eh * 60 + em) - (sh * 60 + sm);
-  if (mins < 0) mins += 24 * 60; // shift crosses midnight
-  const rounded = Math.round((mins / 60) / 0.25) * 0.25;
-  return Math.max(0, rounded - breakHours);
 }
 
 /**

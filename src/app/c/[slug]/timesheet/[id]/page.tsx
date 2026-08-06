@@ -110,8 +110,7 @@ export default function TimesheetDetailPage() {
 
       if (!startTime || !endTime) return;
 
-      const total_hours = computeHours(startTime, endTime, breakHours);
-
+      // No total_hours in the payload — both endpoints derive it server-side.
       if (entryId) {
         await jsonOrError(await fetch(`/api/timesheet-entries/${entryId}`, {
           method: 'PATCH',
@@ -120,7 +119,6 @@ export default function TimesheetDetailPage() {
             start_time: startTime,
             end_time: endTime,
             break_hours: breakHours,
-            total_hours,
             remarks: remarks || null,
           }),
         }));
@@ -133,7 +131,6 @@ export default function TimesheetDetailPage() {
             start_time: startTime,
             end_time: endTime,
             break_hours: breakHours,
-            total_hours,
             remarks: remarks || null,
           }),
         }));

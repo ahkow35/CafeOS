@@ -35,7 +35,7 @@ const DB_UNAVAILABLE_PATTERNS = [
   /connection (refused|reset|closed|terminated|timeout)/i,
   /fetch failed/i,
   /too many connections/i,
-  /missing_connection_string/i,
+  /(missing|invalid)_connection_string/i,
   /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/,
 ];
 
@@ -47,14 +47,19 @@ const DB_UNAVAILABLE_PATTERNS = [
 export function isDbUnavailable(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
 
-  // Prefer SQLSTATE when the driver supplies one: class 08 = connection exception,
-  // 28 = invalid authorization, 53300 = too many connections, 57P03 = cannot connect now.
   const code = (err as { code?: unknown }).code;
-  if (typeof code === 'string' && code !== '') {
+
+  // Prefer SQLSTATE when the driver supplies a real one: class 08 = connection exception,
+  // 28 = invalid authorization, 53300 = too many connections, 57P03 = cannot connect now.
+  // Only a 5-character SQLSTATE may decide the answer outright — @vercel/postgres also
+  // puts word codes here ('invalid_connection_string'), and treating those as SQLSTATE
+  // wrongly classified a misconfigured database as a code bug.
+  if (typeof code === 'string' && /^[0-9A-Za-z]{5}$/.test(code)) {
     return code.startsWith('08') || code.startsWith('28') || code === '53300' || code === '57P03';
   }
 
-  return DB_UNAVAILABLE_PATTERNS.some((re) => re.test(`${err.name}: ${err.message}`));
+  const text = `${err.name}: ${err.message}${typeof code === 'string' ? ` ${code}` : ''}`;
+  return DB_UNAVAILABLE_PATTERNS.some((re) => re.test(text));
 }
 
 export interface TenantCtx {
