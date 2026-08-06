@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-08-06 — Production outage (stale DB credential) + login error-message fix
+
+### Summary
+Production returned `Login failed` to every user. The cause was infrastructure, not code: the Neon
+credentials were re-provisioned ~31 Jul, but the live deployment dated from 14 Jul and Vercel binds
+env vars into a deployment **at build time** — so the running build kept presenting the old password.
+Restored by redeploying, with no code change. A follow-up PR then fixed how the failure *presented*.
+
+### Incident
+- **Symptom** — `Login failed` under the PIN field on `/login`. Because that string sits beside a
+  credentials form, staff read a total outage as their own typo and retried correct PINs.
+- **Root cause** — `NeonDbError: password authentication failed for user 'neondb_owner'` on every
+  query. `vercel env ls production` showed all Postgres vars 6 days old; the newest Production
+  deployment was 23 days old. That age gap is the whole diagnosis.
+- **Fix** — `vercel redeploy <prod-url>`: same source, rebuilt against current env. Verified live —
+  login went 500 → 401 for a nonexistent number, and `/api/auth/me` went 503 → 200.
+- **Diagnostics worth reusing** — (1) probe with knowingly-invalid credentials: a 500 where a 401 is
+  expected proves the failure precedes credential evaluation, so it affects every user rather than
+  the one complaining; (2) hash-compare the stored env value against a known-working local one to
+  tell "stored value is stale" from "stored value is fine, needs a redeploy", without printing a
+  secret; (3) `profiles.failed_attempts` still at 0 proves the PIN check was never reached.
+
+### Code changes (PR #5, squash `f6422ab`)
+- `src/lib/db.ts` — new `isDbUnavailable()`: SQLSTATE first (connection class `08`, authorization
+  class `28`, `53300`, `57P03`), then message matching. The fallback is load-bearing, not
+  belt-and-braces — Neon's HTTP driver reported this outage with `severity: ''` and **`code: ''`**,
+  so a code-only classifier misses precisely the failure that caused the incident.
+- `src/app/api/auth/login/route.ts` — database unreachable → **503** `service_unavailable`; a genuine
+  bug → 500 `server_error`. Both messages state that the PIN is not the problem. A malformed query
+  or missing column deliberately stays a 500, so real defects are not disguised as outages.
+- `src/context/AuthContext.tsx` — the two client-side fallbacks also said `Login failed`. They now
+  cover what the server never sees: a platform 502 with no JSON body, and a dropped connection
+  (whose raw `Failed to fetch` means nothing to a barista at the till).
+
+### Verification
+This repo has **no test suite**. The outage was reproduced locally (real Neon host, deliberately
+wrong password) → 503 with the new message; with a healthy DB, login still returns 401 for bad
+credentials and 400 for a malformed PIN. A 15-case standalone classifier script passes, including
+the negatives that matter (42703 missing column, 42601 syntax error, 23505 unique violation, plain
+`TypeError`, non-`Error` values). `tsc --noEmit`, `eslint . --quiet`, and `next build` all clean;
+the 12 `react-hooks/exhaustive-deps` warnings are pre-existing in untouched files.
+
+Not verified in production: the 503 path itself, since observing it would mean breaking the live
+database. It is proven by local reproduction only.
+
+### Carry forward
+Rotating a credential in Vercel does not reach a running deployment — **redeploy immediately after
+any rotation**, and treat "env var newer than the last deployment" as a standing production alarm.
+Also confirmed this session: **this project auto-deploys on merge to `main`** (the branch push built
+a preview; the merge deployed production without touching the CLI), so a merge *is* the deploy.
+
 ## 2026-07-14 — Security remediation from code review (Phases 0–3)
 
 ### Summary
