@@ -68,16 +68,40 @@ export function fmt12(hhmm: string): string {
  * Handles overnight shifts. Break is subtracted in hours.
  */
 export function computeHours(start: string, end: string, brk: number): number {
-  const startParts = start.split(':').map(Number);
-  const endParts = end.split(':').map(Number);
-  if (startParts.length !== 2 || endParts.length !== 2) return 0;
-  const [sh, sm] = startParts;
-  const [eh, em] = endParts;
-  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return 0;
-  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  const s = toMinutes(start);
+  const e = toMinutes(end);
+  if (s === null || e === null) return 0;
+  let mins = e - s;
   if (mins < 0) mins += 24 * 60;
   const rounded = Math.round((mins / 60) / 0.25) * 0.25;
   return Math.max(0, rounded - brk);
+}
+
+/**
+ * Minutes since midnight from "HH:MM" or "HH:MM:SS", else null.
+ *
+ * The seconds form matters: Postgres renders a `time` column as "12:30:00", so every
+ * value loaded from the API arrives with seconds. An earlier version required exactly
+ * two parts and silently returned 0 hours for those — which showed saved timesheets as
+ * "0 hrs" until the user tapped a field and the value was re-normalised to "HH:MM".
+ */
+function toMinutes(t: string): number | null {
+  const parts = t.split(':');
+  if (parts.length !== 2 && parts.length !== 3) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 24 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+/**
+ * Net hours for a possibly-incomplete entry — the single source of truth servers use
+ * so `total_hours` is never taken from the client (prevents pay inflation).
+ */
+export function deriveTotalHours(start: string | null, end: string | null, brk: number): number {
+  if (!start || !end) return 0;
+  return computeHours(start, end, brk);
 }
 
 /** Return all YYYY-MM-DD strings for every day in a "YYYY-MM" month. */

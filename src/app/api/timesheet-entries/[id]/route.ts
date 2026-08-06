@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { deriveTotalHours } from '@/lib/timeUtils';
 
 export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^\d{2}:\d{2}(:\d{2})?$/;
+
+class NotFoundError extends Error {}
 
 interface EntryRow {
   id: string;
@@ -57,7 +60,10 @@ function parseNumberMaybe(input: unknown, label: string): number | undefined {
 
 /**
  * PATCH /api/timesheet-entries/[id]
- * Body: any of start_time, end_time, break_hours, total_hours, remarks
+ * Body: any of start_time, end_time, break_hours, remarks.
+ * `total_hours` is DERIVED from the merged row and ignored if sent — same rule the
+ * POST path enforces. Trusting the client here would let a bad (or buggy) caller
+ * write any figure into payroll.
  * Auth: owner-of-timesheet only, while parent timesheet is in draft.
  * Parent timesheet must belong to caller's cafe.
  */
@@ -82,28 +88,48 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const start_time = 'start_time' in body ? parseTime(body.start_time) : undefined;
     const end_time = 'end_time' in body ? parseTime(body.end_time) : undefined;
     const break_hours = 'break_hours' in body ? parseNumberMaybe(body.break_hours, 'break_hours') : undefined;
-    const total_hours = 'total_hours' in body ? parseNumberMaybe(body.total_hours, 'total_hours') : undefined;
     const remarks = 'remarks' in body
       ? (body.remarks == null || body.remarks === '' ? null : String(body.remarks).trim() || null)
       : undefined;
 
     if (
-      start_time === undefined && end_time === undefined && break_hours === undefined
-      && total_hours === undefined && remarks === undefined
+      start_time === undefined && end_time === undefined
+      && break_hours === undefined && remarks === undefined
     ) {
       return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
     }
 
     const updated = await withTenantTx(ctx, async (tx) => {
+      // Lock the row first: the new total is derived from the merged old + new values,
+      // so a concurrent edit of the same entry must not interleave between read and write.
+      const cur = await tx.query<EntryRow>(
+        `SELECT start_time::text AS start_time, end_time::text AS end_time, break_hours
+           FROM timesheet_entries
+          WHERE id = $1 AND cafe_id = $2
+          FOR UPDATE`,
+        [id, ctx.cafeId],
+      );
+      const existing = cur.rows[0];
+      if (!existing) throw new NotFoundError('Entry not found');
+
+      // A PATCH may carry only one field, so derive from the row as it will be AFTER
+      // this update — deriving from the request body alone would zero the hours whenever
+      // only the break or a single clock time is sent.
+      const total_hours = deriveTotalHours(
+        start_time !== undefined ? start_time : existing.start_time,
+        end_time !== undefined ? end_time : existing.end_time,
+        break_hours !== undefined ? break_hours : Number(existing.break_hours),
+      );
+
       const r = await tx.query<EntryRow>(
         `UPDATE timesheet_entries SET
            start_time  = CASE WHEN $1::boolean THEN $2::time ELSE start_time END,
            end_time    = CASE WHEN $3::boolean THEN $4::time ELSE end_time END,
            break_hours = CASE WHEN $5::boolean THEN $6::numeric ELSE break_hours END,
-           total_hours = CASE WHEN $7::boolean THEN $8::numeric ELSE total_hours END,
-           remarks     = CASE WHEN $9::boolean THEN $10 ELSE remarks END
-         WHERE id = $11
-           AND cafe_id = $12
+           total_hours = $7::numeric,
+           remarks     = CASE WHEN $8::boolean THEN $9 ELSE remarks END
+         WHERE id = $10
+           AND cafe_id = $11
          RETURNING id, timesheet_id, entry_date::text AS entry_date,
                    start_time::text AS start_time, end_time::text AS end_time,
                    break_hours, total_hours, remarks, created_at`,
@@ -111,7 +137,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           start_time !== undefined, start_time ?? null,
           end_time !== undefined, end_time ?? null,
           break_hours !== undefined, break_hours ?? null,
-          total_hours !== undefined, total_hours ?? null,
+          total_hours,
           remarks !== undefined, remarks ?? null,
           id,
           ctx.cafeId,
@@ -126,6 +152,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       total_hours: Number(updated.total_hours),
     } });
   } catch (e) {
+    if (e instanceof NotFoundError) return NextResponse.json({ error: e.message }, { status: 404 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;
