@@ -118,7 +118,7 @@ export default function LeavePage() {
                     </section>
 
                     <section className="section animate-in">
-                        <TelegramLinkButton />
+                        <TelegramLinkButton isLinked={Boolean(profile?.telegram_chat_id)} />
                     </section>
 
                     {pendingRequests.length > 0 && (

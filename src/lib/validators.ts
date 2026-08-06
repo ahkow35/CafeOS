@@ -44,6 +44,38 @@ export function parsePin(input: unknown): string {
   return s;
 }
 
+/**
+ * Validate a user-chosen PIN. Existing/admin-issued PINs remain compatible with
+ * parsePin(), while self-service changes reject the easiest values to guess.
+ */
+export function parseNewPin(input: unknown, phoneE164?: string): string {
+  const pin = parsePin(input);
+
+  const repeatedDigit = /^(\d)\1{5}$/.test(pin);
+  const commonPattern = new Set([
+    '012345', '123456', '234567', '345678', '456789',
+    '987654', '876543', '765432', '654321', '543210',
+    '121212', '112233', '123123',
+  ]).has(pin);
+
+  if (repeatedDigit || commonPattern) {
+    throw new ValidationError('Choose a less predictable PIN without repeated or sequential digits');
+  }
+
+  if (phoneE164?.replace(/\D/g, '').endsWith(pin)) {
+    throw new ValidationError('Your PIN must not match the end of your mobile number');
+  }
+
+  return pin;
+}
+
+export function parseResetCode(input: unknown): string {
+  if (typeof input !== 'string' || !PIN_RE.test(input.trim())) {
+    throw new ValidationError('Verification code must be exactly 6 digits');
+  }
+  return input.trim();
+}
+
 export function parseRole(input: unknown): Role {
   if (typeof input !== 'string' || !ROLES.includes(input as Role)) {
     throw new ValidationError(`Role must be one of: ${ROLES.join(', ')}`);

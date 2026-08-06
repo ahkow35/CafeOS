@@ -29,6 +29,7 @@ export interface SessionUser {
   is_active: boolean;
   is_super_admin: boolean;
   email: string | null;
+  telegram_chat_id: string | null;
   active_cafe: CafeInfo | null;
   memberships: MembershipInfo[];
 }
