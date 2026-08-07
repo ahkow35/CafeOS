@@ -1,5 +1,78 @@
 # Changelog
 
+## 2026-08-06 — Timesheet 0-hours fix, payroll-integrity hardening, PIN reset shipped
+
+### Summary
+Three merges after the outage work: PR #7 (timesheet hours), PR #8 (self-service PIN reset,
+built by a separate session). One production schema migration applied. All deployed and
+verified live; the PIN reset flow was confirmed end to end including Telegram delivery.
+
+### Schema change (applied to prod BEFORE the merge that needs it)
+- `db/migrations/2026-08-06-pin-reset-tokens.sql` — new `pin_reset_tokens` table: HMACed
+  `code_hash`, hashed `request_ip_hash`, `attempts_remaining` 0–5 CHECK, `expires_at`,
+  `used_at`, FK to `profiles` ON DELETE CASCADE, two indexes. Applied ahead of PR #8
+  because this repo deploys on merge — the table sat unused until the code shipped.
+  Verified after: 8 columns, 3 indexes, 3 constraints, existing data untouched.
+  Reversible with `DROP TABLE pin_reset_tokens`.
+
+### PR #7 — timesheet showed 0 hours (`f6422ab` → `80a9b9f`)
+Reported from the floor: a saved timesheet showed `0` in HRS and TOTAL HOURS despite correct
+clock times; tapping any time field made the real figure appear, which looked like a saving
+fault. It was not — the times always saved; the hours were never *calculated*.
+
+- **Root cause** — `computeHours()` required exactly `"HH:MM"` and returned **0** for anything
+  else, silently. Postgres renders a `time` column as `"12:30:00"`, so every value loaded from
+  the API arrived with seconds and scored zero. A blur re-normalised it to `"HH:MM"`, which is
+  why touching a field appeared to repair the row. Fixed to accept both forms (and `24:00`)
+  while still rejecting genuine rubbish.
+- **Payroll-integrity hole closed** — `PATCH /api/timesheet-entries/[id]` stored whatever
+  `total_hours` the client sent, using that same broken calculation. Editing only the break on
+  a saved row would have written **0 payable hours**, which the manager view and Excel export
+  both read. It now derives server-side from the **merged** row under `FOR UPDATE` (deriving
+  from the request body alone would zero the hours whenever a single field is sent). The POST
+  path already enforced this rule; the two paths disagreed.
+- **Duplicate calculation collapsed** — the server had a near-copy of `computeHours` that
+  tolerated seconds *by accident*. That is how the two drifted apart unnoticed. Now one shared
+  `deriveTotalHours()` in `lib/timeUtils`.
+- **`isDbUnavailable()` corrected** — only a real 5-char SQLSTATE may decide; `@vercel/postgres`
+  puts word codes (`invalid_connection_string`) in `err.code`, which the previous version read
+  as a SQLSTATE and classified a misconfigured database as a code bug (500) not infrastructure
+  (503). **Found by running the app against a broken database, not by reading it.**
+- **No production rows were affected**: 0 of 26 entries with both times had hours stored as 0.
+
+### PR #8 — self-service PIN reset (`3a0a717`)
+Built by a separate Claude Code session and left uncommitted in the shared checkout; committed
+to a branch, reviewed for security, and merged at Nyan's explicit direction.
+
+- `pin_reset_tokens` + `lib/pinReset`: 6-digit codes, HMAC-SHA256 (never plaintext at rest),
+  constant-time compare, 10-minute TTL, single-use, 5 attempts, 3/hour per account, 10/hour
+  per IP, hashed IPs. Success bumps `profiles.token_version` (revokes live sessions), clears
+  `failed_attempts`/`locked_until`, invalidates outstanding tokens, clears cookies.
+- Routes: `pin-reset/request`, `pin-reset/confirm`, `change-pin`. Pages: `/login/reset`,
+  per-cafe account page. Plus a UI refresh (`globals.css` +290, Header, BottomNav, layout).
+- **Caveat on record:** ~400 lines of account-recovery code merged with **no human review**.
+
+### Verification
+No test suite in this repo. PR #7 was verified on a **throwaway local Postgres** (production
+never written to): 10 PATCH cases incl. break-only, remarks-only, single-clock-time, cleared
+time and overnight — with the SQL **extracted from the route file rather than retyped**, so the
+test cannot pass against a stale query; plus 17 hours cases and 17 classifier cases. `tsc`,
+`eslint --quiet` and `next build` clean throughout.
+
+PR #8 verified live in production: unknown number returns the same generic message as a real
+one (no account enumeration), a bad code returns 400 not 500, and a real request created a
+token and **delivered the code to Telegram** (confirmed received). Only confirm-with-a-valid-code
+is unexercised. The test token was invalidated afterwards; no account was altered.
+
+### Operational note
+**Two PIN flows, easily confused.** `/c/<slug>/account` → `change-pin` is for a **logged-in**
+user and deliberately sends **no** Telegram code (identity already proven). `/login/reset` →
+`pin-reset/request` is for a **locked-out** user and is the only one that sends a code.
+Telegram is the only private channel CafeOS has — no email, no SMS — so an unlinked profile can
+never self-recover, and currently **only 2 of 9 profiles are linked**. Those 7 users will see
+the same "a verification code is on its way" message and receive nothing, because the wording
+is deliberately generic to prevent phone-number enumeration.
+
 ## 2026-08-06 — Production outage (stale DB credential) + login error-message fix
 
 ### Summary
