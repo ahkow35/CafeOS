@@ -1,23 +1,27 @@
 /**
- * Vercel Blob storage for medical certificates.
+ * Vercel Blob storage for user attachments (medical certificates, claim receipts).
  *
  * Pattern: server-side upload only. The uploading user POSTs a multipart form to
- * /api/uploads/medical-cert; the route validates auth + size + mime, then calls
- * uploadMedicalCert() and returns the blob URL to that user so they can attach it
- * to their own leave request.
+ * an /api/uploads/* route; the route validates auth + size + mime, then calls
+ * uploadAttachment() and returns the blob URL to that user so they can attach it
+ * to their own record.
  *
- * Reads NEVER hand the raw blob URL to clients. The leave-request endpoints
- * rewrite `attachment_url` to the gated route /api/leave-requests/[id]/attachment,
- * which authorizes (own row or manager/owner) and streams the file. The blob is
- * created with a random suffix so the underlying public URL is unguessable as a
- * defense-in-depth fallback.
+ * Reads NEVER hand the raw blob URL to clients. Record endpoints rewrite the URL
+ * to a gated route (e.g. /api/leave-requests/[id]/attachment) which authorizes
+ * and streams the file via streamGatedAttachment(). The blob is created with a
+ * random suffix so the underlying public URL is unguessable as defense in depth.
  *
- * Path scheme: medical-certificates/{cafe_id}/{user_id}/{timestamp}-{filename}-{suffix}
+ * Path scheme: {prefix}/{cafe_id}/{user_id}/{timestamp}-{filename}-{suffix}
  */
 
 import { put, del } from '@vercel/blob';
 
-const PREFIX = 'medical-certificates';
+export type AttachmentKind = 'medical-cert' | 'claim-receipt';
+
+const PREFIX: Record<AttachmentKind, string> = {
+  'medical-cert': 'medical-certificates',
+  'claim-receipt': 'claim-receipts',
+};
 
 // Vercel Blob public URLs live on this host suffix. Locking attachment fetches to
 // it prevents SSRF: a client cannot make the server fetch an internal address by
@@ -26,10 +30,10 @@ const BLOB_HOST_SUFFIX = '.public.blob.vercel-storage.com';
 
 /**
  * Validate a client-supplied attachment URL on WRITE: it must be https, on our
- * Blob host, and inside the caller's own certificate path for this café. This is
+ * Blob host, and inside the caller's own path for this kind and café. This is
  * the gate that stops a user attaching another user's blob or an arbitrary URL.
  */
-export function isValidOwnCertUrl(url: string, cafeId: string, userId: string): boolean {
+export function isValidOwnAttachmentUrl(kind: AttachmentKind, url: string, cafeId: string, userId: string): boolean {
   let u: URL;
   try {
     u = new URL(url);
@@ -38,7 +42,7 @@ export function isValidOwnCertUrl(url: string, cafeId: string, userId: string): 
   }
   if (u.protocol !== 'https:') return false;
   if (u.hostname !== BLOB_HOST_SUFFIX.slice(1) && !u.hostname.endsWith(BLOB_HOST_SUFFIX)) return false;
-  return u.pathname.startsWith(`/${PREFIX}/${cafeId}/${userId}/`);
+  return u.pathname.startsWith(`/${PREFIX[kind]}/${cafeId}/${userId}/`);
 }
 
 /** Defense-in-depth check on READ: only ever fetch https URLs on our Blob host. */
@@ -52,7 +56,7 @@ export function isTrustedBlobUrl(url: string): boolean {
 }
 
 /** Safe Content-Type for serving, derived from the path extension (never trust upstream). */
-export function certContentType(pathnameOrUrl: string): string {
+export function attachmentContentType(pathnameOrUrl: string): string {
   const ext = pathnameOrUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   switch (ext) {
     case 'pdf': return 'application/pdf';
@@ -64,15 +68,12 @@ export function certContentType(pathnameOrUrl: string): string {
   }
 }
 
-export async function uploadMedicalCert(opts: {
-  userId: string;
-  cafeId: string;
-  file: File | Blob;
-  filename: string;
-  contentType?: string;
-}): Promise<{ url: string; pathname: string }> {
+export async function uploadAttachment(
+  kind: AttachmentKind,
+  opts: { userId: string; cafeId: string; file: File | Blob; filename: string; contentType?: string },
+): Promise<{ url: string; pathname: string }> {
   const safeName = opts.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const key = `${PREFIX}/${opts.cafeId}/${opts.userId}/${Date.now()}-${safeName}`;
+  const key = `${PREFIX[kind]}/${opts.cafeId}/${opts.userId}/${Date.now()}-${safeName}`;
   const result = await put(key, opts.file, {
     // Vercel Blob 0.27 only supports public access. Reads are gated by the
     // app-layer route; the random suffix makes the raw URL unguessable.
@@ -83,15 +84,38 @@ export async function uploadMedicalCert(opts: {
   return { url: result.url, pathname: result.pathname };
 }
 
-export async function deleteMedicalCert(urlOrPathname: string): Promise<void> {
+export async function deleteAttachment(urlOrPathname: string): Promise<void> {
   await del(urlOrPathname);
 }
 
 /**
- * Pull the user_id segment from a stored path. Used to verify ownership
- * before serving a download.
+ * Fetch a stored attachment server-side and stream it back as a forced download.
+ * Callers MUST have already authorized the requester. `logId` is only used in
+ * error logs so a failure can be traced to a record without leaking the URL.
  */
-export function ownerFromPath(pathname: string): string | null {
-  const m = pathname.match(/^medical-certificates\/[^/]+\/([^/]+)\//);
-  return m ? m[1] : null;
+export async function streamGatedAttachment(url: string, logId: string): Promise<Response> {
+  // Defense in depth: never fetch anything but an https URL on our Blob host,
+  // even if a malformed value somehow reached the DB. Closes SSRF at read time.
+  if (!isTrustedBlobUrl(url)) {
+    console.error('attachment rejected: untrusted URL', logId);
+    return Response.json({ error: 'Attachment unavailable' }, { status: 502 });
+  }
+
+  const upstream = await fetch(url);
+  if (!upstream.ok || !upstream.body) {
+    console.error('attachment fetch failed', logId, upstream.status);
+    return Response.json({ error: 'Attachment unavailable' }, { status: 502 });
+  }
+
+  // Serve as a forced download with a type derived from the path (never the
+  // upstream header) and nosniff, so a file cannot execute as HTML on our origin.
+  const headers = new Headers();
+  headers.set('Content-Type', attachmentContentType(url));
+  const len = upstream.headers.get('content-length');
+  if (len) headers.set('Content-Length', len);
+  headers.set('Content-Disposition', 'attachment');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Cache-Control', 'private, no-store');
+
+  return new Response(upstream.body, { status: 200, headers });
 }
