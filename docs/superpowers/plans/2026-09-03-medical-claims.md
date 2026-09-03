@@ -582,7 +582,7 @@ psql -v ON_ERROR_STOP=1 -q -d cafeos_schema_check -f db/migrations/2026-09-03-me
 psql -d cafeos_schema_check -c "\d medical_claims" | head -30
 dropdb cafeos_schema_check
 ```
-Expected: no errors; the table shows 14 columns, 2 indexes, 2 triggers, 4 check constraints (plus FKs).
+Expected: no errors; the table shows 14 columns, 3 indexes (PK + 2), 3 triggers (updated_at, audit, `trg_assert_cafe_match` tenant tripwire — guarded, migration-only), named constraint `medical_claims_amount_approved_within_claimed` plus the other CHECKs and FKs.
 
 - [ ] **Step 4: Commit**
 
@@ -629,7 +629,7 @@ gh pr create --title "refactor: attachment helpers keyed by kind + medical_claim
 No behaviour change. Prep for the medical-claims feature (spec: docs/superpowers/specs/2026-09-03-medical-claims-design.md).
 
 ## After merge
-Apply the migration to production BEFORE merging the feature PR. Verify: `\d medical_claims` = 14 columns, 2 indexes, 2 triggers; `SELECT COUNT(*) FROM cafe_memberships WHERE medical_claim_balance <> 0` = 0.
+Apply the migration to production BEFORE merging the feature PR. Verify: `\d medical_claims` = 14 columns, 3 indexes (PK + 2), 3 triggers incl. `trg_assert_cafe_match`; `SELECT COUNT(*) FROM cafe_memberships WHERE medical_claim_balance <> 0` = 0.
 
 ## Verification
 tsc, eslint --quiet, npm test, next build clean. Leave-with-MC submit, view attachment (staff + owner), cancel → blob deleted, checked in the browser against a non-production database.

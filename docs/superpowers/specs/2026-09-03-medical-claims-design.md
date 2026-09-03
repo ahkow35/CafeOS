@@ -70,7 +70,11 @@ COMMIT;
 Rollback: `DROP TABLE medical_claims; ALTER TABLE cafe_memberships DROP COLUMN medical_claim_balance;`
 
 Post-apply verification (prod): column present with default 0 on every existing
-membership row; table has 14 columns, 2 indexes, 2 triggers; leave data untouched.
+membership row; table has 14 columns, 3 indexes (PK + 2), 3 triggers (updated_at, audit, and the Phase H
+`trg_assert_cafe_match` tenant tripwire, added to the migration only via a guarded block because
+`db/schema.sql` does not define `assert_cafe_match()`); `medical_claim_balance` also carries a
+`<= 99999.99` upper bound and the `amount_approved <= amount_claimed` rule is the named constraint
+`medical_claims_amount_approved_within_claimed`; leave data untouched.
 
 ### Money handling
 - All arithmetic in SQL (`SET medical_claim_balance = medical_claim_balance - $1`).
