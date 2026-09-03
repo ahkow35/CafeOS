@@ -12,11 +12,49 @@
 -- rule: status IN ('pending_manager','pending_owner','approved')). The existing
 -- UPDATE branch is unchanged.
 --
--- Reversible: re-running the prior CREATE OR REPLACE FUNCTION body (AFTER UPDATE
--- only) from db/schema.sql's pre-2026-09-03 history and re-creating the trigger
--- as `AFTER UPDATE ON public.leave_requests` restores the old behaviour. Safe to
--- apply twice — CREATE OR REPLACE FUNCTION and DROP TRIGGER IF EXISTS / CREATE
--- TRIGGER are both idempotent.
+-- Caveat: leave_requests.user_id is ON DELETE CASCADE from profiles. If a profile
+-- is ever hard-deleted while app.actor_id is set, the DELETE branch above fires
+-- once per cascaded leave_requests row, and its 'refunded' flag reflects that
+-- row's last status even though a cascade never actually refunds a balance. No
+-- code path hard-deletes profiles today — DELETE /api/admin/users/[id] soft-
+-- suspends the cafe_memberships row, it does not touch profiles. A future
+-- maintenance script that does hard-delete profiles should clear app.actor_id
+-- first, or expect these rows in the audit trail.
+--
+-- Safe to apply twice — CREATE OR REPLACE FUNCTION and DROP TRIGGER IF EXISTS /
+-- CREATE TRIGGER are both idempotent.
+--
+-- ROLLBACK (paste without the leading "-- "):
+-- CREATE OR REPLACE FUNCTION public.log_leave_change()
+-- RETURNS TRIGGER AS $$
+-- DECLARE
+--     actor UUID := public.current_actor_id();
+-- BEGIN
+--     IF actor IS NULL THEN
+--         RETURN NEW;
+--     END IF;
+--     IF OLD.status IS DISTINCT FROM NEW.status THEN
+--         INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+--         VALUES (
+--             actor,
+--             public.current_impersonator_id(),
+--             NEW.cafe_id,
+--             CASE NEW.status
+--                 WHEN 'approved' THEN 'approve'
+--                 WHEN 'rejected' THEN 'reject'
+--                 ELSE 'update'
+--             END,
+--             'leave_request',
+--             NEW.id,
+--             jsonb_build_object('status', jsonb_build_array(OLD.status, NEW.status))
+--         );
+--     END IF;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
+--
+-- DROP TRIGGER IF EXISTS audit_leave_change ON public.leave_requests;
+-- CREATE TRIGGER audit_leave_change AFTER UPDATE ON public.leave_requests FOR EACH ROW EXECUTE FUNCTION public.log_leave_change();
 
 BEGIN;
 
