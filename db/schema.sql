@@ -412,37 +412,85 @@ CREATE TRIGGER audit_timesheet_change
     AFTER UPDATE ON public.timesheets
     FOR EACH ROW EXECUTE FUNCTION public.log_timesheet_change();
 
+-- Handles UPDATE (status transitions), INSERT (owner self-approval — a leave
+-- request an owner submits lands already 'approved' with the balance deducted
+-- in the same tx, so it needs its own audit row), and DELETE (owner purging a
+-- decided record, or cancelling a pending one — 'refunded' mirrors the DELETE
+-- route's refund rule: pending_manager/pending_owner/approved get refunded).
 CREATE OR REPLACE FUNCTION public.log_leave_change()
 RETURNS TRIGGER AS $$
 DECLARE
     actor UUID := public.current_actor_id();
 BEGIN
     IF actor IS NULL THEN
-        RETURN NEW;
+        RETURN COALESCE(NEW, OLD);
     END IF;
-    IF OLD.status IS DISTINCT FROM NEW.status THEN
+
+    IF TG_OP = 'INSERT' THEN
+        -- Only owners can insert an already-approved row (self-approval); anything
+        -- else starts pending and gets its first audit row from the UPDATE branch.
+        IF NEW.status = 'approved' THEN
+            INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+            VALUES (
+                actor,
+                public.current_impersonator_id(),
+                NEW.cafe_id,
+                'approve',
+                'leave_request',
+                NEW.id,
+                jsonb_build_object(
+                    'status', jsonb_build_array(NULL, 'approved'),
+                    'days_requested', NEW.days_requested,
+                    'leave_type', NEW.leave_type,
+                    'self_approved', true
+                )
+            );
+        END IF;
+        RETURN NEW;
+
+    ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
         VALUES (
             actor,
             public.current_impersonator_id(),
-            NEW.cafe_id,
-            CASE NEW.status
-                WHEN 'approved' THEN 'approve'
-                WHEN 'rejected' THEN 'reject'
-                ELSE 'update'
-            END,
+            OLD.cafe_id,
+            'delete',
             'leave_request',
-            NEW.id,
-            jsonb_build_object('status', jsonb_build_array(OLD.status, NEW.status))
+            OLD.id,
+            jsonb_build_object(
+                'status', jsonb_build_array(OLD.status, NULL),
+                'days_requested', OLD.days_requested,
+                'leave_type', OLD.leave_type,
+                'refunded', (OLD.status IN ('pending_manager', 'pending_owner', 'approved'))
+            )
         );
+        RETURN OLD;
+
+    ELSE -- TG_OP = 'UPDATE'
+        IF OLD.status IS DISTINCT FROM NEW.status THEN
+            INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+            VALUES (
+                actor,
+                public.current_impersonator_id(),
+                NEW.cafe_id,
+                CASE NEW.status
+                    WHEN 'approved' THEN 'approve'
+                    WHEN 'rejected' THEN 'reject'
+                    ELSE 'update'
+                END,
+                'leave_request',
+                NEW.id,
+                jsonb_build_object('status', jsonb_build_array(OLD.status, NEW.status))
+            );
+        END IF;
+        RETURN NEW;
     END IF;
-    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS audit_leave_change ON public.leave_requests;
 CREATE TRIGGER audit_leave_change
-    AFTER UPDATE ON public.leave_requests
+    AFTER INSERT OR UPDATE OR DELETE ON public.leave_requests
     FOR EACH ROW EXECUTE FUNCTION public.log_leave_change();
 
 CREATE OR REPLACE FUNCTION public.log_claim_change()
@@ -505,3 +553,70 @@ DROP TRIGGER IF EXISTS audit_claim_change ON public.medical_claims;
 CREATE TRIGGER audit_claim_change
     AFTER INSERT OR UPDATE OR DELETE ON public.medical_claims
     FOR EACH ROW EXECUTE FUNCTION public.log_claim_change();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PHASE H: TENANT TRIPWIRES — defence-in-depth cafe_id isolation
+-- Raises a check_violation if a row's cafe_id doesn't match the app.cafe_id GUC
+-- set by withTenantTx(). No-ops when app.cafe_id is unset (super-admin/maintenance
+-- paths). Mirrors db/migrations/2026-05-04-tripwire-triggers.sql so a database
+-- built from this file alone (not migrated forward) still has the guard.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.assert_cafe_match()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  guc_cafe text := current_setting('app.cafe_id', true);
+BEGIN
+  -- GUC not set → super-admin or maintenance path; skip check.
+  IF guc_cafe IS NULL OR guc_cafe = '' THEN
+    RETURN NEW;
+  END IF;
+
+  -- audit_log rows stamped by the system may have NULL cafe_id (e.g. super-admin actions).
+  IF NEW.cafe_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.cafe_id::text <> guc_cafe THEN
+    RAISE EXCEPTION 'cafe_id mismatch: row cafe_id=% but app.cafe_id=%',
+      NEW.cafe_id, guc_cafe
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.leave_requests;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.leave_requests
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.timesheets;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.timesheets
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.timesheet_entries;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.timesheet_entries
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.tasks;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.tasks
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.audit_log;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.audit_log
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.cafe_memberships;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.cafe_memberships
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.medical_claims;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.medical_claims
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
