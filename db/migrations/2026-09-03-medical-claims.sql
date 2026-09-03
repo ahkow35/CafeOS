@@ -1,5 +1,8 @@
 -- Medical claims: per-employee yearly cap on cafe_memberships, one row per
 -- receipt in medical_claims. Balance is deducted ON APPROVAL only.
+-- audit_claim_change fires on INSERT/UPDATE/DELETE so an owner's self-approved
+-- insert and an approved-claim purge (DELETE) both leave an audit_log row, not
+-- just status-changing UPDATEs.
 -- Additive. Rollback: DROP TABLE medical_claims; ALTER TABLE cafe_memberships DROP COLUMN medical_claim_balance; DROP FUNCTION public.log_claim_change();
 
 BEGIN;
@@ -48,8 +51,33 @@ DECLARE
     actor UUID := public.current_actor_id();
 BEGIN
     IF actor IS NULL THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        -- Only an owner's self-submitted claim arrives already decided; a pending
+        -- insert moves no money and is not audited.
+        IF NEW.status = 'approved' THEN
+            INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+            VALUES (actor, public.current_impersonator_id(), NEW.cafe_id, 'approve', 'medical_claim', NEW.id,
+                    jsonb_build_object('status', jsonb_build_array(NULL, NEW.status),
+                                       'amount_approved', NEW.amount_approved,
+                                       'self_approved', TRUE));
+        END IF;
         RETURN NEW;
     END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+        VALUES (actor, public.current_impersonator_id(), OLD.cafe_id, 'delete', 'medical_claim', OLD.id,
+                jsonb_build_object('status', jsonb_build_array(OLD.status, NULL),
+                                   'amount_claimed', OLD.amount_claimed,
+                                   'amount_approved', OLD.amount_approved,
+                                   'refunded', (OLD.status = 'approved')));
+        RETURN OLD;
+    END IF;
+
+    -- UPDATE
     IF OLD.status IS DISTINCT FROM NEW.status THEN
         INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
         VALUES (
@@ -75,7 +103,7 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS audit_claim_change ON public.medical_claims;
 CREATE TRIGGER audit_claim_change
-    AFTER UPDATE ON public.medical_claims
+    AFTER INSERT OR UPDATE OR DELETE ON public.medical_claims
     FOR EACH ROW EXECUTE FUNCTION public.log_claim_change();
 
 -- Phase H tenant tripwire (see 2026-05-04-tripwire-triggers.sql). Guarded because
