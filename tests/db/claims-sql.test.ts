@@ -5,7 +5,7 @@
  * The statements below are the SAME strings the routes execute. If you edit a
  * query in src/app/api/claims, edit it here too — the point is to test what ships.
  */
-import { describe, test, before, after } from 'node:test';
+import { describe, test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Pool } from 'pg';
 
@@ -59,6 +59,11 @@ const DEDUCT_SQL = `UPDATE cafe_memberships SET medical_claim_balance = medical_
 const REFUND_SQL = `UPDATE cafe_memberships SET medical_claim_balance = medical_claim_balance + $1::numeric
             WHERE user_id = $2 AND cafe_id = $3`;
 
+// Verbatim from PATCH /api/claims/[id] (approve branch) — locks the claimant's
+// membership row to re-check the balance against the amount being approved.
+const MEMBERSHIP_LOCK_SQL = `SELECT medical_claim_balance FROM cafe_memberships
+            WHERE user_id = $1 AND cafe_id = $2 FOR UPDATE`;
+
 const URL_FOR = (u: string) => `https://x.public.blob.vercel-storage.com/claim-receipts/${cafe}/${u}/1-r.jpg`;
 
 async function balance(u: string): Promise<number> {
@@ -88,6 +93,16 @@ before(async () => {
   await q(`INSERT INTO cafe_memberships (cafe_id, user_id, role, medical_claim_balance) VALUES ($1, $2, 'owner', 500), ($1, $3, 'staff', 300)`, [cafe, owner, staff]);
 });
 
+// Every test starts from the same known state: no claims, owner balance 500,
+// staff balance 300. Nothing below may rely on residue left by another test.
+beforeEach(async () => {
+  await q(`DELETE FROM medical_claims`);
+  await q(
+    `UPDATE cafe_memberships SET medical_claim_balance = CASE WHEN user_id = $1 THEN 500 ELSE 300 END WHERE cafe_id = $2`,
+    [owner, cafe],
+  );
+});
+
 after(async () => { await pool?.end(); });
 
 test('available = balance − pending', async () => {
@@ -98,6 +113,34 @@ test('available = balance − pending', async () => {
   assert.equal(Number(a1[0].available), 220);
   assert.equal(Number(a1[0].pending), 80);
   assert.equal(await balance(staff), 300, 'submit must not deduct');
+});
+
+// The following three tests mirror, in test code, the JS guards the route applies
+// before it ever touches INSERT_SQL/APPROVE_SQL/DEDUCT_SQL; the guards themselves
+// are exercised end-to-end in the Task 15 browser walk.
+test('submit exceeding balance: amount > available is rejected by the route guard', async () => {
+  const a = await q<{ available: string; pending: string }>(AVAILABLE_SQL, [staff, cafe]);
+  assert.equal(Number(a[0].available), 300);
+  assert.ok(301 > Number(a[0].available));
+  const rows = await q(`SELECT id FROM medical_claims WHERE user_id = $1 AND cafe_id = $2`, [staff, cafe]);
+  assert.equal(rows.length, 0, 'route throws before INSERT_SQL runs; no row inserted for the rejected amount');
+});
+
+test('submit exceeding balance minus pending: amount > available (with pending) is rejected by the route guard', async () => {
+  await submit(staff, '80.00');
+  const a = await q<{ available: string; pending: string }>(AVAILABLE_SQL, [staff, cafe]);
+  assert.equal(Number(a[0].available), 220);
+  assert.equal(Number(a[0].pending), 80);
+  assert.ok(221 > Number(a[0].available));
+});
+
+test('approve exceeding current balance: amount_approved > balance is rejected by the route guard', async () => {
+  const c = await submit(staff, '100.00');
+  await q(`UPDATE cafe_memberships SET medical_claim_balance = 50 WHERE user_id = $1 AND cafe_id = $2`, [staff, cafe]);
+  const bal = await q<{ medical_claim_balance: string }>(MEMBERSHIP_LOCK_SQL, [staff, cafe]);
+  assert.ok(100 > Number(bal[0].medical_claim_balance));
+  const row = await q<{ status: string }>(`SELECT status FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [c.id, cafe]);
+  assert.equal(row[0].status, 'pending', 'route throws before APPROVE_SQL/DEDUCT_SQL run; claim stays pending');
 });
 
 test('approve at lower amount deducts the approved amount only once', async () => {
@@ -116,7 +159,15 @@ test('reject leaves the balance untouched and stores the note', async () => {
   const r = await q<{ status: string; decision_note: string }>(REJECT_SQL, [owner, 'not a medical receipt', c.id, cafe]);
   assert.equal(r[0].status, 'rejected');
   assert.equal(r[0].decision_note, 'not a medical receipt');
-  assert.equal(await balance(staff), 240);
+  assert.equal(await balance(staff), 300);
+});
+
+test('cancel pending: claimant deletes their own pending claim with no balance change', async () => {
+  const c = await submit(staff, '30.00');
+  await q(`DELETE FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [c.id, cafe]);
+  const rows = await q(`SELECT id FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [c.id, cafe]);
+  assert.equal(rows.length, 0);
+  assert.equal(await balance(staff), 300);
 });
 
 test('owner auto-approve deducts immediately', async () => {
@@ -129,15 +180,22 @@ test('purging an approved claim refunds amount_approved', async () => {
   const c = await submit(staff, '30.00');
   await q(APPROVE_SQL, ['25.00', owner, c.id, cafe]);
   await q(DEDUCT_SQL, ['25.00', staff, cafe]);
-  assert.equal(await balance(staff), 215);
+  assert.equal(await balance(staff), 275);
   await q(`DELETE FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [c.id, cafe]);
   await q(REFUND_SQL, ['25.00', staff, cafe]);
-  assert.equal(await balance(staff), 240);
+  assert.equal(await balance(staff), 300);
+});
+
+test('purging a rejected claim does not refund', async () => {
+  const c = await submit(staff, '30.00');
+  await q(REJECT_SQL, [owner, null, c.id, cafe]);
+  await q(`DELETE FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [c.id, cafe]);
+  assert.equal(await balance(staff), 300);
 });
 
 test('constraints: amount_approved > amount_claimed, negative balance, inconsistent decided rows', async () => {
   const c = await submit(staff, '10.00');
-  await assert.rejects(q(APPROVE_SQL, ['10.01', owner, c.id, cafe]), /medical_claims_amount_approved_check|check constraint/i);
+  await assert.rejects(q(APPROVE_SQL, ['10.01', owner, c.id, cafe]), /medical_claims_amount_approved_within_claimed/);
   await assert.rejects(q(DEDUCT_SQL, ['99999.00', staff, cafe]), /medical_claim_balance_check|check constraint/i);
   await assert.rejects(
     q(`UPDATE medical_claims SET status = 'approved' WHERE id = $1`, [c.id]),
@@ -165,7 +223,7 @@ test('two concurrent approves: exactly one wins', async () => {
   } finally {
     ca.release(); cb.release();
   }
-  assert.equal(await balance(staff), 200);
+  assert.equal(await balance(staff), 260);
 });
 
 }); // describe
