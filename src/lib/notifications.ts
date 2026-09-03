@@ -1,6 +1,7 @@
 import { sql } from '@/lib/db';
 import { formatMonthYear } from '@/lib/dateUtils';
 import { appBaseUrl as baseUrl } from '@/lib/appUrl';
+import { formatSGD } from '@/lib/money';
 
 const SHORT_DATE = (d: string) => {
   const dt = new Date(d.split('T')[0] + 'T00:00:00');
@@ -247,4 +248,64 @@ export async function notifyCafeSignup(args: NotifyCafeSignupArgs): Promise<void
   const text = `🆕 <b>New Cafe Application</b>\n\n<b>${esc(args.cafeName)}</b>\nOwner: ${esc(args.ownerName)} (${esc(args.ownerPhone)})\n\nReview: ${reviewUrl}`;
 
   await Promise.all(rows.map((r) => sendTelegram(r.telegram_chat_id, text)));
+}
+
+// ---------------------------------------------------------------------------
+// Medical claim notifications
+// ---------------------------------------------------------------------------
+
+interface NotifyClaimSubmittedArgs {
+  cafeId: string;
+  requesterName: string;
+  amount: number;
+  receiptDate: string;
+}
+
+/** Notify the café's owners that a medical claim is waiting for a decision. */
+export async function notifyClaimSubmitted(args: NotifyClaimSubmittedArgs): Promise<void> {
+  const [recipients, slug] = await Promise.all([
+    getOwnerRecipients(args.cafeId),
+    getCafeSlug(args.cafeId),
+  ]);
+  if (recipients.length === 0) {
+    console.warn(`notifyClaimSubmitted: no linked owner recipients in cafe ${args.cafeId}`);
+    return;
+  }
+  const reviewUrl = slug ? `${baseUrl()}/c/${slug}/admin/claims` : baseUrl();
+  const text = `🧾 <b>New Medical Claim</b>\n\n${esc(args.requesterName)} submitted a claim for <b>${esc(formatSGD(args.amount))}</b> (receipt dated ${SHORT_DATE(args.receiptDate)}).\n\nReview: ${reviewUrl}`;
+  await Promise.all(recipients.map((chatId) => sendTelegram(chatId, text)));
+}
+
+interface NotifyClaimDecisionArgs {
+  cafeId: string;
+  requesterUserId: string;
+  amountClaimed: number;
+  amountApproved: number | null;
+  approved: boolean;
+  note: string | null;
+}
+
+/** Notify the claimant of an approval (possibly at a lower amount) or rejection. */
+export async function notifyClaimDecision(args: NotifyClaimDecisionArgs): Promise<void> {
+  const { rows } = await sql<{ telegram_chat_id: string }>`
+    SELECT telegram_chat_id FROM profiles
+     WHERE id = ${args.requesterUserId}
+       AND telegram_chat_id IS NOT NULL
+     LIMIT 1
+  `;
+  if (rows.length === 0) return;
+
+  let text: string;
+  if (args.approved) {
+    const approved = args.amountApproved ?? args.amountClaimed;
+    const partial = approved < args.amountClaimed
+      ? ` (you claimed ${esc(formatSGD(args.amountClaimed))})`
+      : '';
+    text = `✅ <b>Claim Approved</b>\n\nYour medical claim of <b>${esc(formatSGD(approved))}</b>${partial} has been approved and deducted from your claim balance.`;
+  } else {
+    text = `❌ <b>Claim Rejected</b>\n\nYour medical claim of <b>${esc(formatSGD(args.amountClaimed))}</b> has been rejected.`;
+  }
+  if (args.note) text += `\n\nNote: ${esc(args.note)}`;
+
+  await sendTelegram(rows[0].telegram_chat_id, text);
 }
