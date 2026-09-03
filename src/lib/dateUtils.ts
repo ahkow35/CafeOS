@@ -38,3 +38,11 @@ export function formatMonthYearLong(monthYear: string): string {
   const [year, month] = monthYear.split('-');
   return `${LONG_MONTH[parseInt(month) - 1]} ${year}`;
 }
+
+/**
+ * Today's calendar date in Singapore as YYYY-MM-DD. "Today" must be evaluated
+ * in SGT, not UTC — before 08:00 SGT the UTC date is still yesterday.
+ */
+export function todayInSingapore(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+}

@@ -4,6 +4,7 @@ import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { notifyLeaveSubmitted } from '@/lib/notifications';
 import { isValidOwnAttachmentUrl } from '@/lib/storage';
+import { todayInSingapore } from '@/lib/dateUtils';
 
 export const runtime = 'nodejs';
 
@@ -292,7 +293,7 @@ export async function POST(req: Request) {
 
     // "Today" must be evaluated in Singapore time, not UTC — before 08:00 SGT the
     // UTC date is still yesterday, which would mis-flag same-day leave as retrospective.
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+    const today = todayInSingapore();
     const is_retrospective = start_date < today;
 
     const initialStatus =

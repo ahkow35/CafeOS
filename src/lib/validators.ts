@@ -151,3 +151,28 @@ export function slugifyName(name: string, suffix?: number): string {
   }
   return result;
 }
+
+// Money: digits with an optional 1–2 digit fraction. Checked on the STRING so
+// "1.234" is rejected outright instead of being silently rounded.
+const MONEY_RE = /^\d{1,7}(\.\d{1,2})?$/;
+
+/**
+ * Parse a currency amount (SGD). Rejects anything that is not a plain decimal
+ * with at most two places. Default range is (0, 9999.99]; pass `allowZero`
+ * for caps/balances and `max` to widen.
+ */
+export function parseMoney(
+  input: unknown,
+  label: string,
+  opts: { max?: number; allowZero?: boolean } = {},
+): number {
+  const raw = typeof input === 'number' ? String(input) : typeof input === 'string' ? input.trim() : '';
+  if (!MONEY_RE.test(raw)) {
+    throw new ValidationError(`${label} must be an amount with at most 2 decimal places`);
+  }
+  const n = Number(raw);
+  const max = opts.max ?? 9999.99;
+  if (n === 0 && !opts.allowZero) throw new ValidationError(`${label} must be greater than 0`);
+  if (n > max) throw new ValidationError(`${label} cannot exceed ${max.toFixed(2)}`);
+  return n;
+}
