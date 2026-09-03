@@ -112,6 +112,18 @@ export async function withPlainTx<T>(
   }
 }
 
+/**
+ * Parameterised query from a plain SQL string. Use when the statement needs a
+ * compile-time column-list constant (never user input) that the tagged template
+ * cannot splice. Pooled, non-transactional — same as `sql`.
+ */
+export async function query<T extends Record<string, any> = Record<string, any>>( // eslint-disable-line @typescript-eslint/no-explicit-any -- matches @vercel/postgres's own QueryResultRow (`[column: string]: any`); `unknown` here rejects plain interfaces like ClaimRow that lack an index signature
+  text: string,
+  params: unknown[] = [],
+) {
+  return vercelDb.query<T>(text, params as never[]);
+}
+
 export async function withTenantTx<T>(
   ctx: TenantCtx,
   fn: (client: VercelPoolClient) => Promise<T>,
