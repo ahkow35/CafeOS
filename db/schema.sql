@@ -452,3 +452,65 @@ DROP TRIGGER IF EXISTS audit_leave_change ON public.leave_requests;
 CREATE TRIGGER audit_leave_change
     AFTER INSERT OR UPDATE OR DELETE ON public.leave_requests
     FOR EACH ROW EXECUTE FUNCTION public.log_leave_change();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PHASE H: TENANT TRIPWIRES — defence-in-depth cafe_id isolation
+-- Raises a check_violation if a row's cafe_id doesn't match the app.cafe_id GUC
+-- set by withTenantTx(). No-ops when app.cafe_id is unset (super-admin/maintenance
+-- paths). Mirrors db/migrations/2026-05-04-tripwire-triggers.sql so a database
+-- built from this file alone (not migrated forward) still has the guard.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.assert_cafe_match()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  guc_cafe text := current_setting('app.cafe_id', true);
+BEGIN
+  -- GUC not set → super-admin or maintenance path; skip check.
+  IF guc_cafe IS NULL OR guc_cafe = '' THEN
+    RETURN NEW;
+  END IF;
+
+  -- audit_log rows stamped by the system may have NULL cafe_id (e.g. super-admin actions).
+  IF NEW.cafe_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.cafe_id::text <> guc_cafe THEN
+    RAISE EXCEPTION 'cafe_id mismatch: row cafe_id=% but app.cafe_id=%',
+      NEW.cafe_id, guc_cafe
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.leave_requests;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.leave_requests
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.timesheets;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.timesheets
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.timesheet_entries;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.timesheet_entries
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.tasks;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.tasks
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.audit_log;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.audit_log
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.cafe_memberships;
+CREATE TRIGGER trg_assert_cafe_match
+    BEFORE INSERT OR UPDATE ON public.cafe_memberships
+    FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
