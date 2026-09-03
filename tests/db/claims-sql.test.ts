@@ -23,6 +23,14 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(te
   return r.rows as T[];
 }
 
+// Fails fast instead of hanging the whole suite if a concurrent-lock assumption breaks.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${ms}ms`)), ms).unref()),
+  ]);
+}
+
 const RETURNING = 'id, user_id, receipt_date::text AS receipt_date, amount_claimed, amount_approved, description, receipt_url, status, decided_by, decided_at, decision_note, created_at, updated_at';
 
 const AVAILABLE_SQL = `SELECT (m.medical_claim_balance - COALESCE(SUM(c.amount_claimed), 0))::numeric(10,2) AS available,
@@ -203,6 +211,13 @@ test('constraints: amount_approved > amount_claimed, negative balance, inconsist
   );
 });
 
+// A's lock query must be awaited to completion BEFORE B's lock query is even sent.
+// Firing both concurrently (as this test used to) leaves it up to Postgres which
+// backend's SELECT ... FOR UPDATE reaches the row first: if B wins the race, A
+// blocks on B instead of the other way around, the test's `await lockA` never
+// resolves, and B sits idle-in-transaction holding the lock — the whole `npm test`
+// run hangs. Serializing A's lock before B's keeps the winner deterministic, and
+// the timeout below turns any future regression into a fast failure instead of a hang.
 test('two concurrent approves: exactly one wins', async () => {
   const c = await submit(staff, '40.00');
   const a = pool!.connect();
@@ -210,13 +225,12 @@ test('two concurrent approves: exactly one wins', async () => {
   const [ca, cb] = await Promise.all([a, b]);
   try {
     await ca.query('BEGIN'); await cb.query('BEGIN');
-    const lockA = ca.query(`SELECT status FROM medical_claims WHERE id = $1 AND cafe_id = $2 FOR UPDATE`, [c.id, cafe]);
-    const lockB = cb.query(`SELECT status FROM medical_claims WHERE id = $1 AND cafe_id = $2 FOR UPDATE`, [c.id, cafe]);
-    await lockA;                                   // A holds the lock; B blocks
+    await ca.query(`SELECT status FROM medical_claims WHERE id = $1 AND cafe_id = $2 FOR UPDATE`, [c.id, cafe]); // A holds the lock
+    const lockB = cb.query(`SELECT status FROM medical_claims WHERE id = $1 AND cafe_id = $2 FOR UPDATE`, [c.id, cafe]); // B now blocks on A
     const rA = await ca.query(APPROVE_SQL, ['40.00', owner, c.id, cafe]);
     await ca.query(DEDUCT_SQL, ['40.00', staff, cafe]);
-    await ca.query('COMMIT');
-    const sB = await lockB;                        // B now sees the committed state
+    await ca.query('COMMIT');                      // releases B
+    const sB = await withTimeout(lockB, 5000, 'connection B lock'); // B sees the committed state
     assert.equal(rA.rowCount, 1);
     assert.equal(sB.rows[0].status, 'approved');   // route would throw RequestConflictError here
     await cb.query('ROLLBACK');
