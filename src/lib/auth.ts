@@ -101,6 +101,7 @@ export interface SessionUser {
   role: Role | null;        // role in active cafe; null for super-admin-only sessions
   annual_leave_balance: number;
   medical_leave_balance: number;
+  medical_claim_balance: number;
   hourly_rate: number | null;
   is_active: boolean;
   is_super_admin: boolean;
@@ -210,6 +211,7 @@ interface Employment {
   job_title: string | null;
   annual_leave_balance: number;
   medical_leave_balance: number;
+  medical_claim_balance: string;
   hourly_rate: string | null;
 }
 
@@ -217,6 +219,7 @@ const NO_EMPLOYMENT: Employment = {
   job_title: null,
   annual_leave_balance: 0,
   medical_leave_balance: 0,
+  medical_claim_balance: '0',
   hourly_rate: null,
 };
 
@@ -288,7 +291,7 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
   const { rows: memRows } = await sql<MembershipRow>`
     SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
            c.logo_url AS cafe_logo_url, m.role,
-           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate
+           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate
       FROM cafe_memberships m
       JOIN cafes c ON c.id = m.cafe_id
      WHERE m.user_id = ${row.id}
@@ -371,6 +374,7 @@ function buildUser(
     role,
     annual_leave_balance: employment.annual_leave_balance,
     medical_leave_balance: employment.medical_leave_balance,
+    medical_claim_balance: Number(employment.medical_claim_balance),
     hourly_rate: employment.hourly_rate === null ? null : Number(employment.hourly_rate),
     is_active: row.is_active,
     is_super_admin: row.is_super_admin,
@@ -387,6 +391,7 @@ function employmentOf(m: MembershipRow): Employment {
     job_title: m.job_title,
     annual_leave_balance: m.annual_leave_balance,
     medical_leave_balance: m.medical_leave_balance,
+    medical_claim_balance: m.medical_claim_balance,
     hourly_rate: m.hourly_rate,
   };
 }
@@ -429,7 +434,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const { rows: memRows } = await sql<MembershipRow>`
     SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
            c.logo_url AS cafe_logo_url, m.role,
-           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate
+           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate
       FROM cafe_memberships m
       JOIN cafes c ON c.id = m.cafe_id
      WHERE m.user_id = ${row.id}

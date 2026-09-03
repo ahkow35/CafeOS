@@ -25,6 +25,7 @@ export interface SessionUser {
   role: Role | null;         // role in active_cafe; null for super-admin-only sessions
   annual_leave_balance: number;
   medical_leave_balance: number;
+  medical_claim_balance: number;
   hourly_rate: number | null;
   is_active: boolean;
   is_super_admin: boolean;

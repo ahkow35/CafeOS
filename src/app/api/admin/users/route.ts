@@ -21,6 +21,7 @@ interface ProfileRow {
   role: 'staff' | 'manager' | 'owner' | 'part_timer'; // per-cafe role from cafe_memberships
   annual_leave_balance: number;
   medical_leave_balance: number;
+  medical_claim_balance: string;
   hourly_rate: string | null;
   is_active: boolean;
   email: string | null;
@@ -28,7 +29,11 @@ interface ProfileRow {
 }
 
 function serialise(r: ProfileRow) {
-  return { ...r, hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate) };
+  return {
+    ...r,
+    hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate),
+    medical_claim_balance: Number(r.medical_claim_balance),
+  };
 }
 
 export async function GET() {
@@ -41,7 +46,7 @@ export async function GET() {
     const { rows } = await sql<ProfileRow>`
       SELECT p.id, p.phone_e164, p.full_name, m.job_title,
              m.role,
-             m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+             m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate,
              m.employment_active AS is_active, p.email, p.created_at
         FROM profiles p
         JOIN cafe_memberships m ON m.user_id = p.id
@@ -118,6 +123,7 @@ export async function POST(req: Request) {
       job_title,
       role,
       hourly_rate: hourly_rate === null ? null : Number(hourly_rate),
+      medical_claim_balance: 0,
       // Echo back the PIN once so the admin can hand it off; we never store plaintext.
       tempPin: pin,
     });

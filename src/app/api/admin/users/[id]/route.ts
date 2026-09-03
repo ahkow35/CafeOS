@@ -6,6 +6,7 @@ import {
   parseFullName,
   parseJobTitle,
   parseHourlyRate,
+  parseMoney,
   ValidationError,
 } from '@/lib/validators';
 
@@ -60,6 +61,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       job_title?: string | null;
       annual_leave_balance?: number;
       medical_leave_balance?: number;
+      medical_claim_balance?: number;
       hourly_rate?: number | null;
       employment_active?: boolean;
     } = {};
@@ -74,6 +76,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if ('medical_leave_balance' in body) {
       employmentUpdate.medical_leave_balance = parseBalance(body.medical_leave_balance, 'Medical leave balance');
+    }
+    if ('medical_claim_balance' in body) {
+      employmentUpdate.medical_claim_balance = parseMoney(body.medical_claim_balance, 'Medical claim cap', { allowZero: true, max: 99999.99 });
     }
     if ('hourly_rate' in body) employmentUpdate.hourly_rate = parseHourlyRate(body.hourly_rate);
     // The UI's "is_active" toggle maps to café-scoped employment, not the global account.
@@ -112,9 +117,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             job_title             = CASE WHEN $1::boolean THEN $2 ELSE job_title END,
             annual_leave_balance  = COALESCE($3, annual_leave_balance),
             medical_leave_balance = COALESCE($4, medical_leave_balance),
+            medical_claim_balance = COALESCE($8::numeric, medical_claim_balance),
             hourly_rate           = CASE WHEN $5::boolean THEN $6 ELSE hourly_rate END,
             employment_active     = COALESCE($7, employment_active)
-           WHERE cafe_id = $8 AND user_id = $9`,
+           WHERE cafe_id = $9 AND user_id = $10`,
           [
             'job_title' in employmentUpdate,
             employmentUpdate.job_title ?? null,
@@ -123,6 +129,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             'hourly_rate' in employmentUpdate,
             employmentUpdate.hourly_rate ?? null,
             employmentUpdate.employment_active ?? null,
+            employmentUpdate.medical_claim_balance === undefined ? null : employmentUpdate.medical_claim_balance.toFixed(2),
             ctx.cafeId,
             id,
           ],
@@ -148,6 +155,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       role: string;
       annual_leave_balance: number;
       medical_leave_balance: number;
+      medical_claim_balance: string;
       hourly_rate: string | null;
       is_active: boolean;
       email: string | null;
@@ -155,7 +163,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }>`
       SELECT p.id, p.phone_e164, p.full_name,
              m.role, m.job_title,
-             m.annual_leave_balance, m.medical_leave_balance, m.hourly_rate,
+             m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate,
              m.employment_active AS is_active, p.email, p.created_at
         FROM profiles p
         JOIN cafe_memberships m ON m.user_id = p.id
@@ -168,7 +176,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (finalRows.length === 0) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     const r = finalRows[0];
     return NextResponse.json({
-      user: { ...r, hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate) },
+      user: {
+        ...r,
+        hourly_rate: r.hourly_rate === null ? null : Number(r.hourly_rate),
+        medical_claim_balance: Number(r.medical_claim_balance),
+      },
     });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
