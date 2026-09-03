@@ -372,35 +372,83 @@ CREATE TRIGGER audit_timesheet_change
     AFTER UPDATE ON public.timesheets
     FOR EACH ROW EXECUTE FUNCTION public.log_timesheet_change();
 
+-- Handles UPDATE (status transitions), INSERT (owner self-approval — a leave
+-- request an owner submits lands already 'approved' with the balance deducted
+-- in the same tx, so it needs its own audit row), and DELETE (owner purging a
+-- decided record, or cancelling a pending one — 'refunded' mirrors the DELETE
+-- route's refund rule: pending_manager/pending_owner/approved get refunded).
 CREATE OR REPLACE FUNCTION public.log_leave_change()
 RETURNS TRIGGER AS $$
 DECLARE
     actor UUID := public.current_actor_id();
 BEGIN
     IF actor IS NULL THEN
-        RETURN NEW;
+        RETURN COALESCE(NEW, OLD);
     END IF;
-    IF OLD.status IS DISTINCT FROM NEW.status THEN
+
+    IF TG_OP = 'INSERT' THEN
+        -- Only owners can insert an already-approved row (self-approval); anything
+        -- else starts pending and gets its first audit row from the UPDATE branch.
+        IF NEW.status = 'approved' THEN
+            INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+            VALUES (
+                actor,
+                public.current_impersonator_id(),
+                NEW.cafe_id,
+                'approve',
+                'leave_request',
+                NEW.id,
+                jsonb_build_object(
+                    'status', jsonb_build_array(NULL, 'approved'),
+                    'days_requested', NEW.days_requested,
+                    'leave_type', NEW.leave_type,
+                    'self_approved', true
+                )
+            );
+        END IF;
+        RETURN NEW;
+
+    ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
         VALUES (
             actor,
             public.current_impersonator_id(),
-            NEW.cafe_id,
-            CASE NEW.status
-                WHEN 'approved' THEN 'approve'
-                WHEN 'rejected' THEN 'reject'
-                ELSE 'update'
-            END,
+            OLD.cafe_id,
+            'delete',
             'leave_request',
-            NEW.id,
-            jsonb_build_object('status', jsonb_build_array(OLD.status, NEW.status))
+            OLD.id,
+            jsonb_build_object(
+                'status', jsonb_build_array(OLD.status, NULL),
+                'days_requested', OLD.days_requested,
+                'leave_type', OLD.leave_type,
+                'refunded', (OLD.status IN ('pending_manager', 'pending_owner', 'approved'))
+            )
         );
+        RETURN OLD;
+
+    ELSE -- TG_OP = 'UPDATE'
+        IF OLD.status IS DISTINCT FROM NEW.status THEN
+            INSERT INTO public.audit_log (actor_id, impersonator_id, cafe_id, action, entity, entity_id, diff)
+            VALUES (
+                actor,
+                public.current_impersonator_id(),
+                NEW.cafe_id,
+                CASE NEW.status
+                    WHEN 'approved' THEN 'approve'
+                    WHEN 'rejected' THEN 'reject'
+                    ELSE 'update'
+                END,
+                'leave_request',
+                NEW.id,
+                jsonb_build_object('status', jsonb_build_array(OLD.status, NEW.status))
+            );
+        END IF;
+        RETURN NEW;
     END IF;
-    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS audit_leave_change ON public.leave_requests;
 CREATE TRIGGER audit_leave_change
-    AFTER UPDATE ON public.leave_requests
+    AFTER INSERT OR UPDATE OR DELETE ON public.leave_requests
     FOR EACH ROW EXECUTE FUNCTION public.log_leave_change();
