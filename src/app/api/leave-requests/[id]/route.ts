@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
-import { deleteMedicalCert } from '@/lib/storage';
+import { deleteAttachment } from '@/lib/storage';
 import { notifyLeaveDecision } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
@@ -248,7 +248,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     });
 
     if (row.attachment_url) {
-      deleteMedicalCert(row.attachment_url).catch(err =>
+      deleteAttachment(row.attachment_url).catch(err =>
         console.error('blob cleanup failed', err),
       );
     }
