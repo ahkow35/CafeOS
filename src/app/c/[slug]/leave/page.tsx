@@ -10,7 +10,7 @@ import BottomNav from '@/components/BottomNav';
 import LeaveBalanceCard from '@/components/LeaveBalanceCard';
 import LeaveRequestCard from '@/components/LeaveRequestCard';
 import TelegramLinkButton from '@/components/TelegramLinkButton';
-import { BarChart3, Plus, Clock, History, Inbox } from 'lucide-react';
+import { BarChart3, Plus, Clock, History, Inbox, Receipt } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 async function jsonOrError(res: Response): Promise<unknown> {
@@ -114,6 +114,13 @@ export default function LeavePage() {
                         <Link href={`/c/${slug}/leave/apply`} className="btn btn-primary btn-block btn-lg">
                             <Plus size={20} />
                             <span>Apply for Leave</span>
+                        </Link>
+                    </section>
+
+                    <section className="section animate-in">
+                        <Link href={`/c/${slug}/claims`} className="btn btn-secondary btn-block">
+                            <Receipt size={20} />
+                            <span>Medical Claims</span>
                         </Link>
                     </section>
 

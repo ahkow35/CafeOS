@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock, CreditCard } from 'lucide-react';
+import { Settings, BarChart3, Calendar, ClipboardList, CheckSquare, Users, ChevronRight, Clock, CreditCard, Receipt } from 'lucide-react';
 
 interface AdminStats {
     pendingManagerLeave: number;
     pendingOwnerLeave: number;
     pendingTasks: number;
     staffCount: number;
+    pendingClaims: number;
 }
 
 export default function AdminPage() {
@@ -26,6 +27,7 @@ export default function AdminPage() {
         pendingOwnerLeave: 0,
         pendingTasks: 0,
         staffCount: 0,
+        pendingClaims: 0,
     });
     const [statsLoading, setStatsLoading] = useState(true);
 
@@ -140,6 +142,19 @@ export default function AdminPage() {
                                 </div>
                             </Link>
 
+                            <Link href={`${base}/admin/claims`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                                <div className="flex items-center gap-md">
+                                    <div className="stat-icon"><Receipt size={28} /></div>
+                                    <div style={{ flex: 1 }}>
+                                        <div className="card-title">MEDICAL CLAIMS</div>
+                                        <div className="card-subtitle">
+                                            {stats.pendingClaims > 0 ? `${stats.pendingClaims} awaiting your decision` : 'Approve receipts against staff caps'}
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={20} className="text-muted" />
+                                </div>
+                            </Link>
+
                             <Link href={`${base}/admin/staff`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
@@ -202,18 +217,31 @@ export default function AdminPage() {
                         </h2>
 
                         {!isOwner && (
-                            <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
-                                <div className="flex items-center gap-md">
-                                    <div className="stat-icon">
-                                        <ClipboardList size={28} />
+                            <>
+                                <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                                    <div className="flex items-center gap-md">
+                                        <div className="stat-icon">
+                                            <ClipboardList size={28} />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div className="card-title">Review Leave Requests</div>
+                                            <div className="card-subtitle">{leaveSubtitle}</div>
+                                        </div>
+                                        <ChevronRight size={20} className="text-muted" />
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div className="card-title">Review Leave Requests</div>
-                                        <div className="card-subtitle">{leaveSubtitle}</div>
+                                </Link>
+
+                                <Link href={`${base}/admin/claims`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>
+                                    <div className="flex items-center gap-md">
+                                        <div className="stat-icon"><Receipt size={28} /></div>
+                                        <div style={{ flex: 1 }}>
+                                            <div className="card-title">MEDICAL CLAIMS</div>
+                                            <div className="card-subtitle">View pending claims (owner approves)</div>
+                                        </div>
+                                        <ChevronRight size={20} className="text-muted" />
                                     </div>
-                                    <ChevronRight size={20} className="text-muted" />
-                                </div>
-                            </Link>
+                                </Link>
+                            </>
                         )}
 
                         <Link href={`${base}/admin/tasks`} className="card mb-md" style={{ display: 'block', textDecoration: 'none' }}>

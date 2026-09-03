@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-09-03 — Medical claims
+
+### Summary
+Employees submit medical receipts with an amount; the owner approves (optionally at a lower
+amount) or rejects; approval deducts a per-employee yearly cap set on the staff page.
+Delivered in two PRs: PR #10 (attachment helpers keyed by kind + migration file, no behaviour
+change) and PR #11 (feature). Migration applied to prod between the two.
+
+### Schema (applied BEFORE PR #11)
+- `db/migrations/2026-09-03-medical-claims.sql` — `cafe_memberships.medical_claim_balance`
+  NUMERIC(10,2) DEFAULT 0; `medical_claims` table (amount_claimed, amount_approved ≤ claimed,
+  status pending/approved/rejected with a consistency CHECK, receipt_url, decision fields);
+  `touch_updated_at` + `log_claim_change` audit triggers + the Phase H `trg_assert_cafe_match` tenant tripwire (guarded, migration-only); `medical_claim_balance` capped at 99,999.99; named constraint `medical_claims_amount_approved_within_claimed`. Reversible with DROP TABLE / DROP COLUMN.
+
+### Behaviour
+- Submit reserves nothing; over-submit check = balance − pending, under FOR UPDATE on the membership.
+- Approve re-checks balance under lock (cap may have changed), deducts `amount_approved`.
+- Reject / cancel-pending: no balance change. Owner purge of an approved claim refunds `amount_approved`.
+- Owner's own claim auto-approves. Managers read the queue only.
+- Receipts: same 5 MB / type gate as MCs, prefix `claim-receipts/`, served only via `/api/claims/[id]/receipt`.
+- Telegram: owners on submit, claimant on decision; all dynamic text HTML-escaped.
+
+### Verification
+`npm test` (new harness: storage URL rules, money parsing, claim serialiser, SQL-level tests on a
+throwaway local Postgres incl. two-connection concurrency), `tsc`, `eslint --quiet`, `next build`,
+and the 10-step browser walk recorded in PR #11.
+
 ## 2026-08-06 — Timesheet 0-hours fix, payroll-integrity hardening, PIN reset shipped
 
 ### Summary

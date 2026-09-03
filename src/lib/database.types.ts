@@ -21,6 +21,7 @@ export interface Database {
           role: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance: number;
           medical_leave_balance: number;
+          medical_claim_balance: number;
           is_active: boolean;
           hourly_rate: number | null;
           email: string | null;
@@ -36,6 +37,7 @@ export interface Database {
           role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
+          medical_claim_balance?: number;
           is_active?: boolean;
           hourly_rate?: number | null;
           email?: string | null;
@@ -49,6 +51,7 @@ export interface Database {
           role?: 'staff' | 'manager' | 'owner' | 'part_timer';
           annual_leave_balance?: number;
           medical_leave_balance?: number;
+          medical_claim_balance?: number;
           is_active?: boolean;
           hourly_rate?: number | null;
           email?: string | null;
@@ -235,4 +238,30 @@ export interface TimesheetEntry {
 export interface TimesheetWithEntries extends Timesheet {
   entries: TimesheetEntry[];
   profile?: Pick<User, 'full_name' | 'email' | 'phone_e164' | 'hourly_rate'>;
+}
+
+export type ClaimStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ClaimProfile {
+  full_name: string;
+  role: UserRole;
+  medical_claim_balance: number;
+}
+
+/** API shape of a medical claim. Money fields are numbers; receipt_url is the gated route. */
+export interface MedicalClaim {
+  id: string;
+  user_id: string;
+  receipt_date: string;
+  amount_claimed: number;
+  amount_approved: number | null;
+  description: string | null;
+  receipt_url: string;
+  status: ClaimStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  updated_at: string;
+  profile?: ClaimProfile;
 }
