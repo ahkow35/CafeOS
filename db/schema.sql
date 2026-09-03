@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS public.cafe_memberships (
     job_title             TEXT,
     annual_leave_balance  INTEGER NOT NULL DEFAULT 14,
     medical_leave_balance INTEGER NOT NULL DEFAULT 14,
-    medical_claim_balance NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (medical_claim_balance >= 0),
+    medical_claim_balance NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (medical_claim_balance >= 0 AND medical_claim_balance <= 99999.99),
     hourly_rate           NUMERIC(10,2),
     -- Per-café employment switch (distinct from `status` and profiles.is_active).
     employment_active     BOOLEAN NOT NULL DEFAULT TRUE,
@@ -168,8 +168,7 @@ CREATE TABLE IF NOT EXISTS public.medical_claims (
     user_id         UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     receipt_date    DATE NOT NULL,
     amount_claimed  NUMERIC(10,2) NOT NULL CHECK (amount_claimed > 0 AND amount_claimed <= 9999.99),
-    amount_approved NUMERIC(10,2)          CHECK (amount_approved IS NULL OR
-                                                 (amount_approved > 0 AND amount_approved <= amount_claimed)),
+    amount_approved NUMERIC(10,2),
     description     TEXT,
     receipt_url     TEXT NOT NULL,            -- Vercel Blob URL; never sent raw to clients
     status          TEXT NOT NULL DEFAULT 'pending'
@@ -179,6 +178,9 @@ CREATE TABLE IF NOT EXISTS public.medical_claims (
     decision_note   TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT medical_claims_amount_approved_within_claimed CHECK (
+      amount_approved IS NULL OR (amount_approved > 0 AND amount_approved <= amount_claimed)
+    ),
     CONSTRAINT medical_claims_decided_consistent CHECK (
       (status = 'pending'  AND amount_approved IS NULL     AND decided_by IS NULL     AND decided_at IS NULL) OR
       (status = 'approved' AND amount_approved IS NOT NULL AND decided_by IS NOT NULL AND decided_at IS NOT NULL) OR
