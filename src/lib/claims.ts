@@ -37,10 +37,17 @@ const COLS = [
   'receipt_url', 'status', 'decided_by', 'decided_at', 'decision_note', 'created_at', 'updated_at',
 ];
 
+// The driver (@vercel/postgres / @neondatabase/serverless) parses Postgres DATE
+// columns into JS Date objects, not strings — cast receipt_date to text so it
+// stays a string end-to-end (matches the entry_date::text pattern used for
+// timesheets in src/app/api/timesheets/[id]/route.ts).
+const render = (c: string, prefix = ''): string =>
+  c === 'receipt_date' ? `${prefix}receipt_date::text AS receipt_date` : `${prefix}${c}`;
+
 /** Column list for SELECTs where medical_claims is aliased `c`. */
-export const CLAIM_COLUMNS = COLS.map((c) => `c.${c}`).join(', ');
+export const CLAIM_COLUMNS = COLS.map((c) => render(c, 'c.')).join(', ');
 /** Column list for RETURNING / unaliased SELECTs. */
-export const CLAIM_RETURNING = COLS.join(', ');
+export const CLAIM_RETURNING = COLS.map((c) => render(c)).join(', ');
 
 /** Joined profile columns (profiles aliased `p`, cafe_memberships aliased `m`). */
 export const CLAIM_PROFILE_COLUMNS =

@@ -31,7 +31,12 @@ export async function GET() {
             AND m.role    = 'staff'
             AND m.status  = 'active'
             AND m.employment_active = TRUE)::int AS staff_count,
-        (SELECT COUNT(*) FROM medical_claims WHERE status = 'pending' AND cafe_id = ${ctx.cafeId})::int AS pending_claims
+        (SELECT COUNT(*)
+           FROM medical_claims c
+           JOIN cafe_memberships m ON m.user_id = c.user_id AND m.cafe_id = c.cafe_id
+          WHERE c.status  = 'pending'
+            AND c.cafe_id = ${ctx.cafeId}
+            AND (${ctx.role === 'owner'}::boolean OR m.role IN ('staff', 'part_timer')))::int AS pending_claims
     `;
     const r = rows[0];
     return NextResponse.json({

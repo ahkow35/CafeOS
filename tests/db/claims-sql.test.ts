@@ -23,7 +23,7 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(te
   return r.rows as T[];
 }
 
-const RETURNING = 'id, user_id, receipt_date, amount_claimed, amount_approved, description, receipt_url, status, decided_by, decided_at, decision_note, created_at, updated_at';
+const RETURNING = 'id, user_id, receipt_date::text AS receipt_date, amount_claimed, amount_approved, description, receipt_url, status, decided_by, decided_at, decision_note, created_at, updated_at';
 
 const AVAILABLE_SQL = `SELECT (m.medical_claim_balance - COALESCE(SUM(c.amount_claimed), 0))::numeric(10,2) AS available,
                 COALESCE(SUM(c.amount_claimed), 0)::numeric(10,2) AS pending

@@ -671,25 +671,28 @@ export default function AdminStaffPage() {
 
                                         <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-concrete)', marginTop: '0.5rem' }}>
                                             {editingCap === member.id ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <Receipt size={14} />
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>S$</span>
-                                                    <input
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        value={capInput}
-                                                        onChange={e => setCapInput(e.target.value)}
-                                                        placeholder="e.g. 300"
-                                                        autoFocus
-                                                        style={{ width: 90, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
-                                                    />
-                                                    <button onClick={() => saveClaimCap(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
-                                                    <button onClick={() => setEditingCap(null)} className="btn btn-xs btn-outline">Cancel</button>
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <Receipt size={14} />
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>S$</span>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={capInput}
+                                                            onChange={e => setCapInput(e.target.value)}
+                                                            placeholder="e.g. 300"
+                                                            autoFocus
+                                                            style={{ width: 90, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
+                                                        />
+                                                        <button onClick={() => saveClaimCap(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
+                                                        <button onClick={() => setEditingCap(null)} className="btn btn-xs btn-outline">Cancel</button>
+                                                    </div>
+                                                    <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Replaces the remaining balance; it does not add to it. Set the yearly allowance here each January.</div>
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
                                                     <Receipt size={14} />
-                                                    <span style={{ color: 'var(--color-gray)' }}>Medical claim cap:</span>
+                                                    <span style={{ color: 'var(--color-gray)' }}>Remaining claim balance:</span>
                                                     <span style={{ fontWeight: 600 }}>S${member.medical_claim_balance.toFixed(2)}</span>
                                                     <button
                                                         onClick={() => { setCapInput(member.medical_claim_balance.toFixed(2)); setEditingCap(member.id); }}

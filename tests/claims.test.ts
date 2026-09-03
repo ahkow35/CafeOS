@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { serialiseClaim, type JoinedClaimRow } from '../src/lib/claims';
+import { serialiseClaim, CLAIM_RETURNING, CLAIM_COLUMNS, type JoinedClaimRow } from '../src/lib/claims';
 
 const base = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -34,4 +34,10 @@ test('serialiseClaim attaches profile when joined columns are present', () => {
   const out = serialiseClaim(joined);
   assert.equal(out.amount_approved, 50);
   assert.deepEqual(out.profile, { full_name: 'Ana', role: 'staff', medical_claim_balance: 250 });
+});
+
+test('receipt_date is cast to text so the driver never hands back a Date object', () => {
+  assert.ok(CLAIM_RETURNING.includes('receipt_date::text AS receipt_date'));
+  assert.ok(CLAIM_COLUMNS.includes('c.receipt_date::text AS receipt_date'));
+  assert.ok(!CLAIM_COLUMNS.includes('c.receipt_date,'));
 });

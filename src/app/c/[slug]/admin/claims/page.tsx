@@ -64,7 +64,13 @@ export default function AdminClaimsPage() {
     const decide = async (claim: MedicalClaim, action: 'approve' | 'reject') => {
         const body: Record<string, unknown> = { action };
         if (action === 'approve') {
-            body.amount_approved = amounts[claim.id] ?? claim.amount_claimed.toFixed(2);
+            const input = amounts[claim.id]?.trim();
+            const value = input ? input : claim.amount_claimed.toFixed(2);
+            if (Number(value) > claim.amount_claimed) {
+                toast(`Approved amount cannot exceed the claimed ${formatSGD(claim.amount_claimed)}`, 'error');
+                return;
+            }
+            body.amount_approved = value;
         } else {
             const note = prompt('Reason for rejecting (optional):');
             if (note === null) return;
