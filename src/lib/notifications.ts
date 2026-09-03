@@ -3,8 +3,23 @@ import { formatMonthYear } from '@/lib/dateUtils';
 import { appBaseUrl as baseUrl } from '@/lib/appUrl';
 import { formatSGD } from '@/lib/money';
 
-const SHORT_DATE = (d: string) => {
-  const dt = new Date(d.split('T')[0] + 'T00:00:00');
+// Postgres DATE columns arrive as a JS Date from the Neon driver (not a string,
+// whatever the row type says) — it parses type OID 1082 into `new Date(y, m-1, d)`
+// (local midnight). Normalise both shapes to a plain YYYY-MM-DD calendar-date key
+// without going through toISOString(), which would shift a local-midnight Date to
+// the previous UTC day for any server running east of UTC.
+function toDateKey(d: string | Date): string {
+  if (d instanceof Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return d.split('T')[0];
+}
+
+const SHORT_DATE = (d: string | Date) => {
+  const dt = new Date(toDateKey(d) + 'T00:00:00');
   return dt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
 };
 
@@ -77,8 +92,8 @@ interface NotifyLeaveSubmittedArgs {
   cafeId: string;
   requesterName: string;
   leaveType: 'annual' | 'medical';
-  startDate: string;
-  endDate: string;
+  startDate: string | Date;
+  endDate: string | Date;
   days: number;
 }
 
@@ -95,7 +110,9 @@ export async function notifyLeaveSubmitted(args: NotifyLeaveSubmittedArgs): Prom
     return;
   }
 
-  const dateRange = args.startDate === args.endDate
+  const startKey = toDateKey(args.startDate);
+  const endKey = toDateKey(args.endDate);
+  const dateRange = startKey === endKey
     ? SHORT_DATE(args.startDate)
     : `${SHORT_DATE(args.startDate)} – ${SHORT_DATE(args.endDate)}`;
 
@@ -109,8 +126,8 @@ interface NotifyLeaveDecisionArgs {
   cafeId: string;
   requesterUserId: string;
   leaveType: 'annual' | 'medical';
-  startDate: string;
-  endDate: string;
+  startDate: string | Date;
+  endDate: string | Date;
   days: number;
   approved: boolean;
 }
@@ -125,7 +142,9 @@ export async function notifyLeaveDecision(args: NotifyLeaveDecisionArgs): Promis
   `;
   if (rows.length === 0) return;
 
-  const dateRange = args.startDate === args.endDate
+  const startKey = toDateKey(args.startDate);
+  const endKey = toDateKey(args.endDate);
+  const dateRange = startKey === endKey
     ? SHORT_DATE(args.startDate)
     : `${SHORT_DATE(args.startDate)} – ${SHORT_DATE(args.endDate)}`;
 
