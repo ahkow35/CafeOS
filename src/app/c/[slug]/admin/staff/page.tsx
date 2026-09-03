@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck, UserPlus, Copy, X, KeyRound } from 'lucide-react';
+import { Palmtree, Stethoscope, ArrowLeft, User as UserIcon, Minus, Plus, UserX, Trash2, UserCheck, UserPlus, Copy, X, KeyRound, Receipt } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 type StaffRow = Pick<
@@ -18,6 +18,7 @@ type StaffRow = Pick<
     | 'role'
     | 'annual_leave_balance'
     | 'medical_leave_balance'
+    | 'medical_claim_balance'
     | 'is_active'
     | 'hourly_rate'
     | 'email'
@@ -41,6 +42,8 @@ export default function AdminStaffPage() {
     const [updating, setUpdating] = useState<string | null>(null);
     const [editingRate, setEditingRate] = useState<string | null>(null);
     const [rateInput, setRateInput] = useState('');
+    const [editingCap, setEditingCap] = useState<string | null>(null);
+    const [capInput, setCapInput] = useState('');
 
     // Add-staff form state
     const [showAddForm, setShowAddForm] = useState(false);
@@ -111,6 +114,16 @@ export default function AdminStaffPage() {
         setUpdating(userId);
         const updated = await patchUser(userId, { [field]: next }, { errorPrefix: 'Failed to update balance' });
         if (updated) setStaff(staff.map(s => (s.id === userId ? { ...s, [field]: updated[field] } : s)));
+        setUpdating(null);
+    };
+
+    const saveClaimCap = async (userId: string) => {
+        setUpdating(userId);
+        const updated = await patchUser(userId, { medical_claim_balance: capInput.trim() }, { errorPrefix: 'Failed to update claim cap' });
+        if (updated) {
+            setStaff(staff.map(s => (s.id === userId ? { ...s, medical_claim_balance: updated.medical_claim_balance } : s)));
+            setEditingCap(null);
+        }
         setUpdating(null);
     };
 
@@ -654,6 +667,39 @@ export default function AdminStaffPage() {
                                                     </button>
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-concrete)', marginTop: '0.5rem' }}>
+                                            {editingCap === member.id ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <Receipt size={14} />
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>S$</span>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={capInput}
+                                                        onChange={e => setCapInput(e.target.value)}
+                                                        placeholder="e.g. 300"
+                                                        autoFocus
+                                                        style={{ width: 90, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
+                                                    />
+                                                    <button onClick={() => saveClaimCap(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
+                                                    <button onClick={() => setEditingCap(null)} className="btn btn-xs btn-outline">Cancel</button>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                                                    <Receipt size={14} />
+                                                    <span style={{ color: 'var(--color-gray)' }}>Medical claim cap:</span>
+                                                    <span style={{ fontWeight: 600 }}>S${member.medical_claim_balance.toFixed(2)}</span>
+                                                    <button
+                                                        onClick={() => { setCapInput(member.medical_claim_balance.toFixed(2)); setEditingCap(member.id); }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}
+                                                        disabled={!!updating}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
