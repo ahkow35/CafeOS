@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Coffee, KeyRound, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
+import { CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
 
 type Stage = 'request' | 'verify' | 'done';
 
@@ -92,7 +93,7 @@ export default function ResetPinPage() {
     <div className="auth-page">
       <div className="auth-card animate-in">
         <Link href="/login" className="auth-logo auth-logo-link" aria-label="Back to CafeOS sign in">
-          <Coffee size={28} /> CafeOS
+          <Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS
         </Link>
 
         {stage === 'request' && (
@@ -123,7 +124,7 @@ export default function ResetPinPage() {
 
               <div className="security-note">
                 <ShieldCheck size={18} aria-hidden="true" />
-                <p>For privacy, we won’t confirm whether an account exists. If Telegram isn’t linked, ask your cafe owner to reset your PIN.</p>
+                <p>For privacy, we won’t confirm whether an account exists. If Telegram isn’t linked, ask your café owner to reset your PIN.</p>
               </div>
 
               {error && <div className="form-error form-message mb-md" role="alert">{error}</div>}

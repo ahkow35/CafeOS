@@ -1,43 +1,51 @@
-/* CafeOS Design System - INDUSTRIAL BRUTALIST */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+/* CafeOS Design System - Softened */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap');
 
 /* ==================== CSS Variables ==================== */
 :root {
-  /* Colors - Monochrome */
-  --color-black: #000000;
+  /* Colors - Neutrals */
+  --color-black: #111111;
   --color-white: #FFFFFF;
-  --color-concrete: #F3F4F6;
-  --color-gray: #6B7280;
-  --color-gray-dark: #111827;
+  --color-concrete: #F2F2EF;
+  --color-gray: #6A6A66;
+  --color-gray-dark: #111111;
 
   /* Colors - Accents */
-  --color-neon: #CCFF00;
-  --color-stali-green: #239F40;
+  --color-neon: #E6FF66;
+  --color-stali-green: #15803D;
   --color-orange: #FF5500;
   --color-rust: #B91C1C;
 
   /* Semantic Colors */
-  --color-success: #CCFF00;
-  --color-success-text: #000000;
-  --color-warning: #FF5500;
+  --color-success: #15803D;
+  --color-success-text: #FFFFFF;
+  --color-warning: #B45309;
   --color-warning-text: #FFFFFF;
-  --color-danger: #FF5500;
+  --color-danger: #DC2626;
   --color-danger-text: #FFFFFF;
+  --color-info: #0369A1;
+  --color-info-bg: #E0F2FE;
 
   /* Colors - Layout */
   --color-bg: #FFFFFF;
-  --color-bg-alt: #F3F4F6;
+  --color-bg-alt: #FAFAF8;
   --color-bg-card: #FFFFFF;
-  --color-bg-hover: #000000;
-  --color-text: #000000;
-  --color-text-secondary: #111827;
-  --color-text-muted: #6B7280;
-  --color-border: #000000;
+  --color-bg-hover: #111111;
+  --color-text: #111111;
+  --color-text-secondary: #111111;
+  --color-text-muted: #6A6A66;
+  --color-border: #E4E4E0;
   /* Backward-compatible semantic aliases used by older components. */
-  --color-primary: #000000;
-  --color-action: #000000;
-  --color-bg-secondary: #F3F4F6;
-  --color-surface: #F3F4F6;
+  --color-primary: #111111;
+  --color-action: #111111;
+  --color-bg-secondary: #F2F2EF;
+  --color-surface: #F2F2EF;
+
+  /* Colors - Chips / tags (pastel tint + dark ink pairs, e.g. leave-type badges) */
+  --color-chip-lime-bg: #EEFFB0;
+  --color-chip-lime-ink: #2F3A00;
+  --color-chip-peach-bg: #FFE6D9;
+  --color-chip-peach-ink: #9A3412;
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -47,9 +55,9 @@
   --space-xl: 2rem;
   --space-2xl: 3rem;
 
-  /* Typography - BRUTALIST */
-  --font-heading: 'Oswald', 'Arial Black', sans-serif;
-  --font-body: 'Roboto Mono', 'Courier New', monospace;
+  /* Typography */
+  --font-heading: 'Archivo', system-ui, sans-serif;
+  --font-body: 'Archivo', system-ui, sans-serif;
   --font-size-xs: 0.7rem;
   --font-size-sm: 0.8rem;
   --font-size-base: 0.9rem;
@@ -59,14 +67,14 @@
   --font-size-3xl: 2.5rem;
   --font-size-4xl: 3rem;
 
-  /* Border Radius - NONE (Sharp corners) */
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-full: 0;
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
 
-  /* Shadows - NONE (Flat brutalist) */
+  /* Shadows */
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: none;
@@ -78,30 +86,30 @@
   --header-height: 64px;
   --bottom-nav-height: 72px;
   --max-width: 480px;
-  --border-width: 2px;
+  --border-width: 1px;
   --border-width-thin: 1px;
   --border-width-heavy: 3px;
   --border-width-accent: 4px;
   --border-width-xl: 6px;
-  --border-strong: var(--border-width) solid var(--color-black);
+  --border-strong: var(--border-width) solid var(--color-border);
   --border-subtle: var(--border-width-thin) solid var(--color-concrete);
 
   /* Typography - display styling (heading/button/label look) */
-  --text-transform-heading: uppercase;
+  --text-transform-heading: none;
   --text-transform-capitalize: capitalize;
-  --letter-spacing-heading: 0.1em;
-  --letter-spacing-label: 0.05em;
-  --letter-spacing-wide: 0.08em;
-  --letter-spacing-tight: 1px;
+  --letter-spacing-heading: 0;
+  --letter-spacing-label: 0;
+  --letter-spacing-wide: 0;
+  --letter-spacing-tight: 0;
   --font-weight-heading: 700;
   --font-weight-semibold: 600;
   --font-weight-bold: bold;
   --font-mono-generic: monospace;
 
-  /* Shadows - hard/brutalist offset shadows */
-  --shadow-hard: 8px 8px 0 var(--color-black);
-  --shadow-hard-sm: 5px 5px 0 var(--color-black);
-  --shadow-hard-hover: 4px 4px 0 var(--color-black);
+  /* Shadows - soft, subtle (replaces hard/brutalist offset shadows) */
+  --shadow-hard: 0 1px 2px rgba(17, 17, 17, 0.06);
+  --shadow-hard-sm: 0 1px 2px rgba(17, 17, 17, 0.06);
+  --shadow-hard-hover: 0 2px 4px rgba(17, 17, 17, 0.08);
 
   /* Border radius scale (used by ad-hoc rounded elements outside the brutalist --radius-* scale) */
   --radius-3: 3px;
@@ -163,7 +171,7 @@ html {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-neon);
+  outline: 2px solid var(--color-black);
   outline-offset: 3px;
 }
 
@@ -226,8 +234,7 @@ a {
 }
 
 a:hover {
-  background: var(--color-black);
-  color: var(--color-white);
+  background: var(--color-concrete);
   text-decoration: none;
 }
 
@@ -275,7 +282,7 @@ a:hover {
 /* ==================== Cards - BRUTALIST ==================== */
 .card {
   background: var(--color-bg-card);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-lg);
   border: var(--border-strong);
 }
@@ -331,7 +338,7 @@ a:hover {
 
 .btn-primary {
   background: var(--color-black);
-  color: var(--color-white);
+  color: var(--color-neon);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -350,25 +357,25 @@ a:hover {
 }
 
 .btn-success {
-  background: var(--color-neon);
-  color: var(--color-black);
-  border-color: var(--color-black);
+  background: var(--color-success);
+  color: var(--color-white);
+  border-color: var(--color-success);
 }
 
 .btn-success:hover:not(:disabled) {
   background: var(--color-black);
-  color: var(--color-neon);
+  color: var(--color-white);
 }
 
 .btn-danger {
-  background: var(--color-orange);
+  background: var(--color-danger);
   color: var(--color-white);
-  border-color: var(--color-orange);
+  border-color: var(--color-danger);
 }
 
 .btn-danger:hover:not(:disabled) {
   background: var(--color-black);
-  color: var(--color-orange);
+  color: var(--color-white);
   border-color: var(--color-black);
 }
 
@@ -432,7 +439,7 @@ a:hover {
 }
 
 .form-input:focus {
-  outline: 3px solid var(--color-neon);
+  outline: 2px solid var(--color-black);
   outline-offset: 0;
   background: var(--color-white);
   color: var(--color-black);
@@ -471,8 +478,8 @@ a:hover {
 }
 
 .form-message-info {
-  color: var(--color-black);
-  background: var(--color-concrete);
+  color: var(--color-info);
+  background: var(--color-info-bg);
 }
 
 .form-hint {
@@ -526,17 +533,16 @@ a:hover {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-heading);
   text-transform: var(--text-transform-heading);
-  border-radius: var(--radius-md);
-  border: var(--border-width-thin) solid var(--color-black);
+  border-radius: var(--radius-full);
 }
 
 .badge-success {
-  background: var(--color-neon);
-  color: var(--color-black);
+  background: var(--color-success);
+  color: var(--color-white);
 }
 
 .badge-warning {
-  background: var(--color-orange);
+  background: var(--color-warning);
   color: var(--color-white);
 }
 
@@ -564,7 +570,7 @@ a:hover {
 
 .stat-card {
   background: var(--color-white);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-lg);
   text-align: center;
   box-shadow: none;
@@ -688,8 +694,8 @@ a:hover {
 }
 
 .toast--success {
-  background: var(--color-neon);   /* #CCFF00 */
-  color: var(--color-black);
+  background: var(--color-success);
+  color: var(--color-white);
 }
 
 .toast--error {
@@ -756,7 +762,7 @@ a:hover {
 .header-avatar {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   background: var(--color-black);
   color: var(--color-white);
   display: flex;
@@ -849,7 +855,7 @@ a:hover {
 /* ==================== Task Card - BRUTALIST ==================== */
 .task-card {
   background: var(--color-white);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-md);
   margin-bottom: 0;
   display: flex;
@@ -920,7 +926,7 @@ a:hover {
 /* ==================== Leave Request Card - BRUTALIST ==================== */
 .leave-card {
   background: var(--color-white);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-lg);
   margin-bottom: var(--space-md);
   border: var(--border-strong);
@@ -929,7 +935,7 @@ a:hover {
 }
 
 .leave-card.approved {
-  border-left-color: var(--color-neon);
+  border-left-color: var(--color-success);
 }
 
 .leave-card.rejected {
@@ -937,7 +943,7 @@ a:hover {
 }
 
 .leave-request-card {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   border: var(--border-strong);
   box-shadow: none;
 }
@@ -1009,7 +1015,7 @@ a:hover {
 /* ==================== Admin Staff Card - BRUTALIST ==================== */
 .staff-card {
   background: var(--color-white);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-lg);
   margin-bottom: var(--space-md);
   border: var(--border-strong);
@@ -1025,7 +1031,7 @@ a:hover {
 .staff-avatar {
   width: 48px;
   height: 48px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   background: var(--color-black);
   color: var(--color-white);
   display: flex;
@@ -1121,7 +1127,7 @@ a:hover {
   width: 100%;
   max-width: 420px;
   background: var(--color-white);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: clamp(20px, 6vw, var(--space-xl));
   border: var(--border-strong);
   box-shadow: var(--shadow-hard);
@@ -1226,7 +1232,7 @@ a:hover {
 }
 
 .phone-field:focus-within {
-  outline: 3px solid var(--color-neon);
+  outline: 2px solid var(--color-black);
 }
 
 .phone-field .form-input:focus {
@@ -1506,7 +1512,7 @@ a:hover {
 
 .decision-btn-reject:hover:not(:disabled) {
   background: var(--color-black);
-  color: var(--color-orange);
+  color: var(--color-white);
 }
 
 .decision-btn-approve {
@@ -1517,8 +1523,8 @@ a:hover {
 .decision-btn-approve:hover:not(:disabled) {
   background: var(--color-white);
   color: var(--color-black);
-  box-shadow: inset 0 0 0 2px var(--color-neon);
-  border-color: var(--color-neon);
+  box-shadow: inset 0 0 0 2px var(--color-success);
+  border-color: var(--color-success);
 }
 
 /* ==================== Responsive ==================== */

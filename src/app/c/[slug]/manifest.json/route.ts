@@ -22,10 +22,14 @@ export async function GET(
 
   const name = cafe?.name ?? 'CafeOS';
   const icons = cafe?.logo_url
-    ? [{ src: cafe.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any maskable' }]
+    ? [
+        { src: cafe.logo_url, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: cafe.logo_url, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      ]
     : [
-        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ];
 
   const manifest = {
@@ -34,8 +38,8 @@ export async function GET(
     description: 'Staff leave and task management',
     start_url: `/c/${slug}/`,
     display: 'standalone',
-    background_color: '#0f172a',
-    theme_color: '#0f172a',
+    background_color: '#ffffff',
+    theme_color: '#ffffff',
     icons,
   };
 
