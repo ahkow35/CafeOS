@@ -40,7 +40,7 @@ export default function Header() {
         <header className="header">
             <div className="header-content">
                 <Link href={homeHref} className="header-logo" style={{ textDecoration: 'none' }}>
-                    <Image src="/logo.svg" alt="" width={24} height={24} />
+                    <Image src="/logo.svg" alt="" width={24} height={24} unoptimized />
                     <span>CafeOS</span>
                 </Link>
 

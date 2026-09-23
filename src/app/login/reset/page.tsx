@@ -93,7 +93,7 @@ export default function ResetPinPage() {
     <div className="auth-page">
       <div className="auth-card animate-in">
         <Link href="/login" className="auth-logo auth-logo-link" aria-label="Back to CafeOS sign in">
-          <Image src="/logo.svg" alt="" width={28} height={28} /> CafeOS
+          <Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS
         </Link>
 
         {stage === 'request' && (

@@ -46,7 +46,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card animate-in">
-        <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} /> CafeOS</h1>
+        <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS</h1>
         <p className="auth-subtitle">Sign in to your café.</p>
 
         <form onSubmit={handleSubmit}>
