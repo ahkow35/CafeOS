@@ -143,7 +143,7 @@ export default function ManageTeamPage() {
                                         style={{
                                             height: '80px',
                                             borderRadius: 'var(--border-radius)',
-                                            background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+                                            background: 'linear-gradient(90deg, var(--color-skeleton-base) 25%, var(--color-skeleton-highlight) 50%, var(--color-skeleton-base) 75%)',
                                             backgroundSize: '200% 100%',
                                             animation: 'shimmer 1.5s infinite',
                                         }}
@@ -176,9 +176,9 @@ export default function ManageTeamPage() {
 
                     {error && (
                         <div style={{
-                            backgroundColor: '#fee2e2',
-                            border: '1px solid #ef4444',
-                            color: '#b91c1c',
+                            backgroundColor: 'var(--color-status-danger-bg)',
+                            border: 'var(--border-width-thin) solid var(--color-status-danger)',
+                            color: 'var(--color-rust)',
                             padding: '1rem',
                             borderRadius: 'var(--border-radius)',
                             marginBottom: '1rem'
@@ -193,7 +193,7 @@ export default function ManageTeamPage() {
                                     border: 'none',
                                     cursor: 'pointer',
                                     color: 'inherit',
-                                    fontWeight: 'bold'
+                                    fontWeight: 'var(--font-weight-bold)'
                                 }}
                             >
                                 Retry

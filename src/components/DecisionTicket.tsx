@@ -33,8 +33,8 @@ export default function DecisionTicket({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontFamily: 'var(--font-heading)',
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
+                textTransform: 'var(--text-transform-heading)',
+                letterSpacing: 'var(--letter-spacing-tight)'
             }}>
                 <span>TICKET #{request.id.slice(0, 6)}</span>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
@@ -44,7 +44,7 @@ export default function DecisionTicket({
                             color: 'var(--color-black)',
                             padding: '2px 8px',
                             fontSize: '0.8rem',
-                            fontWeight: 'bold'
+                            fontWeight: 'var(--font-weight-bold)'
                         }}>
                             RETRO
                         </span>
@@ -54,7 +54,7 @@ export default function DecisionTicket({
                         color: 'var(--color-black)',
                         padding: '2px 8px',
                         fontSize: '0.8rem',
-                        fontWeight: 'bold'
+                        fontWeight: 'var(--font-weight-bold)'
                     }}>
                         {request.leave_type}
                     </span>
@@ -70,18 +70,18 @@ export default function DecisionTicket({
                     marginBottom: 'var(--space-md)'
                 }}>
                     <div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>REQUESTER</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{userName || 'Unknown'}</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>REQUESTER</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'var(--font-weight-bold)' }}>{userName || 'Unknown'}</div>
                     </div>
                     <div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>DURATION</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{request.days_requested} DAYS</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>DURATION</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'var(--font-weight-bold)' }}>{request.days_requested} DAYS</div>
                     </div>
                 </div>
 
                 <div style={{
-                    borderTop: '2px solid var(--color-concrete)',
-                    borderBottom: '2px solid var(--color-concrete)',
+                    borderTop: 'var(--border-width) solid var(--color-concrete)',
+                    borderBottom: 'var(--border-width) solid var(--color-concrete)',
                     padding: 'var(--space-sm) 0',
                     marginBottom: 'var(--space-md)',
                     display: 'flex',
@@ -103,7 +103,7 @@ export default function DecisionTicket({
                     <div style={{ marginBottom: 'var(--space-md)' }}>
                         {request.reason && (
                             <div style={{ marginBottom: '0.5rem' }}>
-                                <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>REASON</div>
+                                <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>REASON</div>
                                 <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>{request.reason}</div>
                             </div>
                         )}
