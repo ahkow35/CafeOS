@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test 'tests/**/*.test.ts'",
-    "backfill:phones": "tsx scripts/backfill-phones.ts"
+    "backfill:phones": "tsx scripts/backfill-phones.ts",
+    "db:local": "bash scripts/local-db.sh"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.1",
