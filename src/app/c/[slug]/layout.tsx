@@ -66,14 +66,14 @@ export default async function TenantLayout({
       {impersonatorId && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-          background: '#7c3aed', color: '#fff', textAlign: 'center',
-          padding: '6px 16px', fontSize: '13px', fontWeight: 600,
+          background: 'var(--color-accent-purple)', color: 'var(--color-white)', textAlign: 'center',
+          padding: '6px 16px', fontSize: '13px', fontWeight: 'var(--font-weight-semibold)',
         }}>
           👁 Impersonation mode —{' '}
           <form action="/api/auth/stop-impersonating" method="post" style={{ display: 'inline' }}>
             <button
               type="submit"
-              style={{ color: '#e9d5ff', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0 }}
+              style={{ color: 'var(--color-accent-purple-bg)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0 }}
             >
               back to super admin
             </button>

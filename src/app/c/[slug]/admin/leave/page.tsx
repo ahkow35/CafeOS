@@ -143,9 +143,9 @@ export default function AdminLeavePage() {
 
                     {error && (
                         <div style={{
-                            backgroundColor: '#fee2e2',
-                            border: '1px solid #ef4444',
-                            color: '#b91c1c',
+                            backgroundColor: 'var(--color-status-danger-bg)',
+                            border: 'var(--border-width-thin) solid var(--color-status-danger)',
+                            color: 'var(--color-rust)',
                             padding: '1rem',
                             borderRadius: 'var(--border-radius)',
                             marginBottom: '1rem'
@@ -160,7 +160,7 @@ export default function AdminLeavePage() {
                                     border: 'none',
                                     cursor: 'pointer',
                                     color: 'inherit',
-                                    fontWeight: 'bold'
+                                    fontWeight: 'var(--font-weight-bold)'
                                 }}
                             >
                                 Retry

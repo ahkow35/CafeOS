@@ -48,7 +48,7 @@ export default function SuperPage() {
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>Super Admin — Cafes</h1>
+        <h1 style={{ fontSize: '22px', fontWeight: 'var(--font-weight-heading)' }}>Super Admin — Cafes</h1>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link href="/super/admins" style={{ color: 'var(--color-primary)', fontSize: '14px' }}>
             Manage admins
@@ -81,7 +81,7 @@ function CafeSection({ title, cafes }: { title: string; cafes: Cafe[] }) {
   if (cafes.length === 0) return null;
   return (
     <section style={{ marginBottom: '32px' }}>
-      <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+      <h2 style={{ fontSize: '14px', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: '12px' }}>
         {title}
       </h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -93,15 +93,15 @@ function CafeSection({ title, cafes }: { title: string; cafes: Cafe[] }) {
               display: 'block',
               padding: '14px 16px',
               background: 'var(--color-surface)',
-              borderRadius: '10px',
-              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-10)',
+              border: 'var(--border-width-thin) solid var(--color-border)',
               textDecoration: 'none',
               color: 'inherit',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontWeight: 600, marginBottom: '2px' }}>{cafe.name}</div>
+                <div style={{ fontWeight: 'var(--font-weight-semibold)', marginBottom: '2px' }}>{cafe.name}</div>
                 <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                   /{cafe.slug} · {cafe.member_count} member{cafe.member_count !== 1 ? 's' : ''}
                 </div>

@@ -20,6 +20,9 @@ async function jsonOrError(res: Response): Promise<unknown> {
   return res.json();
 }
 
+// NOTE: these hex values are consumed as `badge.color + '18'` below to build an alpha-blended
+// background tint at render time (string concatenation, not a CSS value) — CSS custom properties
+// cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
 function statusBadge(status: Timesheet['status']): { label: string; color: string } {
   switch (status) {
     case 'draft': return { label: 'Draft', color: '#6b7280' };
@@ -95,7 +98,7 @@ export default function TimesheetPage() {
           <section className="section animate-in">
             {fetchError ? (
               <div className="empty-state">
-                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load timesheets</div>
+                <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Failed to load timesheets</div>
                 <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
                 <button className="btn btn-primary" onClick={loadTimesheets}>Try again</button>
               </div>
@@ -121,7 +124,7 @@ export default function TimesheetPage() {
                         <div>
                           <div className="card-title">{formatMonthYear(ts.month_year)}</div>
                           {ts.rejection_reason && (
-                            <div style={{ fontSize: '0.8rem', color: '#dc2626', marginTop: 2 }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--color-status-danger-strong)', marginTop: 2 }}>
                               Rejected: {ts.rejection_reason}
                             </div>
                           )}
@@ -130,11 +133,11 @@ export default function TimesheetPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{
                           fontSize: '0.75rem',
-                          fontWeight: 600,
+                          fontWeight: 'var(--font-weight-semibold)',
                           color: badge.color,
                           background: badge.color + '18',
                           padding: '2px 8px',
-                          borderRadius: 999,
+                          borderRadius: 'var(--radius-pill)',
                         }}>
                           {badge.label}
                         </span>
@@ -205,11 +208,11 @@ function NewTimesheetModal({
 
   const selectStyle = {
     flex: 1,
-    border: '1px solid #e5e7eb',
-    borderRadius: 8,
+    border: 'var(--border-width-thin) solid var(--color-border-subtle)',
+    borderRadius: 'var(--radius-8)',
     padding: '0.75rem',
     fontSize: '1rem',
-    background: '#fff',
+    background: 'var(--color-white)',
     appearance: 'none' as const,
     WebkitAppearance: 'none' as const,
   };
@@ -236,11 +239,11 @@ function NewTimesheetModal({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={onClose}>
-      <div style={{ background: '#fff', width: '100%', borderRadius: '1rem 1rem 0 0', padding: '1.5rem', paddingBottom: 'calc(1.5rem + 80px)' }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>New Timesheet</h3>
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim-light)', display: 'flex', alignItems: 'flex-end', zIndex: 50 }} onClick={onClose}>
+      <div style={{ background: 'var(--color-white)', width: '100%', borderRadius: 'var(--radius-sheet-top)', padding: '1.5rem', paddingBottom: 'calc(1.5rem + 80px)' }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ fontWeight: 'var(--font-weight-heading)', fontSize: '1.1rem', marginBottom: '1rem' }}>New Timesheet</h3>
 
-        <label style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4 }}>
+        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>
           Select Month &amp; Year
         </label>
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -256,7 +259,7 @@ function NewTimesheetModal({
           </select>
         </div>
 
-        {error && <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{error}</p>}
+        {error && <p style={{ color: 'var(--color-status-danger-strong)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{error}</p>}
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button onClick={onClose} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
