@@ -29,18 +29,35 @@ const SHORT_DATE = (d: string | Date) => {
  * rejects the whole message (so the notification silently never arrives) and a
  * crafted value could inject markup.
  */
-function esc(s: string): string {
+export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export async function sendTelegram(chatId: string, text: string, botToken?: string): Promise<void> {
+// The reply-keyboard markup Telegram expects for `sendMessage`. Only the shapes
+// this app actually sends — a one-time "share phone number" button, or an
+// instruction to remove whatever keyboard is currently showing.
+export type TelegramReplyMarkup =
+  | { keyboard: { text: string; request_contact?: true }[][]; one_time_keyboard: true; resize_keyboard?: true }
+  | { remove_keyboard: true };
+
+export async function sendTelegram(
+  chatId: string,
+  text: string,
+  botToken?: string,
+  replyMarkup?: TelegramReplyMarkup,
+): Promise<void> {
   const token = botToken ?? process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
     });
     if (!res.ok) {
       console.error('Telegram sendMessage failed:', await res.text());
@@ -266,6 +283,28 @@ export async function notifyCafeSignup(args: NotifyCafeSignupArgs): Promise<void
   const reviewUrl = `${baseUrl()}/super`;
   const text = `🆕 <b>New Cafe Application</b>\n\n<b>${esc(args.cafeName)}</b>\nOwner: ${esc(args.ownerName)} (${esc(args.ownerPhone)})\n\nReview: ${reviewUrl}`;
 
+  await Promise.all(rows.map((r) => sendTelegram(r.telegram_chat_id, text)));
+}
+
+interface NotifyCafeLiveArgs {
+  cafeName: string;
+  ownerName: string;
+  ownerPhone: string;
+}
+
+/** Alert all super admins that an instant signup finished provisioning — distinct
+ *  wording from notifyCafeSignup's "pending review" because there is nothing to
+ *  review: the café is already active. */
+export async function notifyCafeLive(args: NotifyCafeLiveArgs): Promise<void> {
+  const { rows } = await sql<{ telegram_chat_id: string }>`
+    SELECT telegram_chat_id FROM profiles
+     WHERE is_super_admin = TRUE
+       AND is_active = TRUE
+       AND telegram_chat_id IS NOT NULL
+  `;
+  if (rows.length === 0) return;
+
+  const text = `🆕 <b>New café is live</b>\n\n${esc(args.cafeName)} (${esc(args.ownerName)}, ${esc(args.ownerPhone)})`;
   await Promise.all(rows.map((r) => sendTelegram(r.telegram_chat_id, text)));
 }
 
