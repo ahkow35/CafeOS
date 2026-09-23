@@ -34,6 +34,36 @@ export function cafeStatusFromStripe(
   return null;
 }
 
+export type CafeStatus = 'pending' | 'active' | 'suspended';
+
+/**
+ * Decides what the Stripe webhook is allowed to write to cafes.status. Pulled
+ * out as a pure function so the "billing can never lift an admin suspension,
+ * or activate a pending cafe" rule is testable without a database — see
+ * tests/billing.test.ts.
+ *
+ * Returns the new status to write, or null when the webhook must leave
+ * cafes.status untouched (subscription_status/trial_ends_at still update).
+ *
+ * - A 'pending' cafe is never touched — approval sets 'active' directly and
+ *   a pending cafe has no stripe_subscription_id to match on in practice, but
+ *   this stays defensive if that ever changes.
+ * - While admin_suspended_at is set, billing never changes status — only a
+ *   human (clearing that column) can undo an administrative suspension.
+ * - Otherwise billing is free to cycle the cafe between 'active' and
+ *   'suspended' as Stripe's subscription status dictates (this is how a cafe
+ *   that lost access for non-payment gets it back automatically once the
+ *   owner fixes their card).
+ */
+export function resolveBillingStatus(
+  current: { status: CafeStatus; adminSuspendedAt: string | Date | null },
+  stripeStatus: Stripe.Subscription.Status,
+): CafeStatus | null {
+  if (current.status === 'pending') return null;
+  if (current.adminSuspendedAt !== null) return null;
+  return cafeStatusFromStripe(stripeStatus);
+}
+
 export interface CreateSubscriptionResult {
   customerId: string;
   subscriptionId: string;

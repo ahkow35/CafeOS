@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getStripe, cafeStatusFromStripe } from '@/lib/billing';
-import { sql } from '@/lib/db';
+import { getStripe, resolveBillingStatus, type CafeStatus } from '@/lib/billing';
+import { withPlainTx } from '@/lib/db';
 import { notifyPaymentFailed } from '@/lib/notifications';
 import type Stripe from 'stripe';
 
@@ -70,26 +70,31 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
-  const cafeStatus = cafeStatusFromStripe(sub.status);
-
   const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
 
-  if (cafeStatus !== null) {
-    await sql`
-      UPDATE cafes
-         SET subscription_status    = ${sub.status},
-             trial_ends_at          = ${trialEnd},
-             status                 = ${cafeStatus},
-             updated_at             = NOW()
-       WHERE stripe_subscription_id = ${sub.id}
-    `;
-  } else {
-    await sql`
-      UPDATE cafes
-         SET subscription_status = ${sub.status},
-             trial_ends_at       = ${trialEnd},
-             updated_at          = NOW()
-       WHERE stripe_subscription_id = ${sub.id}
-    `;
-  }
+  // Locks the row so a concurrent webhook for the same subscription can't read
+  // a stale status and race the CASE below; resolveBillingStatus (the pure,
+  // tested decision) then says whether `status` may change at all.
+  await withPlainTx(async (tx) => {
+    const { rows } = await tx.query<{ status: CafeStatus; admin_suspended_at: string | null }>(
+      `SELECT status, admin_suspended_at FROM cafes WHERE stripe_subscription_id = $1 FOR UPDATE`,
+      [sub.id],
+    );
+    if (rows.length === 0) return; // no cafe on this subscription (shouldn't happen, but nothing to sync)
+
+    const nextStatus = resolveBillingStatus(
+      { status: rows[0].status, adminSuspendedAt: rows[0].admin_suspended_at },
+      sub.status,
+    );
+
+    await tx.query(
+      `UPDATE cafes
+          SET subscription_status = $1,
+              trial_ends_at       = $2,
+              status              = COALESCE($3, status),
+              updated_at          = NOW()
+        WHERE stripe_subscription_id = $4`,
+      [sub.status, trialEnd, nextStatus, sub.id],
+    );
+  });
 }
