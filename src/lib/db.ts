@@ -23,8 +23,8 @@
  */
 
 import { sql as vercelSql, db as vercelDb } from '@vercel/postgres';
-import type { VercelPoolClient } from '@vercel/postgres';
 import { Pool } from 'pg';
+import type { VercelPoolClient } from '@vercel/postgres';
 import type { MembershipRole } from '@/lib/validators';
 
 const localPgUrl = process.env.LOCAL_PG_URL;
