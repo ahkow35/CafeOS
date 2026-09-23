@@ -12,3 +12,18 @@ export function appBaseUrl(): string {
   }
   return 'http://localhost:3000';
 }
+
+/**
+ * Username (no leading @) of the CafeOS Telegram bot, used to build the
+ * /start deep link for the instant café signup flow. Resolved at call time
+ * (not module load) for the same reason as appBaseUrl() — `next build`
+ * page-data collection must not require it.
+ */
+export function telegramBotUsername(): string {
+  const raw = process.env.TELEGRAM_BOT_USERNAME;
+  if (raw) return raw;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('TELEGRAM_BOT_USERNAME must be set in production');
+  }
+  return 'your_bot'; // dev-only placeholder — set TELEGRAM_BOT_USERNAME to test the real deep link
+}

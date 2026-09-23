@@ -8,6 +8,7 @@ const PUBLIC_PATHS = new Set([
   '/login/reset',
   '/login/select',
   '/start',
+  '/start/set-pin',
 ]);
 
 const PUBLIC_PREFIX = [

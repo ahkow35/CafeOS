@@ -1,7 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Coffee } from 'lucide-react';
+
+type Stage = 'form' | 'verify' | 'done' | 'manual-submitted';
+
+interface StartResponse {
+  error?: string;
+  deepLink?: string;
+  signupId?: string;
+}
 
 export default function StartPage() {
   const [cafeName, setCafeName] = useState('');
@@ -9,34 +17,68 @@ export default function StartPage() {
   const [phone, setPhone] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [stage, setStage] = useState<Stage>('form');
   const [loading, setLoading] = useState(false);
+  const [deepLink, setDeepLink] = useState('');
+  const [signupId, setSignupId] = useState('');
+  const pollRef = useRef<number | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Poll for completion every 3s while waiting on Telegram — the bot's own
+  // reply is the primary path (switching apps on a phone often kills this
+  // tab), this is the fallback for whoever keeps the tab open.
+  useEffect(() => {
+    if (stage !== 'verify' || !signupId) return;
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const res = await fetch(`/api/start/status/${signupId}`);
+        const data = (await res.json().catch(() => ({}))) as { status?: string };
+        if (data.status === 'completed') {
+          setStage('done');
+          if (pollRef.current) window.clearInterval(pollRef.current);
+        }
+      } catch {
+        // Transient network hiccup — keep polling silently.
+      }
+    }, 3000);
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, [stage, signupId]);
+
+  async function submit(mode: 'instant' | 'manual') {
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cafeName, ownerName, ownerPhone: '+65' + phone, ownerEmail: ownerEmail || null }),
+        body: JSON.stringify({ mode, cafeName, ownerName, ownerPhone: '+65' + phone, ownerEmail: ownerEmail || null }),
       });
-      const data = await res.json() as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as StartResponse;
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Please try again.');
         return;
       }
-      setSubmitted(true);
+      if (mode === 'manual') {
+        setStage('manual-submitted');
+      } else {
+        setDeepLink(data.deepLink ?? '');
+        setSignupId(data.signupId ?? '');
+        setStage('verify');
+      }
     } catch {
       setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit('instant');
   };
 
-  if (submitted) {
+  if (stage === 'manual-submitted') {
     return (
       <div className="auth-page">
         <div className="auth-card animate-in" style={{ textAlign: 'center' }}>
@@ -53,11 +95,46 @@ export default function StartPage() {
     );
   }
 
+  if (stage === 'done') {
+    return (
+      <div className="auth-page">
+        <div className="auth-card animate-in" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Done — check Telegram to set your PIN</h1>
+          <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px' }}>
+            Your café is live. Telegram has a link to set your 6-digit PIN — tap it to finish and sign in.
+          </p>
+          <a href="/login" className="btn btn-primary btn-block">
+            Back to login
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'verify') {
+    return (
+      <div className="auth-page">
+        <div className="auth-card animate-in" style={{ textAlign: 'center' }}>
+          <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '16px 0 8px' }}>Verify with Telegram</h2>
+          <p className="auth-subtitle" style={{ marginBottom: '24px' }}>
+            Tap below to open Telegram, then follow the bot&rsquo;s instructions to share your phone number.
+          </p>
+          <a href={deepLink} target="_blank" rel="noreferrer" className="btn btn-primary btn-block btn-lg">
+            Verify with Telegram
+          </a>
+          <p className="form-hint" style={{ marginTop: '16px' }}>Waiting for verification…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card animate-in">
         <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
-        <p className="auth-subtitle">Apply for access for your cafe.</p>
+        <p className="auth-subtitle">Set up your café — verified instantly through Telegram.</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -147,9 +224,15 @@ export default function StartPage() {
             className="btn btn-primary btn-block btn-lg"
             disabled={loading}
           >
-            {loading ? 'Submitting...' : 'Apply for access'}
+            {loading ? 'Starting…' : 'Verify with Telegram'}
           </button>
         </form>
+
+        <div className="auth-footer">
+          <button type="button" className="text-button" onClick={() => void submit('manual')} disabled={loading}>
+            No Telegram? Ask us to set you up
+          </button>
+        </div>
 
         <div className="auth-footer">
           Already have an account? <a href="/login" style={{ color: 'var(--color-primary)' }}>Sign in</a>
