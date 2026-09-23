@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     hourly_rate           NUMERIC(10,2),
     -- is_active remains the GLOBAL account flag (not deprecated).
     is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Set the first (and only the first) time a real PIN is issued for this
+    -- profile (super-admin approval or /api/admin/users creation). NULL means
+    -- this row still carries the /api/start placeholder PIN and has never been
+    -- active — see 2026-09-23-suspend-and-pin-provenance.sql.
+    pin_set_at             TIMESTAMPTZ,
     -- Bumped on PIN reset / global disable to invalidate older JWTs immediately.
     token_version         INTEGER NOT NULL DEFAULT 0,
     email                 TEXT, -- legacy display only; not used for auth
@@ -53,6 +58,10 @@ CREATE TABLE IF NOT EXISTS public.cafes (
     created_by  UUID REFERENCES public.profiles(id),
     approved_by UUID REFERENCES public.profiles(id),
     approved_at TIMESTAMPTZ,
+    -- Set by POST /api/super/cafes/[id]/suspend. While set, the Stripe webhook
+    -- (syncSubscription) never writes `status` — only a human clears this.
+    -- See 2026-09-23-suspend-and-pin-provenance.sql.
+    admin_suspended_at TIMESTAMPTZ,
     -- Stripe billing (SGD 49/mo per cafe, 14-day trial). See 2026-05-09-billing.sql.
     stripe_customer_id     TEXT UNIQUE,
     stripe_subscription_id TEXT UNIQUE,
