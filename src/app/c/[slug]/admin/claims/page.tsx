@@ -83,7 +83,7 @@ export default function AdminClaimsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             }));
-            toast(action === 'approve' ? 'Claim approved' : 'Claim rejected', 'success');
+            toast(action === 'approve' ? 'Claim approved' : 'Claim declined', 'success');
         } catch (err) {
             toast(`Error: ${err instanceof Error ? err.message : 'An error occurred'}`, 'error');
         } finally {
