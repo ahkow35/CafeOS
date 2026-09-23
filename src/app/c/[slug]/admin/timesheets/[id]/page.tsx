@@ -144,7 +144,7 @@ export default function AdminTimesheetDetailPage() {
       setTimesheet(data.timesheet);
       setShowRejectModal(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reject failed');
+      setError(err instanceof Error ? err.message : 'Decline failed');
     } finally {
       setSaving(false);
     }
@@ -202,16 +202,16 @@ export default function AdminTimesheetDetailPage() {
   const canSignManager =
     timesheet.status === 'submitted' || (timesheet.status === 'pending_owner' && isOwner);
   const hasManagerSig = !!timesheet.manager_signature;
-  const approveLabel = isManager ? 'APPROVE & FORWARD' : 'FINAL APPROVE';
+  const approveLabel = isManager ? 'Approve & forward' : 'Final approve';
   const hourlyRate = tsProfile?.hourly_rate ?? null;
   const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
 
   const STATUS_STYLE: Record<TimesheetStatus, { color: string; bg: string; label: string }> = {
-    draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'DRAFT' },
-    submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'AWAITING MANAGER' },
-    pending_owner: { color: 'var(--color-accent-purple)',                          bg: 'transparent',     label: 'AWAITING OWNER' },
-    approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'APPROVED' },
-    rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'REJECTED' },
+    draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'Draft' },
+    submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'Awaiting manager' },
+    pending_owner: { color: 'var(--color-accent-purple)',                          bg: 'transparent',     label: 'Awaiting owner' },
+    approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'Approved' },
+    rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'Declined' },
   };
   const statusStyle = STATUS_STYLE[timesheet.status];
   const statusLabel = statusStyle.label;
@@ -225,7 +225,7 @@ export default function AdminTimesheetDetailPage() {
           {/* Header */}
           <section className="section animate-in">
             <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray)', marginBottom: '0.75rem', padding: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)' }}>
-              <ArrowLeft size={18} /> BACK
+              <ArrowLeft size={18} /> Back
             </button>
             <h1 className="page-title">{tsProfile?.full_name ?? tsProfile?.email ?? 'Unknown'}</h1>
             <p className="page-subtitle">{formatMonthYear(timesheet.month_year)}</p>
@@ -362,7 +362,7 @@ export default function AdminTimesheetDetailPage() {
                     style={{ marginTop: 'var(--space-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
                   >
                     <Pencil size={12} />
-                    {timesheet.manager_signature ? 'RE-SIGN' : 'SIGN'}
+                    {timesheet.manager_signature ? 'Re-sign' : 'Sign'}
                   </button>
                 )}
               </div>
@@ -389,7 +389,7 @@ export default function AdminTimesheetDetailPage() {
               <button onClick={exportExcel} disabled={exporting} className="btn btn-outline btn-block"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <Download size={18} />
-                {exporting ? 'EXPORTING...' : 'EXPORT EXCEL'}
+                {exporting ? 'Exporting...' : 'Export Excel'}
               </button>
             )}
 
@@ -404,7 +404,7 @@ export default function AdminTimesheetDetailPage() {
                   <button onClick={() => setShowRejectModal(true)} disabled={saving}
                     className="btn btn-danger"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <XCircle size={16} /> REJECT
+                    <XCircle size={16} /> Decline
                   </button>
                   <button onClick={approve} disabled={saving || !hasManagerSig}
                     className="btn btn-success"
@@ -418,7 +418,7 @@ export default function AdminTimesheetDetailPage() {
             <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
               className="btn btn-outline btn-block"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
-              <Trash2 size={16} /> DELETE TIMESHEET
+              <Trash2 size={16} /> Delete timesheet
             </button>
           </section>
         </div>
@@ -430,7 +430,7 @@ export default function AdminTimesheetDetailPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Reject Timesheet"
+          aria-label="Decline timesheet"
           style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => setShowRejectModal(false)}
           onKeyDown={e => e.key === 'Escape' && setShowRejectModal(false)}
@@ -440,7 +440,7 @@ export default function AdminTimesheetDetailPage() {
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)' }}>
-              Reject Timesheet
+              Decline timesheet
             </h3>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
               This will notify the employee. They can resubmit after correcting.
@@ -473,7 +473,7 @@ export default function AdminTimesheetDetailPage() {
                 className="btn btn-outline"
                 style={{ flex: 1 }}
               >
-                CANCEL
+                Cancel
               </button>
               <button
                 onClick={reject}
@@ -481,7 +481,7 @@ export default function AdminTimesheetDetailPage() {
                 className="btn btn-danger"
                 style={{ flex: 1 }}
               >
-                {saving ? 'REJECTING...' : 'CONFIRM REJECT'}
+                {saving ? 'Declining...' : 'Confirm decline'}
               </button>
             </div>
           </div>
@@ -502,7 +502,7 @@ export default function AdminTimesheetDetailPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Delete Timesheet"
+          aria-label="Delete timesheet"
           style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => !deleting && setShowDeleteModal(false)}
           onKeyDown={e => e.key === 'Escape' && !deleting && setShowDeleteModal(false)}
@@ -512,7 +512,7 @@ export default function AdminTimesheetDetailPage() {
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)', color: 'var(--color-rust)' }}>
-              Delete Timesheet
+              Delete timesheet
             </h3>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
               This permanently deletes the timesheet and all its entries. This cannot be undone.
@@ -524,7 +524,7 @@ export default function AdminTimesheetDetailPage() {
                 className="btn btn-outline"
                 style={{ flex: 1 }}
               >
-                CANCEL
+                Cancel
               </button>
               <button
                 onClick={deleteTimesheet}
@@ -532,7 +532,7 @@ export default function AdminTimesheetDetailPage() {
                 className="btn btn-danger"
                 style={{ flex: 1 }}
               >
-                {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+                {deleting ? 'Deleting...' : 'Confirm delete'}
               </button>
             </div>
           </div>

@@ -162,7 +162,7 @@ export default function AdminClaimsPage() {
                                                     <Check size={16} /><span>Approve</span>
                                                 </button>
                                                 <button className="btn btn-danger btn-sm" onClick={() => decide(claim, 'reject')} disabled={!!processing}>
-                                                    <X size={16} /><span>Reject</span>
+                                                    <X size={16} /><span>Decline</span>
                                                 </button>
                                             </div>
                                         </div>

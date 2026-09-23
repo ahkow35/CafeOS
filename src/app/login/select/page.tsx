@@ -103,10 +103,10 @@ export default function SelectCafePage() {
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <Coffee size={40} style={{ margin: '0 auto 0.75rem' }} />
+          <Image src="/logo.svg" alt="" width={40} height={40} style={{ margin: '0 auto 0.75rem' }} />
           <h1 style={{ fontSize: '1.5rem', fontWeight: 'var(--font-weight-heading)' }}>Choose a workspace</h1>
           <p style={{ color: 'var(--color-muted)', marginTop: '0.5rem' }}>
-            You have access to multiple cafes. Select one to continue.
+            You have access to multiple cafés. Select one to continue.
           </p>
         </div>
 

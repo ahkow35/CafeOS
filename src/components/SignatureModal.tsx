@@ -141,9 +141,9 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
         </p>
 
         <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-          <button onClick={clear} className="btn btn-outline" style={{ flex: 1 }}>CLEAR</button>
+          <button onClick={clear} className="btn btn-outline" style={{ flex: 1 }}>Clear</button>
           <button onClick={confirm} disabled={!hasDrawn} className="btn btn-primary" style={{ flex: 2 }}>
-            CONFIRM SIGNATURE
+            Confirm signature
           </button>
         </div>
       </div>

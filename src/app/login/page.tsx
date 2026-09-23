@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { Coffee, KeyRound } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -45,8 +46,8 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card animate-in">
-        <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
-        <p className="auth-subtitle">Welcome back! Sign in to continue.</p>
+        <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} /> CafeOS</h1>
+        <p className="auth-subtitle">Sign in to your café.</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -102,16 +103,16 @@ export default function LoginPage() {
             className="btn btn-primary btn-block btn-lg"
             disabled={loading}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
         <Link href="/login/reset" className="auth-recovery-link">
           <KeyRound size={16} />
-          Reset a forgotten PIN
+          Forgot your PIN?
         </Link>
         <div className="auth-footer" style={{ marginTop: '8px' }}>
-          New cafe? <Link href="/start">Apply for access</Link>
+          New café? <Link href="/start">Start a free trial</Link>
         </div>
       </div>
     </div>

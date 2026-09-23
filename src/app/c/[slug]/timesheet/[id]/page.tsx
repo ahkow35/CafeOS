@@ -11,7 +11,7 @@ import { ArrowLeft, Download, Send, Pencil, XCircle } from 'lucide-react';
 import { fmt12, computeHours, getDaysInMonth } from '@/lib/timeUtils';
 import TimesheetEntryRow, { RowState } from '@/components/TimesheetEntryRow';
 
-const SHORT_MONTH = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const SHORT_MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 async function jsonOrError<T = unknown>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -253,7 +253,7 @@ export default function TimesheetDetailPage() {
     submitted:     { color: 'var(--color-orange)',       label: 'awaiting manager' },
     pending_owner: { color: 'var(--color-accent-purple-light)',                   label: 'awaiting owner' },
     approved:      { color: 'var(--color-stali-green)',  label: 'approved' },
-    rejected:      { color: 'var(--color-rust)',         label: 'rejected' },
+    rejected:      { color: 'var(--color-rust)',         label: 'declined' },
   };
   const statusMeta = STATUS_META[timesheet.status];
 
@@ -270,7 +270,7 @@ export default function TimesheetDetailPage() {
             onClick={() => router.back()}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray)', marginBottom: 'var(--space-md)', padding: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)' }}
           >
-            <ArrowLeft size={16} /> BACK
+            <ArrowLeft size={16} /> Back
           </button>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -309,7 +309,7 @@ export default function TimesheetDetailPage() {
             <div className="section animate-in" style={{ marginTop: 'var(--space-lg)' }}>
               <div style={{ background: 'var(--color-rust)', color: 'var(--color-white)', padding: 'var(--space-md)', borderLeft: 'var(--border-width-accent) solid var(--color-black)' }}>
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-sm)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <XCircle size={14} /> REJECTED
+                  <XCircle size={14} /> Declined
                 </div>
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-white)' }}>{timesheet.rejection_reason}</p>
                 <button
@@ -328,7 +328,7 @@ export default function TimesheetDetailPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  {reopening ? 'REOPENING...' : 'REOPEN TO EDIT'}
+                  {reopening ? 'Reopening...' : 'Reopen to edit'}
                 </button>
               </div>
             </div>
@@ -342,7 +342,7 @@ export default function TimesheetDetailPage() {
               gap: 4, paddingBottom: 6,
               borderBottom: 'var(--border-strong)',
             }}>
-              {['DATE', 'IN', 'OUT', 'BRK', 'HRS', ''].map((col, i) => (
+              {['Date', 'In', 'Out', 'Brk', 'Hrs', ''].map((col, i) => (
                 <div key={i} style={{
                   fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)',
                   color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)',
@@ -375,7 +375,7 @@ export default function TimesheetDetailPage() {
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 <Download size={16} />
-                {exporting ? 'EXPORTING...' : 'DOWNLOAD TIMESHEET'}
+                {exporting ? 'Exporting...' : 'Download timesheet'}
               </button>
             </div>
           )}
@@ -396,7 +396,7 @@ export default function TimesheetDetailPage() {
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44 }}
           >
             <Pencil size={14} />
-            {timesheet.employee_signature ? 'RE-SIGN' : 'SIGN'}
+            {timesheet.employee_signature ? 'Re-sign' : 'Sign'}
           </button>
           <button
             onClick={submitTimesheet}
@@ -405,7 +405,7 @@ export default function TimesheetDetailPage() {
             style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, fontSize: 'var(--font-size-xs)' }}
           >
             <Send size={14} />
-            {submitting ? 'SUBMITTING...' : savingCount > 0 ? 'SAVING...' : 'NEED MANAGER SIGN-OFF'}
+            {submitting ? 'Submitting...' : savingCount > 0 ? 'Saving...' : 'Need manager sign-off'}
           </button>
         </div>
       )}
