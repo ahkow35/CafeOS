@@ -16,7 +16,7 @@ export async function POST(
     if (!UUID_RE.test(cafeId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     const { rows } = await sql<{ status: string }>`
-      UPDATE cafes SET status = 'suspended', updated_at = NOW()
+      UPDATE cafes SET status = 'suspended', admin_suspended_at = NOW(), updated_at = NOW()
        WHERE id = ${cafeId}
        RETURNING status
     `;

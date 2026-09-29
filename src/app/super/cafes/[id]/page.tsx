@@ -52,6 +52,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
+  const [approvedMessage, setApprovedMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -105,7 +106,11 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
   const handleApprove = async () => {
     const data = await post(`/api/super/cafes/${id}/approve`);
     if (data) {
-      setApprovedPin(String(data.pin));
+      if (data.pin) {
+        setApprovedPin(String(data.pin));
+      } else {
+        setApprovedMessage(String(data.message ?? 'Owner already has an account — they sign in with their existing PIN.'));
+      }
       setCafe((c) => c ? { ...c, status: 'active' } : c);
     }
   };
@@ -186,6 +191,13 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
             <p style={{ fontSize: '12px', color: '#166534', marginTop: '4px' }}>
               Deliver this PIN to the owner via Telegram or phone. It will not be shown again.
             </p>
+          </div>
+        )}
+
+        {approvedMessage && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginTop: '12px' }}>
+            <p style={{ fontWeight: 600, marginBottom: '4px' }}>Cafe approved!</p>
+            <p style={{ fontSize: '13px', color: '#166534' }}>{approvedMessage}</p>
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql, withTx } from '@/lib/db';
 import { requireSuperAdmin, hashPin, AuthError } from '@/lib/auth';
 import { createStripeCustomerAndTrial } from '@/lib/billing';
+import { decideOwnerCredential } from '@/lib/cafeApproval';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -29,19 +30,41 @@ export async function POST(
       return NextResponse.json({ error: 'Only pending cafes can be approved' }, { status: 409 });
     }
 
-    // Fetch the owner's email for Stripe (may be null).
-    const { rows: ownerRows } = await sql<{ email: string | null; user_id: string }>`
-      SELECT p.email, m.user_id
+    // Fetch every owner membership's profile so we can decide, per owner,
+    // whether approval may touch their credential — see decideOwnerCredential.
+    // /api/start find-or-creates the owner profile by phone, so this profile
+    // may already belong to someone with an account elsewhere.
+    const { rows: ownerRows } = await sql<{
+      email: string | null;
+      user_id: string;
+      is_active: boolean;
+      pin_set_at: string | null;
+    }>`
+      SELECT p.email, p.id AS user_id, p.is_active, p.pin_set_at
         FROM cafe_memberships m
         JOIN profiles p ON p.id = m.user_id
        WHERE m.cafe_id = ${cafeId} AND m.role = 'owner'
-       LIMIT 1
     `;
     const ownerEmail = ownerRows[0]?.email ?? null;
 
-    // Generate owner PIN.
-    const pin = crypto.randomInt(100000, 999999).toString().padStart(6, '0');
-    const pinHash = await hashPin(pin);
+    const ownerDecisions = ownerRows.map((o) => ({
+      userId: o.user_id,
+      decision: decideOwnerCredential({ isActive: o.is_active, pinSetAt: o.pin_set_at }),
+    }));
+
+    // Refuse the whole approval before touching Stripe or the cafe: an
+    // ambiguous owner credential is not something to guess at automatically.
+    const refused = ownerDecisions.find((d) => d.decision.action === 'refuse');
+    if (refused && refused.decision.action === 'refuse') {
+      return NextResponse.json({ error: refused.decision.reason }, { status: 409 });
+    }
+
+    const needsPin = ownerDecisions.some((d) => d.decision.action === 'issue_pin');
+
+    // Generate the owner PIN only when at least one owner actually needs one —
+    // an owner who already has a working account keeps it untouched.
+    const pin = needsPin ? crypto.randomInt(100000, 999999).toString().padStart(6, '0') : null;
+    const pinHash = needsPin ? await hashPin(pin as string) : null;
 
     // Provision Stripe BEFORE activating the cafe, so a Stripe failure leaves the
     // cafe pending (retryable) rather than active-with-no-subscription. Skipped
@@ -92,8 +115,16 @@ export async function POST(
         [cafeId],
       );
       for (const { user_id } of owners) {
+        const decision = ownerDecisions.find((d) => d.userId === user_id)?.decision;
+        if (decision?.action !== 'issue_pin') continue; // 'keep_pin' — never touch their credential
         await tx.query(
-          `UPDATE profiles SET is_active = TRUE, pin_hash = $1, updated_at = NOW() WHERE id = $2`,
+          `UPDATE profiles
+              SET is_active     = TRUE,
+                  pin_hash      = $1,
+                  pin_set_at    = NOW(),
+                  token_version = token_version + 1,
+                  updated_at    = NOW()
+            WHERE id = $2`,
           [pinHash, user_id],
         );
       }
@@ -104,7 +135,14 @@ export async function POST(
       return NextResponse.json({ error: 'Cafe was already approved' }, { status: 409 });
     }
 
-    return NextResponse.json({ ok: true, pin });
+    if (needsPin) {
+      return NextResponse.json({ ok: true, pin });
+    }
+    return NextResponse.json({
+      ok: true,
+      pin: null,
+      message: 'Owner already has an account — they sign in with their existing PIN.',
+    });
   } catch (e) {
     if (e instanceof AuthError) {
       return NextResponse.json({ error: e.message }, { status: e.code === 'unauthorized' ? 401 : 403 });

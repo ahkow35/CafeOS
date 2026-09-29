@@ -95,8 +95,8 @@ export async function POST(req: Request) {
     // carries employment: job title, pay, leave defaults, active flag) atomically.
     const created = await withTenantTx(ctx, async (tx) => {
       const { rows } = await tx.query(
-        `INSERT INTO profiles (phone_e164, full_name, pin_hash, is_active)
-         VALUES ($1, $2, $3, TRUE)
+        `INSERT INTO profiles (phone_e164, full_name, pin_hash, is_active, pin_set_at)
+         VALUES ($1, $2, $3, TRUE, NOW())
          RETURNING id, phone_e164, full_name, created_at`,
         [phone_e164, full_name, pin_hash],
       );
