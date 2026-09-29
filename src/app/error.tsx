@@ -40,7 +40,7 @@ export default function Error({
                     fontFamily: 'var(--font-heading)',
                     fontSize: '2rem',
                     marginBottom: 'var(--space-sm)',
-                    letterSpacing: '0.05em'
+                    letterSpacing: 'var(--letter-spacing-label)'
                 }}>
                     SOMETHING WENT WRONG
                 </h1>

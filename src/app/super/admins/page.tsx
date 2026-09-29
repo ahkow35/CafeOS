@@ -58,7 +58,7 @@ export default function SuperAdminsPage() {
       <div style={{ marginBottom: '20px' }}>
         <Link href="/super" style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>← Back to cafes</Link>
       </div>
-      <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>Super Admins</h1>
+      <h1 style={{ fontSize: '20px', fontWeight: 'var(--font-weight-heading)', marginBottom: '20px' }}>Super Admins</h1>
 
       {loading && <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
       {error && <div className="form-error mb-md">{error}</div>}
@@ -74,18 +74,18 @@ export default function SuperAdminsPage() {
               alignItems: 'center',
               padding: '12px 16px',
               background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '10px',
+              border: 'var(--border-width-thin) solid var(--color-border)',
+              borderRadius: 'var(--radius-10)',
             }}
           >
             <div>
-              <div style={{ fontWeight: 600 }}>{a.full_name} {a.id === user?.id ? '(you)' : ''}</div>
+              <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>{a.full_name} {a.id === user?.id ? '(you)' : ''}</div>
               <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{a.phone_e164}</div>
             </div>
             {a.id !== user?.id && (
               <button
                 className="btn"
-                style={{ fontSize: '13px', padding: '6px 12px', background: 'var(--color-error)', color: '#fff' }}
+                style={{ fontSize: '13px', padding: '6px 12px', background: 'var(--color-error)', color: 'var(--color-white)' }}
                 onClick={() => toggle(a)}
                 disabled={busy}
               >

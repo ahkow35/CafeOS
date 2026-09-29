@@ -99,17 +99,17 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
+      style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
       onClick={onClose}
     >
       <div
         ref={panelRef}
         tabIndex={-1}
-        style={{ background: 'var(--color-white)', width: '100%', borderTop: '2px solid var(--color-black)', padding: 'var(--space-lg)', outline: 'none' }}
+        style={{ background: 'var(--color-white)', width: '100%', borderTop: 'var(--border-strong)', padding: 'var(--space-lg)', outline: 'none' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)' }}>
             {title}
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -130,10 +130,10 @@ export default function SignatureModal({ title, onConfirm, onClose }: Props) {
           onTouchEnd={stopDraw}
           style={{
             width: '100%', height: 150,
-            border: '2px solid var(--color-black)',
+            border: 'var(--border-strong)',
             cursor: 'crosshair', display: 'block',
             touchAction: 'none',
-            background: '#fff',
+            background: 'var(--color-white)',
           }}
         />
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', marginTop: 6, marginBottom: 'var(--space-md)' }}>

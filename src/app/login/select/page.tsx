@@ -104,7 +104,7 @@ export default function SelectCafePage() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <Coffee size={40} style={{ margin: '0 auto 0.75rem' }} />
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Choose a workspace</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 'var(--font-weight-heading)' }}>Choose a workspace</h1>
           <p style={{ color: 'var(--color-muted)', marginTop: '0.5rem' }}>
             You have access to multiple cafes. Select one to continue.
           </p>
@@ -127,15 +127,15 @@ export default function SelectCafePage() {
             >
               <div className="flex items-center gap-md">
                 {m.cafe.logo_url ? (
-                  <Image src={m.cafe.logo_url} alt={m.cafe.name} width={40} height={40} style={{ borderRadius: '8px', objectFit: 'cover' }} />
+                  <Image src={m.cafe.logo_url} alt={m.cafe.name} width={40} height={40} style={{ borderRadius: 'var(--radius-8)', objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-8)', background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Coffee size={20} />
                   </div>
                 )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{m.cafe.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--color-muted)', textTransform: 'capitalize' }}>{m.role}</div>
+                  <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>{m.cafe.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-muted)', textTransform: 'var(--text-transform-capitalize)' }}>{m.role}</div>
                 </div>
                 {selecting === m.cafe.id ? (
                   <div className="spinner" style={{ width: 18, height: 18 }} />
@@ -151,14 +151,14 @@ export default function SelectCafePage() {
               onClick={goSuper}
               disabled={selecting !== null}
               className="card"
-              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: '1px solid var(--color-primary)', opacity: selecting && selecting !== 'super' ? 0.5 : 1 }}
+              style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 'var(--border-width-thin) solid var(--color-primary)', opacity: selecting && selecting !== 'super' ? 0.5 : 1 }}
             >
               <div className="flex items-center gap-md">
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Shield size={20} style={{ color: '#fff' }} />
+                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-8)', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Shield size={20} style={{ color: 'var(--color-white)' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>Super Admin Dashboard</div>
+                  <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>Super Admin Dashboard</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>Platform management</div>
                 </div>
                 {selecting === 'super' ? (

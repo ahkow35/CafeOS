@@ -16,7 +16,7 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
         <div className="stats-grid">
             <Link href={`${base}/leave/apply?type=annual`} style={{ textDecoration: 'none' }}>
                 <div className="stat-card" style={{ cursor: 'pointer' }}>
-                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
+                    <div className="stat-label" style={{ textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
                         Annual Leave
                     </div>
                     <div className="stat-value" style={{
@@ -34,7 +34,7 @@ export default function LeaveBalanceCard({ annualBalance, medicalBalance }: Leav
             </Link>
             <Link href={`${base}/leave/apply?type=medical`} style={{ textDecoration: 'none' }}>
                 <div className="stat-card" style={{ cursor: 'pointer' }}>
-                    <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
+                    <div className="stat-label" style={{ textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)', marginBottom: '0.5rem', whiteSpace: 'nowrap' }}>
                         Medical Leave
                     </div>
                     <div className="stat-value" style={{

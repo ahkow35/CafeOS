@@ -209,7 +209,7 @@ export default function AdminTimesheetDetailPage() {
   const STATUS_STYLE: Record<TimesheetStatus, { color: string; bg: string; label: string }> = {
     draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'DRAFT' },
     submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'AWAITING MANAGER' },
-    pending_owner: { color: '#7c3aed',                          bg: 'transparent',     label: 'AWAITING OWNER' },
+    pending_owner: { color: 'var(--color-accent-purple)',                          bg: 'transparent',     label: 'AWAITING OWNER' },
     approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'APPROVED' },
     rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'REJECTED' },
   };
@@ -237,10 +237,10 @@ export default function AdminTimesheetDetailPage() {
                 display: 'inline-block',
                 fontFamily: 'var(--font-heading)',
                 fontSize: 'var(--font-size-xs)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
+                textTransform: 'var(--text-transform-heading)',
+                letterSpacing: 'var(--letter-spacing-wide)',
                 padding: '3px 10px',
-                border: '2px solid',
+                border: 'var(--border-width) solid',
                 borderColor: statusStyle.color,
                 color: statusStyle.color,
                 background: statusStyle.bg,
@@ -254,10 +254,10 @@ export default function AdminTimesheetDetailPage() {
           {salary !== null && hourlyRate !== null && (
             <section className="section animate-in">
               <div className="card">
-                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', marginBottom: 4, textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)' }}>
                   Salary Calculation
                 </div>
-                <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 'var(--font-size-lg)' }}>
+                <div style={{ fontFamily: 'var(--font-body)', fontWeight: 'var(--font-weight-heading)', fontSize: 'var(--font-size-lg)' }}>
                   {totalHours.toFixed(2)} hrs × S${hourlyRate.toFixed(2)}/hr = S${salary.toFixed(2)}
                 </div>
               </div>
@@ -283,29 +283,29 @@ export default function AdminTimesheetDetailPage() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--color-black)', textAlign: 'left' }}>
+                    <tr style={{ borderBottom: 'var(--border-strong)', textAlign: 'left' }}>
                       {['Date','Day','In','Out','Brk','Hrs','Remarks'].map(h => (
-                        <th key={h} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                        <th key={h} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {entries.map(entry => (
-                      <tr key={entry.id} style={{ borderBottom: '1px solid var(--color-concrete)' }}>
+                      <tr key={entry.id} style={{ borderBottom: 'var(--border-subtle)' }}>
                         <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{formatDate(entry.entry_date)}</td>
                         <td style={{ padding: '6px 4px' }}>{getDayName(entry.entry_date)}</td>
                         <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{entry.start_time ? fmt12(entry.start_time) : '—'}</td>
                         <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>{entry.end_time ? fmt12(entry.end_time) : '—'}</td>
                         <td style={{ padding: '6px 4px', textAlign: 'center' }}>{entry.break_hours}</td>
-                        <td style={{ padding: '6px 4px', fontWeight: 700 }}>{entry.total_hours}</td>
+                        <td style={{ padding: '6px 4px', fontWeight: 'var(--font-weight-heading)' }}>{entry.total_hours}</td>
                         <td style={{ padding: '6px 4px', color: 'var(--color-gray)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.remarks ?? ''}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr style={{ borderTop: '2px solid var(--color-black)' }}>
-                      <td colSpan={5} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</td>
-                      <td style={{ padding: '6px 4px', fontWeight: 700 }}>{totalHours.toFixed(2)}</td>
+                    <tr style={{ borderTop: 'var(--border-strong)' }}>
+                      <td colSpan={5} style={{ padding: '6px 4px', fontFamily: 'var(--font-heading)', fontWeight: 'var(--font-weight-heading)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)' }}>Total</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 'var(--font-weight-heading)' }}>{totalHours.toFixed(2)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -321,7 +321,7 @@ export default function AdminTimesheetDetailPage() {
 
               {/* Employee signature */}
               <div className="card" style={{ padding: 'var(--space-md)' }}>
-                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-sm)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: 'var(--space-sm)' }}>
                   Employee
                 </div>
                 {timesheet.employee_signature ? (
@@ -329,7 +329,7 @@ export default function AdminTimesheetDetailPage() {
                   <img
                     src={timesheet.employee_signature}
                     alt="Employee signature"
-                    style={{ width: '100%', border: '1px solid var(--color-concrete)', display: 'block' }}
+                    style={{ width: '100%', border: 'var(--border-subtle)', display: 'block' }}
                   />
                 ) : (
                   <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-concrete)', color: 'var(--color-gray)', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
@@ -340,7 +340,7 @@ export default function AdminTimesheetDetailPage() {
 
               {/* Manager signature */}
               <div className="card" style={{ padding: 'var(--space-md)' }}>
-                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 'var(--space-sm)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: 'var(--space-sm)' }}>
                   Manager
                 </div>
                 {timesheet.manager_signature ? (
@@ -348,7 +348,7 @@ export default function AdminTimesheetDetailPage() {
                   <img
                     src={timesheet.manager_signature}
                     alt="Manager signature"
-                    style={{ width: '100%', border: '1px solid var(--color-concrete)', display: 'block' }}
+                    style={{ width: '100%', border: 'var(--border-subtle)', display: 'block' }}
                   />
                 ) : (
                   <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-concrete)', color: 'var(--color-gray)', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)' }}>
@@ -372,8 +372,8 @@ export default function AdminTimesheetDetailPage() {
           {/* Rejection reason */}
           {timesheet.status === 'rejected' && timesheet.rejection_reason && (
             <section className="section animate-in">
-              <div className="card" style={{ borderColor: 'var(--color-rust)', borderLeftWidth: 6 }}>
-                <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-rust)', marginBottom: 4, fontSize: 'var(--font-size-sm)', textTransform: 'uppercase' }}>
+              <div className="card" style={{ borderColor: 'var(--color-rust)', borderLeftWidth: 'var(--border-width-xl)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-rust)', marginBottom: 4, fontSize: 'var(--font-size-sm)', textTransform: 'var(--text-transform-heading)' }}>
                   Rejection Reason
                 </div>
                 <p style={{ fontSize: 'var(--font-size-sm)' }}>{timesheet.rejection_reason}</p>
@@ -431,21 +431,21 @@ export default function AdminTimesheetDetailPage() {
           role="dialog"
           aria-modal="true"
           aria-label="Reject Timesheet"
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
+          style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => setShowRejectModal(false)}
           onKeyDown={e => e.key === 'Escape' && setShowRejectModal(false)}
         >
           <div
-            style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-black)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
+            style={{ background: 'var(--color-white)', width: '100%', borderTop: 'var(--border-width-heavy) solid var(--color-black)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
             onClick={e => e.stopPropagation()}
           >
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)' }}>
               Reject Timesheet
             </h3>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
               This will notify the employee. They can resubmit after correcting.
             </p>
-            <label style={{ display: 'block', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: 6 }}>
               Reason (required)
             </label>
             <textarea
@@ -456,7 +456,7 @@ export default function AdminTimesheetDetailPage() {
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                border: '2px solid var(--color-black)',
+                border: 'var(--border-strong)',
                 padding: '10px 12px',
                 fontFamily: 'var(--font-body)',
                 fontSize: 'var(--font-size-sm)',
@@ -503,15 +503,15 @@ export default function AdminTimesheetDetailPage() {
           role="dialog"
           aria-modal="true"
           aria-label="Delete Timesheet"
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
+          style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim)', display: 'flex', alignItems: 'flex-end', zIndex: 300 }}
           onClick={() => !deleting && setShowDeleteModal(false)}
           onKeyDown={e => e.key === 'Escape' && !deleting && setShowDeleteModal(false)}
         >
           <div
-            style={{ background: 'var(--color-white)', width: '100%', borderTop: '3px solid var(--color-rust)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
+            style={{ background: 'var(--color-white)', width: '100%', borderTop: 'var(--border-width-heavy) solid var(--color-rust)', padding: 'var(--space-lg)', paddingBottom: 'calc(var(--space-lg) + env(safe-area-inset-bottom, 0px))' }}
             onClick={e => e.stopPropagation()}
           >
-            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-rust)' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)', color: 'var(--color-rust)' }}>
               Delete Timesheet
             </h3>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>

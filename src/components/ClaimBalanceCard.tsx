@@ -11,7 +11,7 @@ export default function ClaimBalanceCard({ available, pending }: ClaimBalanceCar
     const remaining = Math.max(0, available - pending);
     return (
         <div className="stat-card">
-            <div className="stat-label" style={{ textTransform: 'uppercase', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            <div className="stat-label" style={{ textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)', marginBottom: '0.5rem' }}>
                 Medical Claim Balance
             </div>
             <div className="stat-value" style={{

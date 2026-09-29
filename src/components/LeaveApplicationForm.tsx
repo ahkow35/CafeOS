@@ -169,7 +169,7 @@ export default function LeaveApplicationForm() {
                                 onClick={() => setLeaveType('annual')}
                                 style={{
                                     cursor: 'pointer',
-                                    border: leaveType === 'annual' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                    border: leaveType === 'annual' ? 'var(--border-width) solid var(--color-primary)' : '2px solid transparent',
                                     textAlign: 'center'
                                 }}
                             >
@@ -184,7 +184,7 @@ export default function LeaveApplicationForm() {
                                 onClick={() => setLeaveType('medical')}
                                 style={{
                                     cursor: 'pointer',
-                                    border: leaveType === 'medical' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                    border: leaveType === 'medical' ? 'var(--border-width) solid var(--color-primary)' : '2px solid transparent',
                                     textAlign: 'center'
                                 }}
                             >
@@ -250,10 +250,10 @@ export default function LeaveApplicationForm() {
 
                     {isRetrospective && (
                         <section className="section animate-in">
-                            <div className="card" style={{ border: '2px solid var(--color-warning, #f59e0b)', background: 'var(--color-warning-light, #fffbeb)' }}>
+                            <div className="card" style={{ border: '2px solid var(--color-warning, #f59e0b)', background: 'var(--color-warning-light, var(--color-status-warning-bg))' }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                                     <div>
-                                        <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Retrospective Request</div>
+                                        <div style={{ fontWeight: 'var(--font-weight-heading)', marginBottom: '0.25rem' }}>Retrospective Request</div>
                                         <div className="text-muted" style={{ fontSize: '0.875rem' }}>
                                             These dates are in the past. Your request will go through the standard approval process.
                                         </div>
@@ -312,7 +312,7 @@ export default function LeaveApplicationForm() {
                                             justifyContent: 'center',
                                             gap: '0.5rem',
                                             padding: '1rem',
-                                            border: '2px dashed var(--color-black)',
+                                            border: 'var(--border-width) dashed var(--color-black)',
                                             background: file ? 'var(--color-concrete)' : 'transparent'
                                         }}
                                     >

@@ -94,7 +94,7 @@ export default function TimesheetEntryRow({
   return (
     <div
       style={{
-        borderBottom: '1px solid var(--color-concrete)',
+        borderBottom: 'var(--border-subtle)',
         borderLeft: today ? '3px solid var(--color-orange)' : '3px solid transparent',
       }}
     >
@@ -109,7 +109,7 @@ export default function TimesheetEntryRow({
 
         {/* DATE */}
         <div style={{ paddingLeft: 4 }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-base)', fontWeight: 700, lineHeight: 1.1 }}>{dayNum}</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-heading)', lineHeight: 1.1 }}>{dayNum}</div>
           <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', color: weekend ? 'var(--color-orange)' : 'var(--color-gray)' }}>{dayName}</div>
         </div>
 
@@ -123,10 +123,10 @@ export default function TimesheetEntryRow({
               onBlur={e => handleTimeBlur('start', e.target.value)}
               placeholder="—"
               style={{
-                width: '100%', border: '1px solid var(--color-black)',
+                width: '100%', border: 'var(--border-width-thin) solid var(--color-black)',
                 padding: row.startRaw ? '4px 22px 4px 6px' : '4px 6px',
                 fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)',
-                background: 'var(--color-white)', borderRadius: 0,
+                background: 'var(--color-white)', borderRadius: 'var(--radius-md)',
               }}
             />
           ) : (
@@ -154,10 +154,10 @@ export default function TimesheetEntryRow({
               onBlur={e => handleTimeBlur('end', e.target.value)}
               placeholder="—"
               style={{
-                width: '100%', border: '1px solid var(--color-black)',
+                width: '100%', border: 'var(--border-width-thin) solid var(--color-black)',
                 padding: row.endRaw ? '4px 22px 4px 6px' : '4px 6px',
                 fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)',
-                background: 'var(--color-white)', borderRadius: 0,
+                background: 'var(--color-white)', borderRadius: 'var(--radius-md)',
               }}
             />
           ) : (
@@ -185,10 +185,10 @@ export default function TimesheetEntryRow({
               onChange={e => onRowChange(date, { breakHours: parseFloat(e.target.value) || 0 })}
               onBlur={e => handleBreakBlur(e.target.value)}
               style={{
-                width: '100%', border: '1px solid var(--color-black)',
+                width: '100%', border: 'var(--border-width-thin) solid var(--color-black)',
                 padding: '4px 2px', fontFamily: 'var(--font-body)',
                 fontSize: 'var(--font-size-xs)', textAlign: 'center',
-                background: 'var(--color-white)', borderRadius: 0,
+                background: 'var(--color-white)', borderRadius: 'var(--radius-md)',
               }}
             />
           ) : (
@@ -200,11 +200,11 @@ export default function TimesheetEntryRow({
 
         {/* HRS */}
         <div style={{ textAlign: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', fontWeight: 700, color: hrs !== null ? 'var(--color-text)' : 'var(--color-gray)' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-heading)', color: hrs !== null ? 'var(--color-text)' : 'var(--color-gray)' }}>
             {hrs !== null ? (hrs % 1 === 0 ? hrs.toFixed(0) : hrs.toFixed(2)) : '—'}
           </span>
           {isSaving && (
-            <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--color-orange)', margin: '2px auto 0' }} />
+            <div style={{ width: 4, height: 4, borderRadius: 'var(--radius-circle)', background: 'var(--color-orange)', margin: '2px auto 0' }} />
           )}
         </div>
 
@@ -230,9 +230,9 @@ export default function TimesheetEntryRow({
             placeholder="Add a note for this day..."
             readOnly={!isDraft}
             style={{
-              width: '100%', border: 'none', borderTop: '1px solid var(--color-concrete)',
+              width: '100%', border: 'none', borderTop: 'var(--border-subtle)',
               padding: '6px 8px', fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)',
-              color: 'var(--color-gray)', background: 'transparent', borderRadius: 0,
+              color: 'var(--color-gray)', background: 'transparent', borderRadius: 'var(--radius-md)',
               outline: 'none',
             }}
           />

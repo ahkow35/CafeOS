@@ -91,16 +91,16 @@ export default function HomePage() {
             </section>
             <section className="section">
               <div className="skeleton" style={{ height: 20, width: '30%', marginBottom: 12 }} />
-              <div className="skeleton" style={{ height: 80, borderRadius: 8 }} />
+              <div className="skeleton" style={{ height: 80, borderRadius: 'var(--radius-8)' }} />
             </section>
             <section className="section">
               <div className="skeleton" style={{ height: 20, width: '35%', marginBottom: 12 }} />
-              <div className="skeleton" style={{ height: 64, borderRadius: 8, marginBottom: 8 }} />
-              <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
+              <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)', marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)' }} />
             </section>
             {slowLoad && (
               <section className="section" style={{ textAlign: 'center', paddingTop: '0.5rem' }}>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
                   Taking longer than usual...
                 </p>
                 <button
@@ -122,9 +122,9 @@ export default function HomePage() {
   if (!authLoading && !profileLoading && !profile) {
     return (
       <div className="empty-state animate-in" style={{ padding: '2rem', textAlign: 'center' }}>
-        <div className="empty-state-title" style={{ color: '#ef4444' }}>Profile Not Found</div>
+        <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Profile Not Found</div>
         <p>Your user account exists, but your profile data is missing.</p>
-        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-subtle)', marginTop: '0.5rem' }}>
           Try signing out and signing back in. If the problem persists, contact an administrator.
         </p>
         <button

@@ -429,12 +429,12 @@ export default function AdminStaffPage() {
                     {/* Credentials display — shown once after creation or PIN reset */}
                     {createdCreds && (
                         <section className="section animate-in">
-                            <div className="card" style={{ border: '2px solid var(--color-primary)' }}>
+                            <div className="card" style={{ border: 'var(--border-width) solid var(--color-primary)' }}>
                                 <div className="card-title">Credentials</div>
                                 <p className="card-subtitle mb-md">
                                     Share these with {createdCreds.name}. They will not be shown again.
                                 </p>
-                                <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+                                <div style={{ fontFamily: 'var(--font-mono-generic)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
                                     <div><strong>Phone:</strong> {createdCreds.phone}</div>
                                     <div><strong>PIN:</strong> {createdCreds.tempPin}</div>
                                 </div>
@@ -476,12 +476,12 @@ export default function AdminStaffPage() {
                                         className="staff-card"
                                         style={{
                                             opacity: updating === member.id ? 0.7 : (isDisabled ? 0.6 : 1),
-                                            border: isDisabled ? '2px solid #ef4444' : undefined
+                                            border: isDisabled ? 'var(--border-width) solid var(--color-status-danger)' : undefined
                                         }}
                                     >
                                         <div className="staff-header">
                                             <div className="staff-avatar" style={{
-                                                backgroundColor: isDisabled ? '#6b7280' : undefined
+                                                backgroundColor: isDisabled ? 'var(--color-text-muted)' : undefined
                                             }}>
                                                 {getInitials(member.full_name)}
                                             </div>
@@ -492,7 +492,7 @@ export default function AdminStaffPage() {
                                                         {roleBadge.label}
                                                     </span>
                                                     {isDisabled && (
-                                                        <span className="badge" style={{ marginLeft: '0.5rem', backgroundColor: '#ef4444', color: 'white' }}>
+                                                        <span className="badge" style={{ marginLeft: '0.5rem', backgroundColor: 'var(--color-status-danger)', color: 'var(--color-white)' }}>
                                                             Disabled
                                                         </span>
                                                     )}
@@ -571,7 +571,7 @@ export default function AdminStaffPage() {
                                                             <button
                                                                 onClick={() => removeUser(member.id, member.full_name)}
                                                                 className="btn btn-xs"
-                                                                style={{ fontSize: '0.7rem', backgroundColor: '#ef4444', color: 'white' }}
+                                                                style={{ fontSize: '0.7rem', backgroundColor: 'var(--color-status-danger)', color: 'var(--color-white)' }}
                                                                 disabled={!!updating}
                                                             >
                                                                 <Trash2 size={12} style={{ marginRight: '4px' }} />
@@ -585,7 +585,7 @@ export default function AdminStaffPage() {
 
                                         {/* Hourly rate — part-timers only */}
                                         {member.role === 'part_timer' && (
-                                            <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-concrete)' }}>
+                                            <div style={{ padding: '0.5rem 0', borderTop: 'var(--border-subtle)' }}>
                                                 {editingRate === member.id ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>S$</span>
@@ -597,7 +597,7 @@ export default function AdminStaffPage() {
                                                             step="0.50"
                                                             placeholder="e.g. 10"
                                                             autoFocus
-                                                            style={{ width: 80, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
+                                                            style={{ width: 80, border: 'var(--border-width-thin) solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
                                                         />
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>/hr</span>
                                                         <button onClick={() => saveHourlyRate(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
@@ -606,7 +606,7 @@ export default function AdminStaffPage() {
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
                                                         <span style={{ color: 'var(--color-gray)' }}>Hourly Rate:</span>
-                                                        <span style={{ fontWeight: 600 }}>
+                                                        <span style={{ fontWeight: 'var(--font-weight-semibold)' }}>
                                                             {member.hourly_rate ? `S$${member.hourly_rate}/hr` : 'Not set'}
                                                         </span>
                                                         <button
@@ -669,7 +669,7 @@ export default function AdminStaffPage() {
                                             </div>
                                         </div>
 
-                                        <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--color-concrete)', marginTop: '0.5rem' }}>
+                                        <div style={{ padding: '0.5rem 0', borderTop: 'var(--border-subtle)', marginTop: '0.5rem' }}>
                                             {editingCap === member.id ? (
                                                 <div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -682,7 +682,7 @@ export default function AdminStaffPage() {
                                                             onChange={e => setCapInput(e.target.value)}
                                                             placeholder="e.g. 300"
                                                             autoFocus
-                                                            style={{ width: 90, border: '1px solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 0 }}
+                                                            style={{ width: 90, border: 'var(--border-width-thin) solid var(--color-black)', padding: '3px 6px', fontSize: '0.85rem', borderRadius: 'var(--radius-md)' }}
                                                         />
                                                         <button onClick={() => saveClaimCap(member.id)} className="btn btn-xs btn-primary" disabled={!!updating}>Save</button>
                                                         <button onClick={() => setEditingCap(null)} className="btn btn-xs btn-outline">Cancel</button>
@@ -693,7 +693,7 @@ export default function AdminStaffPage() {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
                                                     <Receipt size={14} />
                                                     <span style={{ color: 'var(--color-gray)' }}>Remaining claim balance:</span>
-                                                    <span style={{ fontWeight: 600 }}>S${member.medical_claim_balance.toFixed(2)}</span>
+                                                    <span style={{ fontWeight: 'var(--font-weight-semibold)' }}>S${member.medical_claim_balance.toFixed(2)}</span>
                                                     <button
                                                         onClick={() => { setCapInput(member.medical_claim_balance.toFixed(2)); setEditingCap(member.id); }}
                                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-primary)', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}
@@ -723,14 +723,14 @@ export default function AdminStaffPage() {
 
             {resetPinModal && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
+                    style={{ position: 'fixed', inset: 0, background: 'var(--color-overlay-scrim-medium)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}
                     onClick={() => setResetPinModal(null)}
                 >
                     <div
-                        style={{ background: 'var(--color-bg)', width: '100%', borderTop: '3px solid var(--color-border)', padding: 'var(--spacing-lg)', paddingBottom: 'calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px))' }}
+                        style={{ background: 'var(--color-bg)', width: '100%', borderTop: 'var(--border-width-heavy) solid var(--color-border)', padding: 'var(--spacing-lg)', paddingBottom: 'calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px))' }}
                         onClick={e => e.stopPropagation()}
                     >
-                        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' }}>
+                        <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: '0.25rem' }}>
                             Set New PIN
                         </h3>
                         <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
