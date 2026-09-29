@@ -170,7 +170,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
               </button>
             )}
             {cafe.status === 'suspended' && (
-              <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Cafe is suspended</span>
+              <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Café is suspended</span>
             )}
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
 
         {approvedPin && (
           <div style={{ background: 'var(--color-status-success-bg-light)', border: 'var(--border-width-thin) solid var(--color-status-success-border)', borderRadius: 'var(--radius-8)', padding: '16px', marginTop: '12px' }}>
-            <p style={{ fontWeight: 'var(--font-weight-semibold)', marginBottom: '4px' }}>Cafe approved!</p>
+            <p style={{ fontWeight: 'var(--font-weight-semibold)', marginBottom: '4px' }}>Café approved!</p>
             <p style={{ fontSize: '13px', color: 'var(--color-status-success-text)' }}>
               Owner&apos;s one-time PIN: <code style={{ fontSize: '18px', fontWeight: 'var(--font-weight-heading)', letterSpacing: 'var(--letter-spacing-heading)' }}>{approvedPin}</code>
             </p>
@@ -274,7 +274,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         ) : (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>No Stripe billing account linked to this cafe.</p>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>No Stripe billing account linked to this café.</p>
         )}
       </div>
     </div>

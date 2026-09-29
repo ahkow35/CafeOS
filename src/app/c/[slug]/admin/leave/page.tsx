@@ -128,8 +128,8 @@ export default function AdminLeavePage() {
         }
     };
 
-    const pageTitle = isOwner ? 'DECISION DESK' : 'Leave Requests';
-    const pageSubtitle = isOwner ? 'Final Approval Queue' : 'Review & Escalate';
+    const pageTitle = isOwner ? 'Approvals' : 'Leave requests';
+    const pageSubtitle = isOwner ? 'Final approval queue' : 'Review & escalate';
 
     return (
         <>

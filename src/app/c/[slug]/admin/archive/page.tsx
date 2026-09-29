@@ -91,7 +91,7 @@ export default function AdminArchivePage() {
                     color: 'var(--color-status-success)'
                 }}>
                     <CheckCircle size={12} />
-                    APPROVED
+                    Approved
                 </span>
             );
         }
@@ -108,7 +108,7 @@ export default function AdminArchivePage() {
                 color: 'var(--color-status-danger-strong)'
             }}>
                 <XCircle size={12} />
-                REJECTED
+                Declined
             </span>
         );
     };
@@ -123,8 +123,8 @@ export default function AdminArchivePage() {
             <main className="page">
                 <div className="container">
                     <section className="page-header animate-in">
-                        <h1 className="page-title">LEAVE ARCHIVE</h1>
-                        <p className="page-subtitle">Historical Leave Records</p>
+                        <h1 className="page-title">Leave history</h1>
+                        <p className="page-subtitle">Historical leave records</p>
                     </section>
 
                     <div className="animate-in" style={{
@@ -143,7 +143,7 @@ export default function AdminArchivePage() {
                             >
                                 {f === 'all' ? `All (${leaves.length})` :
                                     f === 'approved' ? `Approved (${leaves.filter(l => l.status === 'approved').length})` :
-                                        `Rejected (${leaves.filter(l => l.status === 'rejected').length})`}
+                                        `Declined (${leaves.filter(l => l.status === 'rejected').length})`}
                             </button>
                         ))}
                     </div>
@@ -155,7 +155,7 @@ export default function AdminArchivePage() {
                             <div className="empty-state-icon">
                                 <Calendar size={48} />
                             </div>
-                            <div className="empty-state-title">No Records Found</div>
+                            <div className="empty-state-title">No records found</div>
                             <p>No {filter !== 'all' ? filter : ''} leave history yet.</p>
                         </div>
                     ) : (

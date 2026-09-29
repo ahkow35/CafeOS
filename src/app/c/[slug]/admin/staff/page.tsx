@@ -303,7 +303,7 @@ export default function AdminStaffPage() {
             <main className="page">
                 <div className="container">
                     <section className="page-header animate-in">
-                        <h1 className="page-title">Staff Management</h1>
+                        <h1 className="page-title">Manage staff</h1>
                         <p className="page-subtitle">Manage leave balances for your team</p>
                     </section>
 

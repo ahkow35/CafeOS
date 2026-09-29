@@ -16,11 +16,11 @@ type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
 // background tint at render time (string concatenation, not a CSS value) — CSS custom properties
 // cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
 const STATUS_BADGE: Record<TimesheetStatus, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: '#6b7280' },
-  submitted: { label: 'Awaiting Manager', color: '#d97706' },
-  pending_owner: { label: 'Awaiting Owner', color: '#7c3aed' },
-  approved: { label: 'Approved', color: '#16a34a' },
-  rejected: { label: 'Rejected', color: '#dc2626' },
+  draft: { label: 'Draft', color: '#6a6a66' },
+  submitted: { label: 'Awaiting Manager', color: '#b45309' },
+  pending_owner: { label: 'Awaiting Owner', color: '#6d28d9' },
+  approved: { label: 'Approved', color: '#15803d' },
+  rejected: { label: 'Declined', color: '#b91c1c' },
 };
 
 export default function AdminTimesheetsPage() {
@@ -101,7 +101,7 @@ export default function AdminTimesheetsPage() {
                 ['pending_owner', 'Awaiting Owner'],
                 ['all', 'All'],
                 ['approved', 'Approved'],
-                ['rejected', 'Rejected'],
+                ['rejected', 'Declined'],
               ] as const).map(([f, label]) => (
                 <button key={f} onClick={() => setFilter(f)}
                   style={{

@@ -37,7 +37,7 @@ export default function LeaveRequestCard({
             case 'approved':
                 return { label: 'Approved', className: 'badge-success' };
             case 'rejected':
-                return { label: 'Rejected', className: 'badge-danger' };
+                return { label: 'Declined', className: 'badge-danger' };
             default:
                 return { label: status, className: 'badge-neutral' };
         }
@@ -138,7 +138,7 @@ export default function LeaveRequestCard({
                         onClick={onReject}
                     >
                         <X size={16} />
-                        <span>Reject</span>
+                        <span>Decline</span>
                     </button>
                 </div>
             )}

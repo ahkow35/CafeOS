@@ -30,7 +30,7 @@ export default function NotFound() {
                     marginBottom: 'var(--space-sm)',
                     letterSpacing: 'var(--letter-spacing-label)'
                 }}>
-                    PAGE NOT FOUND
+                    Page not found
                 </h1>
 
                 <p style={{

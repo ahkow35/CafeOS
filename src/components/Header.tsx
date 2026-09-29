@@ -4,7 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Coffee, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import Image from 'next/image';
 
 export default function Header() {
     const { profile, signOut } = useAuth();
@@ -39,7 +40,7 @@ export default function Header() {
         <header className="header">
             <div className="header-content">
                 <Link href={homeHref} className="header-logo" style={{ textDecoration: 'none' }}>
-                    <Coffee size={24} />
+                    <Image src="/logo.svg" alt="" width={24} height={24} unoptimized />
                     <span>CafeOS</span>
                 </Link>
 
