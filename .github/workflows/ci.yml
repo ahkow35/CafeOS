@@ -28,6 +28,11 @@ jobs:
       - name: Install (clean, lockfile-enforced)
         run: npm ci
 
+      - name: Generate Next.js route types
+        # A fresh checkout has no .next/types, so without this step tsc never
+        # checks route handlers and page props against Next's constraints.
+        run: npx next typegen
+
       - name: Typecheck
         run: npx tsc --noEmit
 
