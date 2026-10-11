@@ -152,7 +152,7 @@ export default function LeavePage() {
 
                         {fetchError ? (
                             <div className="empty-state">
-                                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load requests</div>
+                                <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Failed to load requests</div>
                                 <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
                                 <button className="btn btn-primary" onClick={fetchLeaveRequests}>Try again</button>
                             </div>

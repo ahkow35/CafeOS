@@ -8,12 +8,12 @@ export default function Loading() {
         </section>
         <section className="section">
           <div className="skeleton" style={{ height: 20, width: '30%', marginBottom: 12 }} />
-          <div className="skeleton" style={{ height: 80, borderRadius: 8 }} />
+          <div className="skeleton" style={{ height: 80, borderRadius: 'var(--radius-8)' }} />
         </section>
         <section className="section">
           <div className="skeleton" style={{ height: 20, width: '35%', marginBottom: 12 }} />
-          <div className="skeleton" style={{ height: 64, borderRadius: 8, marginBottom: 8 }} />
-          <div className="skeleton" style={{ height: 64, borderRadius: 8 }} />
+          <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)', marginBottom: 8 }} />
+          <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)' }} />
         </section>
       </div>
     </main>

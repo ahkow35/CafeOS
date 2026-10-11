@@ -111,12 +111,12 @@ export default function StaffManifestPage() {
                                 display: 'grid',
                                 gridTemplateColumns: '2fr 1fr 1fr 0.5fr',
                                 gap: 'var(--space-sm)',
-                                borderBottom: '2px solid var(--color-black)',
+                                borderBottom: 'var(--border-strong)',
                                 paddingBottom: 'var(--space-sm)',
                                 marginBottom: 'var(--space-sm)',
                                 fontFamily: 'var(--font-heading)',
                                 fontSize: '0.8rem',
-                                letterSpacing: '0.05em'
+                                letterSpacing: 'var(--letter-spacing-label)'
                             }}>
                                 <div>PERSONNEL</div>
                                 <div style={{ textAlign: 'center' }}>ANNUAL</div>
@@ -139,10 +139,10 @@ export default function StaffManifestPage() {
                                         alignItems: 'center',
                                         background: isDirty ? 'var(--color-bg-alt)' : 'transparent',
                                         padding: 'var(--space-sm) 0',
-                                        borderBottom: '1px solid var(--color-concrete)'
+                                        borderBottom: 'var(--border-subtle)'
                                     }}>
                                         <div>
-                                            <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-heading)', textTransform: 'uppercase' }}>
+                                            <div style={{ fontWeight: 'var(--font-weight-bold)', fontFamily: 'var(--font-heading)', textTransform: 'var(--text-transform-heading)' }}>
                                                 {member.full_name}
                                             </div>
                                             <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
@@ -159,7 +159,7 @@ export default function StaffManifestPage() {
                                                     textAlign: 'center',
                                                     height: '36px',
                                                     background: localEdit?.annual_leave_balance !== undefined ? 'var(--color-white)' : 'transparent',
-                                                    fontWeight: 'bold',
+                                                    fontWeight: 'var(--font-weight-bold)',
                                                     color: 'var(--color-black)'
                                                 }}
                                                 value={annual}
@@ -176,7 +176,7 @@ export default function StaffManifestPage() {
                                                     textAlign: 'center',
                                                     height: '36px',
                                                     background: localEdit?.medical_leave_balance !== undefined ? 'var(--color-white)' : 'transparent',
-                                                    fontWeight: 'bold',
+                                                    fontWeight: 'var(--font-weight-bold)',
                                                     color: 'var(--color-black)'
                                                 }}
                                                 value={medical}
@@ -207,7 +207,7 @@ export default function StaffManifestPage() {
                         </div>
                     )}
 
-                    <div style={{ marginTop: 'var(--space-xl)', borderTop: '2px solid var(--color-black)', paddingTop: 'var(--space-md)' }}>
+                    <div style={{ marginTop: 'var(--space-xl)', borderTop: 'var(--border-strong)', paddingTop: 'var(--space-md)' }}>
                         <div className="flex items-center gap-sm text-muted" style={{ fontSize: '0.8rem' }}>
                             <AlertTriangle size={16} />
                             <span>Changes are saved immediately per row.</span>

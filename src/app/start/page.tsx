@@ -41,7 +41,7 @@ export default function StartPage() {
       <div className="auth-page">
         <div className="auth-card animate-in" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-          <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Application submitted!</h1>
+          <h1 style={{ fontSize: '20px', fontWeight: 'var(--font-weight-heading)', marginBottom: '8px' }}>Application submitted!</h1>
           <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px' }}>
             We will review your application and contact you at <strong>+65 {phone}</strong> within 1–2 business days.
           </p>

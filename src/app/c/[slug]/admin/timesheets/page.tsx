@@ -12,6 +12,9 @@ import { formatMonthYear } from '@/lib/dateUtils';
 type ProfileMini = Pick<User, 'full_name' | 'email' | 'phone_e164' | 'role' | 'hourly_rate'>;
 type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
 
+// NOTE: these hex values are consumed as `badge.color + '18'` below to build an alpha-blended
+// background tint at render time (string concatenation, not a CSS value) — CSS custom properties
+// cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
 const STATUS_BADGE: Record<TimesheetStatus, { label: string; color: string }> = {
   draft: { label: 'Draft', color: '#6b7280' },
   submitted: { label: 'Awaiting Manager', color: '#d97706' },
@@ -102,10 +105,10 @@ export default function AdminTimesheetsPage() {
               ] as const).map(([f, label]) => (
                 <button key={f} onClick={() => setFilter(f)}
                   style={{
-                    padding: '0.35rem 0.85rem', borderRadius: 999, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                    border: filter === f ? 'none' : '1px solid #e5e7eb',
-                    background: filter === f ? 'var(--color-primary, #1a1a2e)' : '#fff',
-                    color: filter === f ? '#fff' : '#374151',
+                    padding: '0.35rem 0.85rem', borderRadius: 'var(--radius-pill)', fontSize: '0.8rem', fontWeight: 'var(--font-weight-semibold)', cursor: 'pointer',
+                    border: filter === f ? 'none' : 'var(--border-width-thin) solid var(--color-border-subtle)',
+                    background: filter === f ? 'var(--color-primary, #1a1a2e)' : 'var(--color-white)',
+                    color: filter === f ? 'var(--color-white)' : 'var(--color-status-neutral-text)',
                   }}>
                   {label}
                 </button>
@@ -114,7 +117,7 @@ export default function AdminTimesheetsPage() {
 
             {fetchError ? (
               <div className="empty-state">
-                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load timesheets</div>
+                <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Failed to load timesheets</div>
                 <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
                 <button className="btn btn-primary" onClick={load}>Try again</button>
               </div>
@@ -140,8 +143,8 @@ export default function AdminTimesheetsPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{
-                          fontSize: '0.75rem', fontWeight: 600, color: badge.color,
-                          background: badge.color + '18', padding: '2px 8px', borderRadius: 999,
+                          fontSize: '0.75rem', fontWeight: 'var(--font-weight-semibold)', color: badge.color,
+                          background: badge.color + '18', padding: '2px 8px', borderRadius: 'var(--radius-pill)',
                         }}>{badge.label}</span>
                         <ChevronRight size={18} className="text-muted" />
                       </div>
