@@ -66,7 +66,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { rowCount } = await sql`
       UPDATE profiles
          SET pin_hash        = ${pin_hash},
-             pin_set_at      = COALESCE(pin_set_at, NOW()),
              failed_attempts = 0,
              locked_until    = NULL,
              token_version   = token_version + 1,

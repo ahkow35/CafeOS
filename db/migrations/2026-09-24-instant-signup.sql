@@ -76,4 +76,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pin_set_tokens_token_hash
 CREATE INDEX IF NOT EXISTS idx_pin_set_tokens_user
     ON public.pin_set_tokens(user_id);
 
+-- Any change to a profile's PIN marks it as having held a real PIN. The setup
+-- link above only works while profiles.pin_set_at IS NULL, so every route that
+-- writes pin_hash (forgot-PIN, change-PIN, admin reset, café approval) must
+-- leave pin_set_at stamped — enforced here rather than remembered per route.
+CREATE OR REPLACE FUNCTION public.stamp_pin_set_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.pin_hash IS DISTINCT FROM OLD.pin_hash AND NEW.pin_set_at IS NULL THEN
+        NEW.pin_set_at = NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS profiles_stamp_pin_set_at ON public.profiles;
+CREATE TRIGGER profiles_stamp_pin_set_at
+    BEFORE UPDATE OF pin_hash ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.stamp_pin_set_at();
+
 COMMIT;

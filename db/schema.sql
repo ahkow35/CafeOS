@@ -386,6 +386,26 @@ CREATE TRIGGER profiles_updated_at
     BEFORE UPDATE ON public.profiles
     FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
+-- Any change to a profile's PIN marks it as having held a real PIN. A profile is
+-- INSERTed with a placeholder hash and pin_set_at NULL; every route that later
+-- writes pin_hash (first-PIN link, forgot-PIN, change-PIN, admin reset, café
+-- approval) is covered here, so the one-time setup link (which only works while
+-- pin_set_at IS NULL) can never overwrite a PIN set some other way.
+CREATE OR REPLACE FUNCTION public.stamp_pin_set_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.pin_hash IS DISTINCT FROM OLD.pin_hash AND NEW.pin_set_at IS NULL THEN
+        NEW.pin_set_at = NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS profiles_stamp_pin_set_at ON public.profiles;
+CREATE TRIGGER profiles_stamp_pin_set_at
+    BEFORE UPDATE OF pin_hash ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.stamp_pin_set_at();
+
 DROP TRIGGER IF EXISTS cafes_updated_at ON public.cafes;
 CREATE TRIGGER cafes_updated_at
     BEFORE UPDATE ON public.cafes

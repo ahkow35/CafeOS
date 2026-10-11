@@ -432,6 +432,25 @@ describe('instant signup sql', { skip }, () => {
     assert.equal((await profilePin(userId)).pin_hash, 'owner-hash');
   });
 
+  test('any PIN change stamps pin_set_at, so an unused setup link stops working (forgot-PIN, change-PIN, admin reset)', async () => {
+    const { userId, hashes } = await ownerWithTokens(1);
+    assert.equal((await profilePin(userId)).pin_set_at, null, 'INSERT with a placeholder must not stamp');
+
+    await q(`UPDATE profiles SET full_name = 'Renamed' WHERE id = $1`, [userId]);
+    assert.equal((await profilePin(userId)).pin_set_at, null, 'an unrelated update must not stamp');
+
+    // What the forgot-PIN / change-PIN / admin-reset routes do: write pin_hash only.
+    await q(`UPDATE profiles SET pin_hash = 'recovered-hash', token_version = token_version + 1 WHERE id = $1`, [userId]);
+    assert.notEqual((await profilePin(userId)).pin_set_at, null);
+
+    assert.equal(await withTx((db) => pinSetTokenIsLive(db, hashes[0])), true, 'the link itself is still unspent');
+    const outcome = await withTx((db) => setFirstPin(db, hashes[0], 'attacker-hash'));
+    assert.equal(outcome.ok, false);
+    const after1 = await profilePin(userId);
+    assert.equal(after1.pin_hash, 'recovered-hash');
+    assert.equal(Number(after1.token_version), 1, 'the refused attempt must not end the owner\'s session');
+  });
+
   test('two links submitted at the same moment set exactly one PIN, and neither errors', async () => {
     // Repeated: taking the token before the profile deadlocked only on some
     // interleavings, so a single race could pass by luck.

@@ -557,9 +557,9 @@ export async function pinSetTokenIsLive(db: Queryable, tokenHash: string): Promi
 /** Consumes the token and sets the profile's FIRST PIN — call inside a
  *  transaction. The profile UPDATE re-checks pin_set_at IS NULL, so a second
  *  outstanding link (the bot issues a fresh one on every /pin) can never
- *  overwrite a PIN that is already set — every route that sets a real PIN
- *  stamps pin_set_at. Every other outstanding link for the profile is spent
- *  either way.
+ *  overwrite a PIN that is already set — the profiles_stamp_pin_set_at trigger
+ *  stamps pin_set_at on ANY pin_hash change, whichever route made it. Every
+ *  other outstanding link for the profile is spent either way.
  *
  *  The profile row is locked BEFORE any token row is touched: two links for the
  *  same owner then queue on the profile, and the loser finds its token already
