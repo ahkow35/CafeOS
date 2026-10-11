@@ -30,8 +30,10 @@ import {
   insertPinSetToken,
   insertSignup,
   phoneHasProfile,
+  pinSetTokenIsLive,
   provisionPhase1,
   provisionPhase2,
+  setFirstPin,
   telegramAlreadyLinkedToProfile,
   type Queryable,
   type CreateTrialFn,
@@ -211,7 +213,7 @@ describe('instant signup sql', { skip }, () => {
   const stubTrial: CreateTrialFn = async ({ cafeId }) => ({
     customerId: `cus_${cafeId}`,
     subscriptionId: `sub_${cafeId}`,
-    trialEnd: new Date('2026-10-01T00:00:00Z'),
+    trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
   });
 
   test('provisionPhase1 then provisionPhase2 creates exactly one profile + cafe + membership', async () => {
@@ -328,6 +330,21 @@ describe('instant signup sql', { skip }, () => {
     assert.equal(phase2.reason, 'existing_profile');
   });
 
+  test('a phase-2 retry after the trial has ended is refused, and creates nothing', async () => {
+    const { id: signupId, phone, cafeId } = await seedSignup();
+    await q(`UPDATE cafe_signups SET status = 'verified', telegram_user_id = 560 WHERE id = $1`, [signupId]);
+    await withTx((db) => provisionPhase1(db, signupId, { createTrial: stubTrial }));
+    // Phase 2 never ran (it failed, or the owner walked away) and the trial has since ended.
+    await q(`UPDATE cafe_signups SET trial_ends_at = NOW() - INTERVAL '1 minute' WHERE id = $1`, [signupId]);
+
+    const phase2 = await withTx((db) => provisionPhase2(db, signupId, '560', { placeholderPinHash: 'placeholder-hash' }));
+    assert.equal(phase2.ok, false);
+    if (phase2.ok) return;
+    assert.equal(phase2.reason, 'trial_lapsed');
+    assert.equal((await q(`SELECT 1 FROM profiles WHERE phone_e164 = $1`, [phone])).length, 0);
+    assert.equal((await q(`SELECT 1 FROM cafes WHERE id = $1`, [cafeId])).length, 0);
+  });
+
   // ─── PIN-set token ────────────────────────────────────────────────────────
 
   test('PIN-set token works once and rejects reuse', async () => {
@@ -356,29 +373,75 @@ describe('instant signup sql', { skip }, () => {
     assert.equal(outcome.ok, false);
   });
 
-  test('setting the PIN bumps pin_set_at and token_version (mirrors POST /api/start/set-pin)', async () => {
+  async function ownerWithTokens(count: number) {
     const owner = await q<{ id: string }>(
       `INSERT INTO profiles (phone_e164, full_name, pin_hash, pin_set_at, token_version) VALUES ($1, 'Owner', 'placeholder', NULL, 0) RETURNING id`,
       [freshPhone()],
     );
-    const userId = owner[0].id;
-    const token = generatePinSetToken();
-    await withTx((db) => insertPinSetToken(db, userId, hashPinSetToken(token)));
+    const hashes: string[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const hash = hashPinSetToken(generatePinSetToken());
+      await withTx((db) => insertPinSetToken(db, owner[0].id, hash));
+      hashes.push(hash);
+    }
+    return { userId: owner[0].id, hashes };
+  }
 
-    const consumed = await withTx((db) => consumePinSetToken(db, hashPinSetToken(token)));
-    assert.equal(consumed.ok, true);
-    if (!consumed.ok) return;
-
-    await q(
-      `UPDATE profiles SET pin_hash = 'real-hash', pin_set_at = NOW(), token_version = token_version + 1 WHERE id = $1`,
-      [consumed.userId],
+  async function profilePin(userId: string) {
+    const rows = await q<{ pin_hash: string; pin_set_at: string | null; token_version: number }>(
+      `SELECT pin_hash, pin_set_at, token_version FROM profiles WHERE id = $1`,
+      [userId],
     );
+    return rows[0];
+  }
 
-    const after1 = await q<{ pin_set_at: string | null; token_version: number }>(
-      `SELECT pin_set_at, token_version FROM profiles WHERE id = $1`,
-      [consumed.userId],
-    );
-    assert.notEqual(after1[0].pin_set_at, null);
-    assert.equal(Number(after1[0].token_version), 1);
+  test('setFirstPin sets the PIN, stamps pin_set_at and bumps token_version', async () => {
+    const { userId, hashes } = await ownerWithTokens(1);
+    assert.equal(await withTx((db) => pinSetTokenIsLive(db, hashes[0])), true);
+
+    const outcome = await withTx((db) => setFirstPin(db, hashes[0], 'real-hash'));
+    assert.deepEqual(outcome, { ok: true, userId });
+
+    const after1 = await profilePin(userId);
+    assert.equal(after1.pin_hash, 'real-hash');
+    assert.notEqual(after1.pin_set_at, null);
+    assert.equal(Number(after1.token_version), 1);
+    assert.equal(await withTx((db) => pinSetTokenIsLive(db, hashes[0])), false);
+  });
+
+  test('a second outstanding link cannot overwrite a PIN that is already set', async () => {
+    const { userId, hashes } = await ownerWithTokens(2);
+    const first = await withTx((db) => setFirstPin(db, hashes[1], 'owner-hash'));
+    assert.equal(first.ok, true);
+
+    assert.equal(await withTx((db) => pinSetTokenIsLive(db, hashes[0])), false, 'using one link spends the others');
+    const second = await withTx((db) => setFirstPin(db, hashes[0], 'attacker-hash'));
+    assert.equal(second.ok, false);
+
+    const after1 = await profilePin(userId);
+    assert.equal(after1.pin_hash, 'owner-hash');
+    assert.equal(Number(after1.token_version), 1, 'the refused attempt must not end the owner\'s session');
+  });
+
+  test('a still-live link is refused once the profile has a PIN (pin_set_at guard, not just token state)', async () => {
+    const { userId, hashes } = await ownerWithTokens(1);
+    await q(`UPDATE profiles SET pin_hash = 'owner-hash', pin_set_at = NOW() WHERE id = $1`, [userId]);
+
+    const outcome = await withTx((db) => setFirstPin(db, hashes[0], 'attacker-hash'));
+    assert.equal(outcome.ok, false);
+    assert.equal((await profilePin(userId)).pin_hash, 'owner-hash');
+  });
+
+  test('two links submitted at the same moment set exactly one PIN', async () => {
+    const { userId, hashes } = await ownerWithTokens(2);
+    const results = await Promise.all([
+      withTx((db) => setFirstPin(db, hashes[0], 'hash-a')),
+      withTx((db) => setFirstPin(db, hashes[1], 'hash-b')),
+    ]);
+    assert.equal(results.filter((r) => r.ok).length, 1);
+    const winner = results[0].ok ? 'hash-a' : 'hash-b';
+    const after1 = await profilePin(userId);
+    assert.equal(after1.pin_hash, winner);
+    assert.equal(Number(after1.token_version), 1);
   });
 });

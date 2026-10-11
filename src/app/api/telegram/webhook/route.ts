@@ -316,7 +316,9 @@ async function handleContactShare(
   if (!phase2.ok) {
     await sendTelegram(
       chatIdStr,
-      'This number now has an account already — sign in, or ask us to set you up.',
+      phase2.reason === 'trial_lapsed'
+        ? 'This signup has lapsed. Please ask us to set you up.'
+        : 'This number now has an account already — sign in, or ask us to set you up.',
       undefined,
       REMOVE_KEYBOARD,
     );

@@ -394,7 +394,7 @@ export interface ProvisionPhase2Deps {
 
 export type ProvisionPhase2Result =
   | { ok: true; userId: string; cafeId: string; cafeSlug: string; alreadyCompleted: boolean }
-  | { ok: false; reason: 'not_found' | 'existing_profile' };
+  | { ok: false; reason: 'not_found' | 'existing_profile' | 'trial_lapsed' };
 
 /** Phase 2 — call inside its OWN transaction, separate from phase 1 (spec:
  *  provisioning is Stripe-then-persist, THEN "one transaction" for the rest). Locks
@@ -419,9 +419,11 @@ export async function provisionPhase2(
     stripe_customer_id: string | null;
     stripe_subscription_id: string | null;
     trial_ends_at: string | null;
+    trial_lapsed: boolean;
   }>(
     `SELECT phone_e164, cafe_id, cafe_name, owner_name, status,
-            stripe_customer_id, stripe_subscription_id, trial_ends_at
+            stripe_customer_id, stripe_subscription_id, trial_ends_at,
+            (trial_ends_at IS NOT NULL AND trial_ends_at <= NOW()) AS trial_lapsed
        FROM cafe_signups WHERE id = $1 FOR UPDATE`,
     [signupId],
   );
@@ -439,6 +441,11 @@ export async function provisionPhase2(
     return { ok: false, reason: 'not_found' };
   }
   if (signup.status !== 'provisioned') return { ok: false, reason: 'not_found' };
+  // A retry that arrives after the trial ended would create the café as
+  // 'active'/'trialing' while Stripe has already paused the subscription — and
+  // the webhook for that pause found no café to update, so nothing would ever
+  // correct it. Refuse instead; the manual path sets these owners up.
+  if (signup.trial_lapsed) return { ok: false, reason: 'trial_lapsed' };
 
   await acquireAdvisoryLock(db, `signup-phone:${signup.phone_e164}`);
   if (await phoneHasProfile(db, signup.phone_e164)) return { ok: false, reason: 'existing_profile' };
@@ -534,6 +541,42 @@ export async function consumePinSetToken(db: Queryable, tokenHash: string): Prom
   );
   if (rows.length === 0) return { ok: false };
   return { ok: true, userId: rows[0].user_id };
+}
+
+/** True while the token is unused and unexpired. A cheap pre-check so the caller
+ *  can reject a bad token before paying for a bcrypt hash — it decides nothing:
+ *  setFirstPin below is what consumes the token, atomically. */
+export async function pinSetTokenIsLive(db: Queryable, tokenHash: string): Promise<boolean> {
+  const { rows } = await db.query(
+    'SELECT 1 FROM pin_set_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() LIMIT 1',
+    [tokenHash],
+  );
+  return rows.length > 0;
+}
+
+/** Consumes the token and sets the profile's FIRST PIN — call inside a
+ *  transaction. The profile UPDATE re-checks pin_set_at IS NULL, so a second
+ *  outstanding link (the bot issues a fresh one on every /pin) can never
+ *  overwrite a PIN that is already set: two links racing each other serialize on
+ *  the profile row and the loser matches nothing. Every other outstanding link
+ *  for the profile is spent either way. */
+export async function setFirstPin(
+  db: Queryable,
+  tokenHash: string,
+  pinHash: string,
+): Promise<ConsumePinSetTokenResult> {
+  const consumed = await consumePinSetToken(db, tokenHash);
+  if (!consumed.ok) return { ok: false };
+  const { rows } = await db.query<{ id: string }>(
+    `UPDATE profiles
+        SET pin_hash = $1, pin_set_at = NOW(), token_version = token_version + 1, updated_at = NOW()
+      WHERE id = $2 AND pin_set_at IS NULL
+      RETURNING id`,
+    [pinHash, consumed.userId],
+  );
+  await db.query('UPDATE pin_set_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [consumed.userId]);
+  if (rows.length === 0) return { ok: false };
+  return consumed;
 }
 
 export { ValidationError };
