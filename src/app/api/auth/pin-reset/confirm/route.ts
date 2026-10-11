@@ -80,6 +80,7 @@ export async function POST(req: Request): Promise<Response> {
       await client.query(
         `UPDATE profiles
             SET pin_hash = $1,
+                pin_set_at = COALESCE(pin_set_at, NOW()),
                 failed_attempts = 0,
                 locked_until = NULL,
                 token_version = token_version + 1,

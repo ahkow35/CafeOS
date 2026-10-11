@@ -432,16 +432,62 @@ describe('instant signup sql', { skip }, () => {
     assert.equal((await profilePin(userId)).pin_hash, 'owner-hash');
   });
 
-  test('two links submitted at the same moment set exactly one PIN', async () => {
+  test('two links submitted at the same moment set exactly one PIN, and neither errors', async () => {
+    // Repeated: taking the token before the profile deadlocked only on some
+    // interleavings, so a single race could pass by luck.
+    for (let round = 0; round < 25; round += 1) {
+      const { userId, hashes } = await ownerWithTokens(2);
+      const results = await Promise.all([
+        withTx((db) => setFirstPin(db, hashes[0], 'hash-a')),
+        withTx((db) => setFirstPin(db, hashes[1], 'hash-b')),
+      ]);
+      assert.equal(results.filter((r) => r.ok).length, 1);
+      const winner = results[0].ok ? 'hash-a' : 'hash-b';
+      const after1 = await profilePin(userId);
+      assert.equal(after1.pin_hash, winner);
+      assert.equal(Number(after1.token_version), 1);
+    }
+  });
+
+  test('a second link waits for the first to finish, then is refused (no deadlock)', async () => {
     const { userId, hashes } = await ownerWithTokens(2);
-    const results = await Promise.all([
-      withTx((db) => setFirstPin(db, hashes[0], 'hash-a')),
-      withTx((db) => setFirstPin(db, hashes[1], 'hash-b')),
-    ]);
-    assert.equal(results.filter((r) => r.ok).length, 1);
-    const winner = results[0].ok ? 'hash-a' : 'hash-b';
+    const a = await pool!.connect();
+    const b = await pool!.connect();
+    try {
+      // A runs all of setFirstPin but does not commit: it now holds the profile
+      // row, its own token, and (via the "spend the others" UPDATE) B's token.
+      await a.query('BEGIN');
+      assert.equal((await setFirstPin(asQueryable(a), hashes[0], 'hash-a')).ok, true);
+
+      await b.query('BEGIN');
+      const bPid = (await b.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      let bSettled = false;
+      const bResult = setFirstPin(asQueryable(b), hashes[1], 'hash-b').finally(() => { bSettled = true; });
+
+      // Prove the two really met: B is parked on a row lock while A is open.
+      let waiting = false;
+      for (let i = 0; i < 50 && !waiting; i += 1) {
+        await new Promise((r) => setTimeout(r, 20));
+        const rows = await q<{ wait_event_type: string | null }>(
+          'SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1',
+          [bPid],
+        );
+        waiting = rows[0]?.wait_event_type === 'Lock';
+      }
+      assert.equal(waiting, true, 'B must be blocked on a lock while A is uncommitted');
+      assert.equal(bSettled, false);
+
+      await a.query('COMMIT');
+      assert.equal((await bResult).ok, false, 'once A commits, B finds its link spent');
+      await b.query('COMMIT');
+    } finally {
+      await a.query('ROLLBACK').catch(() => {});
+      await b.query('ROLLBACK').catch(() => {});
+      a.release();
+      b.release();
+    }
     const after1 = await profilePin(userId);
-    assert.equal(after1.pin_hash, winner);
+    assert.equal(after1.pin_hash, 'hash-a');
     assert.equal(Number(after1.token_version), 1);
   });
 });
