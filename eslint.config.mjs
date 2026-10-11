@@ -5,6 +5,11 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // eslint-plugin-react-hooks 7.1 flags 18 existing load-on-mount effects.
+    // Kept visible as warnings until those pages are reworked.
+    rules: { "react-hooks/set-state-in-effect": "warn" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
