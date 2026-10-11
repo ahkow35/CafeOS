@@ -106,7 +106,7 @@ export default function ClaimsPage() {
                         <h2 className="section-title"><History size={20} /><span>History</span></h2>
                         {fetchError ? (
                             <div className="empty-state">
-                                <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load claims</div>
+                                <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Failed to load claims</div>
                                 <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
                                 <button className="btn btn-primary" onClick={fetchClaims}>Try again</button>
                             </div>

@@ -111,7 +111,7 @@ export default function TasksPage() {
 
                     {fetchError ? (
                         <div className="empty-state animate-in">
-                            <div className="empty-state-title" style={{ color: '#ef4444' }}>Failed to load tasks</div>
+                            <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Failed to load tasks</div>
                             <p style={{ marginBottom: '1rem' }}>{fetchError}</p>
                             <button className="btn btn-primary" onClick={fetchTasks}>Try again</button>
                         </div>

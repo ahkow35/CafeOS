@@ -129,7 +129,7 @@ export default function AdminPage() {
                                 <span>Command Center</span>
                             </h2>
 
-                            <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none', border: '2px solid var(--color-primary)' }}>
+                            <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none', border: 'var(--border-width) solid var(--color-primary)' }}>
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon">
                                         <ClipboardList size={28} />

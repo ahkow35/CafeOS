@@ -52,6 +52,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
+  const [approvedMessage, setApprovedMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -105,7 +106,11 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
   const handleApprove = async () => {
     const data = await post(`/api/super/cafes/${id}/approve`);
     if (data) {
-      setApprovedPin(String(data.pin));
+      if (data.pin) {
+        setApprovedPin(String(data.pin));
+      } else {
+        setApprovedMessage(String(data.message ?? 'Owner already has an account — they sign in with their existing PIN.'));
+      }
       setCafe((c) => c ? { ...c, status: 'active' } : c);
     }
   };
@@ -131,10 +136,10 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
         <Link href="/super" style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>← Back to cafes</Link>
       </div>
 
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+      <div style={{ background: 'var(--color-surface)', border: 'var(--border-width-thin) solid var(--color-border)', borderRadius: 'var(--radius-12)', padding: '20px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: 700 }}>{cafe.name}</h1>
+            <h1 style={{ fontSize: '20px', fontWeight: 'var(--font-weight-heading)' }}>{cafe.name}</h1>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
               /{cafe.slug} · Status: <b>{cafe.status}</b>
             </div>
@@ -151,7 +156,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
                 </button>
                 <button
                   className="btn"
-                  style={{ background: 'var(--color-error)', color: '#fff' }}
+                  style={{ background: 'var(--color-error)', color: 'var(--color-white)' }}
                   onClick={handleReject}
                   disabled={busy}
                 >
@@ -162,7 +167,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
             {cafe.status === 'active' && (
               <button
                 className="btn"
-                style={{ background: 'var(--color-error)', color: '#fff' }}
+                style={{ background: 'var(--color-error)', color: 'var(--color-white)' }}
                 onClick={handleSuspend}
                 disabled={busy}
               >
@@ -178,19 +183,26 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
         {actionError && <div className="form-error mb-md">{actionError}</div>}
 
         {approvedPin && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginTop: '12px' }}>
-            <p style={{ fontWeight: 600, marginBottom: '4px' }}>Cafe approved!</p>
-            <p style={{ fontSize: '13px', color: '#166534' }}>
-              Owner&apos;s one-time PIN: <code style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '0.1em' }}>{approvedPin}</code>
+          <div style={{ background: 'var(--color-status-success-bg-light)', border: 'var(--border-width-thin) solid var(--color-status-success-border)', borderRadius: 'var(--radius-8)', padding: '16px', marginTop: '12px' }}>
+            <p style={{ fontWeight: 'var(--font-weight-semibold)', marginBottom: '4px' }}>Cafe approved!</p>
+            <p style={{ fontSize: '13px', color: 'var(--color-status-success-text)' }}>
+              Owner&apos;s one-time PIN: <code style={{ fontSize: '18px', fontWeight: 'var(--font-weight-heading)', letterSpacing: 'var(--letter-spacing-heading)' }}>{approvedPin}</code>
             </p>
-            <p style={{ fontSize: '12px', color: '#166534', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-status-success-text)', marginTop: '4px' }}>
               Deliver this PIN to the owner via Telegram or phone. It will not be shown again.
             </p>
           </div>
         )}
+
+        {approvedMessage && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px', marginTop: '12px' }}>
+            <p style={{ fontWeight: 600, marginBottom: '4px' }}>Cafe approved!</p>
+            <p style={{ fontSize: '13px', color: '#166534' }}>{approvedMessage}</p>
+          </div>
+        )}
       </div>
 
-      <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+      <h2 style={{ fontSize: '14px', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: '12px' }}>
         Members ({members.length})
       </h2>
 
@@ -204,12 +216,12 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
               alignItems: 'center',
               padding: '12px 16px',
               background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '10px',
+              border: 'var(--border-width-thin) solid var(--color-border)',
+              borderRadius: 'var(--radius-10)',
             }}
           >
             <div>
-              <div style={{ fontWeight: 600 }}>{m.full_name}</div>
+              <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>{m.full_name}</div>
               <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                 {m.phone_e164} · {m.role} · membership: {m.status}
                 {!m.is_active && ' · profile inactive'}
@@ -232,8 +244,8 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
 
-      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px', marginTop: '24px' }}>
-        <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+      <div style={{ background: 'var(--color-surface)', border: 'var(--border-width-thin) solid var(--color-border)', borderRadius: 'var(--radius-12)', padding: '20px', marginTop: '24px' }}>
+        <h2 style={{ fontSize: '14px', fontWeight: 'var(--font-weight-semibold)', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: '12px' }}>
           Billing
         </h2>
         {cafe.stripe_customer_id ? (
@@ -242,15 +254,15 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
               <span style={{ color: 'var(--color-text-muted)' }}>Subscription status</span>
               <span style={{
                 padding: '2px 8px',
-                borderRadius: '9999px',
+                borderRadius: 'var(--radius-pill-lg)',
                 fontSize: '12px',
-                fontWeight: 600,
-                background: billingBadgeVariant(cafe.subscription_status) === 'success' ? '#dcfce7' :
-                            billingBadgeVariant(cafe.subscription_status) === 'warning' ? '#fef9c3' :
-                            billingBadgeVariant(cafe.subscription_status) === 'error' ? '#fee2e2' : '#f3f4f6',
-                color: billingBadgeVariant(cafe.subscription_status) === 'success' ? '#166534' :
-                       billingBadgeVariant(cafe.subscription_status) === 'warning' ? '#713f12' :
-                       billingBadgeVariant(cafe.subscription_status) === 'error' ? '#991b1b' : '#374151',
+                fontWeight: 'var(--font-weight-semibold)',
+                background: billingBadgeVariant(cafe.subscription_status) === 'success' ? 'var(--color-status-success-bg)' :
+                            billingBadgeVariant(cafe.subscription_status) === 'warning' ? 'var(--color-status-warning-bg-light)' :
+                            billingBadgeVariant(cafe.subscription_status) === 'error' ? 'var(--color-status-danger-bg)' : 'var(--color-concrete)',
+                color: billingBadgeVariant(cafe.subscription_status) === 'success' ? 'var(--color-status-success-text)' :
+                       billingBadgeVariant(cafe.subscription_status) === 'warning' ? 'var(--color-status-warning-text)' :
+                       billingBadgeVariant(cafe.subscription_status) === 'error' ? 'var(--color-status-danger-deep)' : 'var(--color-status-neutral-text)',
               }}>
                 {cafe.subscription_status ?? 'unknown'}
               </span>

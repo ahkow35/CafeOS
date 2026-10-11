@@ -44,8 +44,8 @@ export default function TelegramLinkButton({ isLinked = false }: { isLinked?: bo
           </p>
           <code
             style={{
-              display: 'inline-block', padding: '8px 12px', borderRadius: '8px',
-              background: 'var(--color-surface, #f3f4f6)', fontSize: '16px', fontWeight: 700, letterSpacing: '1px',
+              display: 'inline-block', padding: '8px 12px', borderRadius: 'var(--radius-8)',
+              background: 'var(--color-surface, #f3f4f6)', fontSize: '16px', fontWeight: 'var(--font-weight-heading)', letterSpacing: 'var(--letter-spacing-tight)',
             }}
           >
             /link {code}
@@ -66,7 +66,7 @@ export default function TelegramLinkButton({ isLinked = false }: { isLinked?: bo
           </button>
         </>
       )}
-      {error && <p style={{ fontSize: '13px', color: '#ef4444', marginTop: '8px' }}>{error}</p>}
+      {error && <p style={{ fontSize: '13px', color: 'var(--color-status-danger)', marginTop: '8px' }}>{error}</p>}
     </div>
   );
 }

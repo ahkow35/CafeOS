@@ -28,7 +28,7 @@ export default function NotFound() {
                     fontFamily: 'var(--font-heading)',
                     fontSize: '2rem',
                     marginBottom: 'var(--space-sm)',
-                    letterSpacing: '0.05em'
+                    letterSpacing: 'var(--letter-spacing-label)'
                 }}>
                     PAGE NOT FOUND
                 </h1>

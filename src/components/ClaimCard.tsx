@@ -63,16 +63,16 @@ export default function ClaimCard({ claim, userName, onCancel, onDelete }: Claim
                 </div>
             )}
 
-            <div className="leave-request-details" style={{ marginTop: '1rem', padding: '1rem', border: '2px solid black' }}>
+            <div className="leave-request-details" style={{ marginTop: '1rem', padding: '1rem', border: 'var(--border-strong)' }}>
                 {claim.description && (
                     <div className="mb-sm">
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 'bold' }}>Description</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)' }}>Description</div>
                         <div>{claim.description}</div>
                     </div>
                 )}
                 {claim.decision_note && (
                     <div className="mb-sm">
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 'bold' }}>Owner note</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)' }}>Owner note</div>
                         <div>{claim.decision_note}</div>
                     </div>
                 )}

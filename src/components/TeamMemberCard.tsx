@@ -36,9 +36,9 @@ function HourlyRateField({
 
     if (!editing) {
         return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#374151' }}>
-                <span style={{ color: '#6b7280' }}>Hourly Rate:</span>
-                <span style={{ fontWeight: 600 }}>{currentRate ? `S$${currentRate}/hr` : 'Not set'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--color-status-neutral-text)' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Hourly Rate:</span>
+                <span style={{ fontWeight: 'var(--font-weight-semibold)' }}>{currentRate ? `S$${currentRate}/hr` : 'Not set'}</span>
                 <button
                     onClick={() => { setValue(currentRate?.toString() ?? ''); setEditing(true); }}
                     disabled={disabled}
@@ -52,7 +52,7 @@ function HourlyRateField({
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>S$</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>S$</span>
             <input
                 type="number"
                 value={value}
@@ -60,10 +60,10 @@ function HourlyRateField({
                 min="0"
                 step="0.50"
                 placeholder="e.g. 10"
-                style={{ width: 80, border: '1px solid #e5e7eb', borderRadius: 6, padding: '0.3rem 0.5rem', fontSize: '0.9rem' }}
+                style={{ width: 80, border: 'var(--border-width-thin) solid var(--color-border-subtle)', borderRadius: 'var(--radius-6)', padding: '0.3rem 0.5rem', fontSize: '0.9rem' }}
                 autoFocus
             />
-            <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>/hr</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>/hr</span>
             <button onClick={save} className="btn btn-sm btn-primary" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}>Save</button>
             <button onClick={() => setEditing(false)} className="btn btn-sm btn-outline" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}>Cancel</button>
         </div>
@@ -90,11 +90,11 @@ export default function TeamMemberCard({
             style={{
                 padding: '1rem',
                 opacity: isDisabled ? 0.6 : 1,
-                backgroundColor: isDisabled ? '#fee2e2' : undefined,
+                backgroundColor: isDisabled ? 'var(--color-status-danger-bg)' : undefined,
             }}
         >
             <div style={{ marginBottom: '0.75rem' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                <div style={{ fontWeight: 'var(--font-weight-bold)', marginBottom: '0.25rem' }}>
                     {member.full_name || 'Unknown'}
                     {isMe && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--color-primary)' }}>(You)</span>}
                 </div>
@@ -103,18 +103,18 @@ export default function TeamMemberCard({
 
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                 {isDisabled ? (
-                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', backgroundColor: '#fee2e2', color: '#dc2626' }}>DISABLED</span>
+                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-danger-bg)', color: 'var(--color-status-danger-strong)' }}>DISABLED</span>
                 ) : (
-                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', backgroundColor: '#dcfce7', color: '#16a34a' }}>ACTIVE</span>
+                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-success-bg)', color: 'var(--color-status-success)' }}>ACTIVE</span>
                 )}
                 <span style={{
                     padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
+                    borderRadius: 'var(--radius-4)',
                     fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    backgroundColor: member.role === 'owner' ? '#fef3c7' : member.role === 'manager' ? '#f3e8ff' : member.role === 'part_timer' ? '#e0f2fe' : '#dcfce7',
-                    color: member.role === 'owner' ? '#b45309' : member.role === 'manager' ? '#7e22ce' : member.role === 'part_timer' ? '#0369a1' : '#15803d',
+                    fontWeight: 'var(--font-weight-bold)',
+                    textTransform: 'var(--text-transform-heading)',
+                    backgroundColor: member.role === 'owner' ? 'var(--color-status-warning-bg-alt)' : member.role === 'manager' ? 'var(--color-accent-purple-bg-light)' : member.role === 'part_timer' ? 'var(--color-accent-blue-bg)' : 'var(--color-status-success-bg)',
+                    color: member.role === 'owner' ? 'var(--color-status-warning-deep)' : member.role === 'manager' ? 'var(--color-accent-purple-strong)' : member.role === 'part_timer' ? 'var(--color-accent-blue)' : 'var(--color-status-success-strong)',
                 }}>
                     {member.role === 'part_timer' ? 'Part-timer' : member.role}
                 </span>
@@ -178,7 +178,7 @@ export default function TeamMemberCard({
                             <button
                                 onClick={() => onDelete(member.id, member.full_name)}
                                 className="btn btn-sm"
-                                style={{ flex: 1, fontSize: '0.8rem', backgroundColor: '#ef4444', color: 'white' }}
+                                style={{ flex: 1, fontSize: '0.8rem', backgroundColor: 'var(--color-status-danger)', color: 'var(--color-white)' }}
                                 disabled={!!updating}
                             >
                                 <Trash2 size={14} style={{ marginRight: '4px' }} />
