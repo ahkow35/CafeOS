@@ -86,7 +86,7 @@ export default function AdminPage() {
                 <div className="container">
                     <section className="page-header animate-in">
                         <h1 className="page-title">{isOwner ? 'Owner' : 'Manager'} Dashboard</h1>
-                        <p className="page-subtitle">Manage your cafe operations</p>
+                        <p className="page-subtitle">Manage your café operations</p>
                     </section>
 
                     {/* Quick Stats */}
@@ -126,7 +126,7 @@ export default function AdminPage() {
                         <section className="section animate-in">
                             <h2 className="section-title">
                                 <span style={{ fontSize: '1.5rem' }}>⚡</span>
-                                <span>Command Center</span>
+                                <span>Owner tools</span>
                             </h2>
 
                             <Link href={`${base}/admin/leave`} className="card mb-md" style={{ display: 'block', textDecoration: 'none', border: 'var(--border-width) solid var(--color-primary)' }}>
@@ -135,8 +135,8 @@ export default function AdminPage() {
                                         <ClipboardList size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">DECISION DESK</div>
-                                        <div className="card-subtitle">Approve/Reject Pending Requests</div>
+                                        <div className="card-title">Approvals</div>
+                                        <div className="card-subtitle">Approve or decline requests</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
                                 </div>
@@ -146,7 +146,7 @@ export default function AdminPage() {
                                 <div className="flex items-center gap-md">
                                     <div className="stat-icon"><Receipt size={28} /></div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">MEDICAL CLAIMS</div>
+                                        <div className="card-title">Medical claims</div>
                                         <div className="card-subtitle">
                                             {stats.pendingClaims > 0 ? `${stats.pendingClaims} awaiting your decision` : 'Approve receipts against staff caps'}
                                         </div>
@@ -161,7 +161,7 @@ export default function AdminPage() {
                                         <Users size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">STAFF MANAGEMENT</div>
+                                        <div className="card-title">Manage staff</div>
                                         <div className="card-subtitle">Roles, balances & hourly rates</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
@@ -174,8 +174,8 @@ export default function AdminPage() {
                                         <CheckSquare size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">ARCHIVE</div>
-                                        <div className="card-subtitle">Read-Only History</div>
+                                        <div className="card-title">Leave history</div>
+                                        <div className="card-subtitle">Read-only history</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
                                 </div>
@@ -187,7 +187,7 @@ export default function AdminPage() {
                                         <Clock size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">TIMESHEETS</div>
+                                        <div className="card-title">Timesheets</div>
                                         <div className="card-subtitle">Part-timer timesheet approval</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
@@ -200,7 +200,7 @@ export default function AdminPage() {
                                         <CreditCard size={28} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <div className="card-title">BILLING</div>
+                                        <div className="card-title">Billing</div>
                                         <div className="card-subtitle">Manage subscription & payment</div>
                                     </div>
                                     <ChevronRight size={20} className="text-muted" />
@@ -235,7 +235,7 @@ export default function AdminPage() {
                                     <div className="flex items-center gap-md">
                                         <div className="stat-icon"><Receipt size={28} /></div>
                                         <div style={{ flex: 1 }}>
-                                            <div className="card-title">MEDICAL CLAIMS</div>
+                                            <div className="card-title">Medical claims</div>
                                             <div className="card-subtitle">View pending claims (owner approves)</div>
                                         </div>
                                         <ChevronRight size={20} className="text-muted" />
@@ -278,7 +278,7 @@ export default function AdminPage() {
                                             <Calendar size={28} />
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            <div className="card-title">Leave Archive</div>
+                                            <div className="card-title">Leave history</div>
                                             <div className="card-subtitle">View leave history records</div>
                                         </div>
                                         <ChevronRight size={20} className="text-muted" />

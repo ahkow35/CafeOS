@@ -16,7 +16,7 @@ interface ClaimCardProps {
 const STATUS: Record<MedicalClaim['status'], { label: string; className: string }> = {
     pending: { label: 'Awaiting Owner', className: 'badge-warning' },
     approved: { label: 'Approved', className: 'badge-success' },
-    rejected: { label: 'Rejected', className: 'badge-danger' },
+    rejected: { label: 'Declined', className: 'badge-danger' },
 };
 
 export default function ClaimCard({ claim, userName, onCancel, onDelete }: ClaimCardProps) {

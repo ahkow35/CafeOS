@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Coffee } from 'lucide-react';
+import Image from 'next/image';
 
 export default function StartPage() {
   const [cafeName, setCafeName] = useState('');
@@ -56,12 +56,12 @@ export default function StartPage() {
   return (
     <div className="auth-page">
       <div className="auth-card animate-in">
-        <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
-        <p className="auth-subtitle">Apply for access for your cafe.</p>
+        <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS</h1>
+        <p className="auth-subtitle">Apply for access for your café.</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="cafeName" className="form-label">Cafe name</label>
+            <label htmlFor="cafeName" className="form-label">Café name</label>
             <input
               id="cafeName"
               type="text"

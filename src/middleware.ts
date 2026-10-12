@@ -70,6 +70,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === '/manifest.json' ||
     pathname === '/favicon.ico' ||
+    pathname === '/logo.svg' ||
     PUBLIC_PATHS.has(pathname) ||
     PUBLIC_PREFIX.some((p) => pathname.startsWith(p))
   ) {
@@ -127,5 +128,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|logo.svg).*)'],
 };

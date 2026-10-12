@@ -103,9 +103,9 @@ export default function TeamMemberCard({
 
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                 {isDisabled ? (
-                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-danger-bg)', color: 'var(--color-status-danger-strong)' }}>DISABLED</span>
+                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-danger-bg)', color: 'var(--color-status-danger-strong)' }}>Disabled</span>
                 ) : (
-                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-success-bg)', color: 'var(--color-status-success)' }}>ACTIVE</span>
+                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-4)', fontSize: '0.75rem', fontWeight: 'var(--font-weight-bold)', textTransform: 'var(--text-transform-heading)', backgroundColor: 'var(--color-status-success-bg)', color: 'var(--color-status-success)' }}>Active</span>
                 )}
                 <span style={{
                     padding: '0.25rem 0.5rem',
