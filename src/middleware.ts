@@ -3,7 +3,6 @@ import { jwtVerify } from 'jose';
 
 // Paths that never require a session.
 const PUBLIC_PATHS = new Set([
-  '/',
   '/login',
   '/login/reset',
   '/login/select',
@@ -78,6 +77,15 @@ export async function middleware(request: NextRequest) {
   }
 
   const claims = await verify(request.cookies.get(SESSION_COOKIE)?.value);
+
+  // ── '/' — marketing homepage when signed out; signed-in users go straight
+  // to their café, decided here (no client-side flash of the marketing page).
+  if (pathname === '/') {
+    if (!claims) return NextResponse.next();
+    if (claims.cafe_slug) return redirect(request, `/c/${claims.cafe_slug}/`);
+    if (claims.is_super_admin) return redirect(request, '/super');
+    return NextResponse.next();
+  }
 
   // Not authenticated.
   if (!claims) {
