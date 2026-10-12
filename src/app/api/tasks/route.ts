@@ -84,13 +84,15 @@ export async function GET(req: Request) {
                WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to <> 'all'
                  AND t.status = 'done' AND t.completed_at >= NOW() - INTERVAL '7 days'
               UNION ALL
-              SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.deadline, t.assigned_to,
-                     'done'::text AS status, t.created_by, tc.user_id AS completed_by,
-                     tc.completed_at, t.created_at
-                FROM task_completions tc JOIN tasks t ON t.id = tc.task_id
-               WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to = 'all'
-                 AND tc.completed_at >= NOW() - INTERVAL '7 days'
-               ORDER BY t.id, tc.completed_at DESC
+              -- Parenthesised: a bare ORDER BY here would bind to the whole UNION,
+              -- where the alias "t" does not exist.
+              (SELECT DISTINCT ON (t.id) t.id, t.title, t.description, t.deadline, t.assigned_to,
+                      'done'::text AS status, t.created_by, tc.user_id AS completed_by,
+                      tc.completed_at, t.created_at
+                 FROM task_completions tc JOIN tasks t ON t.id = tc.task_id
+                WHERE t.cafe_id = ${ctx.cafeId} AND t.assigned_to = 'all'
+                  AND tc.completed_at >= NOW() - INTERVAL '7 days'
+                ORDER BY t.id, tc.completed_at DESC)
             ) x ORDER BY completed_at DESC LIMIT 10
           `
         : await sql<TaskRow>`
