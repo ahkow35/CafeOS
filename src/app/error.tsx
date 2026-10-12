@@ -42,7 +42,7 @@ export default function Error({
                     marginBottom: 'var(--space-sm)',
                     letterSpacing: 'var(--letter-spacing-label)'
                 }}>
-                    SOMETHING WENT WRONG
+                    Something went wrong
                 </h1>
 
                 <p style={{

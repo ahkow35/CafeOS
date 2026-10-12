@@ -25,11 +25,11 @@ async function jsonOrError(res: Response): Promise<unknown> {
 // cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
 function statusBadge(status: Timesheet['status']): { label: string; color: string } {
   switch (status) {
-    case 'draft': return { label: 'Draft', color: '#6b7280' };
-    case 'submitted': return { label: 'Awaiting Manager', color: '#d97706' };
-    case 'pending_owner': return { label: 'Awaiting Owner', color: '#7c3aed' };
-    case 'approved': return { label: 'Approved', color: '#16a34a' };
-    case 'rejected': return { label: 'Rejected', color: '#dc2626' };
+    case 'draft': return { label: 'Draft', color: '#6a6a66' };
+    case 'submitted': return { label: 'Awaiting Manager', color: '#b45309' };
+    case 'pending_owner': return { label: 'Awaiting Owner', color: '#6d28d9' };
+    case 'approved': return { label: 'Approved', color: '#15803d' };
+    case 'rejected': return { label: 'Declined', color: '#b91c1c' };
   }
 }
 
@@ -125,7 +125,7 @@ export default function TimesheetPage() {
                           <div className="card-title">{formatMonthYear(ts.month_year)}</div>
                           {ts.rejection_reason && (
                             <div style={{ fontSize: '0.8rem', color: 'var(--color-status-danger-strong)', marginTop: 2 }}>
-                              Rejected: {ts.rejection_reason}
+                              Declined: {ts.rejection_reason}
                             </div>
                           )}
                         </div>

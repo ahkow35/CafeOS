@@ -1,233 +1,167 @@
-'use client';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import Image from 'next/image';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+export const metadata: Metadata = {
+  title: 'CafeOS — staff leave, timesheets and claims for cafés',
+  description:
+    "Run your café's staff admin from your phone: leave, medical claims, part-timer timesheets and daily checklists in one place, with approvals sent straight to Telegram.",
+  openGraph: {
+    title: 'CafeOS — staff leave, timesheets and claims for cafés',
+    description:
+      "Run your café's staff admin from your phone: leave, medical claims, part-timer timesheets and daily checklists in one place, with approvals sent straight to Telegram.",
+  },
+};
 
-import { Task } from '@/lib/database.types';
-import Header from '@/components/Header';
-import BottomNav from '@/components/BottomNav';
-import TaskCard from '@/components/TaskCard';
-import LeaveBalanceCard from '@/components/LeaveBalanceCard';
-import PendingApprovalsWidget from '@/components/PendingApprovalsWidget';
-import { Palmtree, ClipboardList, Settings, Plus } from 'lucide-react';
+const FEATURES = [
+  {
+    title: 'Leave',
+    body: 'Staff apply for annual or medical leave. A manager reviews first, then the owner gives the final approval.',
+  },
+  {
+    title: 'Medical claims',
+    body: 'Staff submit a claim with a photo of the receipt. You set a yearly cap per person and approve with one tap.',
+  },
+  {
+    title: 'Timesheets',
+    body: 'Part-timers log their hours and sign off each month. Export a sheet ready for payroll.',
+  },
+  {
+    title: 'Staff tasks',
+    body: 'Opening and closing checklists, assigned to one person or everyone, ticked off during the shift.',
+  },
+];
 
-async function jsonOrError(res: Response): Promise<unknown> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const msg = (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string')
-      ? (body as { error: string }).error
-      : `Request failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
+const STAFF_POINTS = [
+  {
+    title: 'Mobile number and PIN',
+    body: 'No email address or password to remember.',
+  },
+  {
+    title: 'Works in the browser',
+    body: 'Add it to the home screen like an app — nothing to download from a store.',
+  },
+  {
+    title: 'One login, several cafés',
+    body: 'Staff who work at more than one of your cafés use the same account and pick which one to open.',
+  },
+];
+
+const OWNER_POINTS = [
+  {
+    title: 'Two-step approvals',
+    body: 'A manager reviews a request first, then the owner gives the final approval.',
+  },
+  {
+    title: 'Everything on record',
+    body: 'Every request and decision is kept, with who approved it and when.',
+  },
+  {
+    title: 'Telegram alerts',
+    body: 'Get a message the moment a request needs your approval.',
+  },
+];
 
 export default function HomePage() {
-  const router = useRouter();
-  const { user, profile, loading: authLoading, profileLoading } = useAuth();
-
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [slowLoad, setSlowLoad] = useState(false);
-
-  // Show retry prompt if loading takes more than 5s
-  useEffect(() => {
-    if (!authLoading && !profileLoading) { setSlowLoad(false); return; }
-    const t = setTimeout(() => setSlowLoad(true), 5000);
-    return () => clearTimeout(t);
-  }, [authLoading, profileLoading]);
-
-  const loadDashboardData = useCallback(async () => {
-    try {
-      setDataLoading(true);
-      const data = await jsonOrError(await fetch('/api/tasks?scope=mine')) as { tasks: Task[] };
-      const all = data.tasks ?? [];
-      const cutoff = new Date();
-      cutoff.setHours(23, 59, 59, 999);
-      const cutoffMs = cutoff.getTime();
-      const due = all
-        .filter(t => t.status === 'pending' && new Date(t.deadline).getTime() <= cutoffMs)
-        .slice(0, 5);
-      setTasks(due);
-    } catch (error) {
-      console.error('Dashboard load error', error);
-    } finally {
-      setDataLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (authLoading || profileLoading) return;
-
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
-    loadDashboardData();
-  }, [user, authLoading, profileLoading, router, loadDashboardData]);
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const getFirstName = () => {
-    return profile?.full_name?.split(' ')[0] || 'there';
-  };
-
-  if (authLoading || profileLoading || dataLoading) {
-    return (
-      <>
-        <Header />
-        <main className="page">
-          <div className="container">
-            <section className="section">
-              <div className="skeleton" style={{ height: 28, width: '60%', marginBottom: 8 }} />
-              <div className="skeleton" style={{ height: 16, width: '40%' }} />
-            </section>
-            <section className="section">
-              <div className="skeleton" style={{ height: 20, width: '30%', marginBottom: 12 }} />
-              <div className="skeleton" style={{ height: 80, borderRadius: 'var(--radius-8)' }} />
-            </section>
-            <section className="section">
-              <div className="skeleton" style={{ height: 20, width: '35%', marginBottom: 12 }} />
-              <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)', marginBottom: 8 }} />
-              <div className="skeleton" style={{ height: 64, borderRadius: 'var(--radius-8)' }} />
-            </section>
-            {slowLoad && (
-              <section className="section" style={{ textAlign: 'center', paddingTop: '0.5rem' }}>
-                <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
-                  Taking longer than usual...
-                </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="btn btn-outline"
-                  style={{ fontSize: '0.875rem' }}
-                >
-                  Tap to retry
-                </button>
-              </section>
-            )}
-          </div>
-        </main>
-        <BottomNav />
-      </>
-    );
-  }
-
-  if (!authLoading && !profileLoading && !profile) {
-    return (
-      <div className="empty-state animate-in" style={{ padding: '2rem', textAlign: 'center' }}>
-        <div className="empty-state-title" style={{ color: 'var(--color-status-danger)' }}>Profile Not Found</div>
-        <p>Your user account exists, but your profile data is missing.</p>
-        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-subtle)', marginTop: '0.5rem' }}>
-          Try signing out and signing back in. If the problem persists, contact an administrator.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn btn-outline"
-          style={{ marginTop: '1rem' }}
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-  if (!profile) return null;
-
   return (
     <>
-      <Header />
-      <main className="page">
-        <div className="container">
-          <section className="section animate-in">
-            <h1 className="page-title">{getGreeting()}, {getFirstName()}!</h1>
-            <p className="page-subtitle">Welcome to your dashboard — {new Date().toLocaleDateString()}</p>
-          </section>
-
-          {profile.role !== 'part_timer' && (
-            <section className="section animate-in">
-              <h2 className="section-title">
-                <Palmtree size={20} />
-                <span>Leave Balance</span>
-              </h2>
-              <LeaveBalanceCard
-                annualBalance={profile.annual_leave_balance}
-                medicalBalance={profile.medical_leave_balance}
-              />
-            </section>
-          )}
-
-          <section className="section animate-in">
-            <h2 className="section-title">
-              <ClipboardList size={20} />
-              <span>Today&apos;s Priorities</span>
-            </h2>
-
-            {tasks.length > 0 ? (
-              <>
-                {tasks.map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onComplete={loadDashboardData}
-                  />
-                ))}
-              </>
-            ) : (
-              <div className="empty-state">
-                <div className="empty-state-title">No tasks due today</div>
-              </div>
-            )}
-          </section>
-
-          {(profile.role === 'manager' || profile.role === 'owner') && (
-            <>
-              <section className="section animate-in">
-                <h2 className="section-title">
-                  <Settings size={20} />
-                  <span>Pending Approvals</span>
-                </h2>
-                <PendingApprovalsWidget userRole={profile.role as 'manager' | 'owner'} />
-              </section>
-
-              <section className="section animate-in">
-                <h2 className="section-title">
-                  <Settings size={20} />
-                  <span>Admin Quick Actions</span>
-                </h2>
-                <div className="stats-grid">
-                  <button
-                    className="stat-card"
-                    onClick={() => router.push('/admin/leave')}
-                    style={{ cursor: 'pointer', textAlign: 'center' }}
-                  >
-                    <div className="stat-icon">
-                      <ClipboardList size={24} />
-                    </div>
-                    <div className="stat-label">Review Leave</div>
-                  </button>
-                  <button
-                    className="stat-card"
-                    onClick={() => router.push('/admin/tasks')}
-                    style={{ cursor: 'pointer', textAlign: 'center' }}
-                  >
-                    <div className="stat-icon">
-                      <Plus size={24} />
-                    </div>
-                    <div className="stat-label">Create Task</div>
-                  </button>
-                </div>
-              </section>
-            </>
-          )}
+      <header className="home-nav">
+        <div className="home-in home-nav-row">
+          <div className="home-brand">
+            <Image src="/logo.svg" alt="" width={26} height={26} unoptimized />
+            <span>CafeOS</span>
+          </div>
+          <nav aria-label="Primary" className="home-nav-links">
+            <a href="#features">Features</a>
+            <a href="#staff">For staff</a>
+            <Link href="/login" className="btn btn-sm">Sign in</Link>
+            <Link href="/start" className="btn btn-primary btn-sm">Start free trial</Link>
+          </nav>
         </div>
+      </header>
+
+      <main>
+        <section className="home-hero">
+          <div className="home-in home-hero-row">
+            <div>
+              <span className="home-eyebrow">For cafés and small F&amp;B teams in Singapore</span>
+              <h1 className="home-h1">Run your café&apos;s staff admin from your phone.</h1>
+              <p className="home-lede">
+                Leave, medical claims, part-timer timesheets and daily checklists in one place.
+                Staff sign in with their mobile number and a PIN — no email, no app store.
+              </p>
+              <div className="home-ctas">
+                <Link href="/start" className="btn btn-primary btn-lg">Start free trial</Link>
+                <a href="#features" className="btn btn-lg">See what it does</a>
+              </div>
+              <p className="home-fine">Tell us about your café and we&apos;ll set you up.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="home-band">
+          <div className="home-in">
+            <h2 className="home-h2">Everything that used to live in a group chat</h2>
+            <p className="home-sub">Requests, approvals and records stay in one place, so nothing gets lost.</p>
+            <div className="home-feats">
+              {FEATURES.map((f) => (
+                <div key={f.title} className="home-feat">
+                  <h3>{f.title}</h3>
+                  <p>{f.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="staff" className="home-band">
+          <div className="home-in home-two">
+            <div>
+              <h2 className="home-h2">Easy for your staff</h2>
+              <ul className="home-list">
+                {STAFF_POINTS.map((p) => (
+                  <li key={p.title}>
+                    <span className="home-tick" aria-hidden="true">✓</span>
+                    <div><b>{p.title}</b><span>{p.body}</span></div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h2 className="home-h2">In control as the owner</h2>
+              <ul className="home-list">
+                {OWNER_POINTS.map((p) => (
+                  <li key={p.title}>
+                    <span className="home-tick" aria-hidden="true">✓</span>
+                    <div><b>{p.title}</b><span>{p.body}</span></div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="home-band">
+          <div className="home-in">
+            <div className="home-final">
+              <div>
+                <h2 className="home-h2">Try it with your team</h2>
+                <p>Tell us about your café and we&apos;ll set you up.</p>
+              </div>
+              <Link href="/start" className="btn btn-primary btn-lg">Start free trial</Link>
+            </div>
+          </div>
+        </section>
       </main>
-      <BottomNav />
+
+      <footer className="home-footer">
+        <div className="home-in home-footer-row">
+          <span>© 2026 CafeOS</span>
+          <span>
+            <Link href="/login">Sign in</Link> · <Link href="/start">Start free trial</Link>
+          </span>
+        </div>
+      </footer>
     </>
   );
 }

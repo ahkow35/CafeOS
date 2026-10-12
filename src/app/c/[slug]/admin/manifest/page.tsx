@@ -99,8 +99,8 @@ export default function StaffManifestPage() {
             <main className="page">
                 <div className="container">
                     <section className="page-header animate-in">
-                        <h1 className="page-title">LEAVE CONTROL</h1>
-                        <p className="page-subtitle">STRICT BALANCE CONTROL // EDIT MODE ACTIVE</p>
+                        <h1 className="page-title">Leave balances</h1>
+                        <p className="page-subtitle">Edit leave balances</p>
                     </section>
 
                     {loadingData ? (
@@ -118,10 +118,10 @@ export default function StaffManifestPage() {
                                 fontSize: '0.8rem',
                                 letterSpacing: 'var(--letter-spacing-label)'
                             }}>
-                                <div>PERSONNEL</div>
-                                <div style={{ textAlign: 'center' }}>ANNUAL</div>
-                                <div style={{ textAlign: 'center' }}>MEDICAL</div>
-                                <div style={{ textAlign: 'center' }}>SAVE</div>
+                                <div>Staff</div>
+                                <div style={{ textAlign: 'center' }}>Annual</div>
+                                <div style={{ textAlign: 'center' }}>Medical</div>
+                                <div style={{ textAlign: 'center' }}>Save</div>
                             </div>
 
                             {staff.map(member => {
@@ -219,7 +219,7 @@ export default function StaffManifestPage() {
                         onClick={() => router.push(`/c/${slug}/admin`)}
                     >
                         <ArrowLeft size={18} />
-                        <span>Back to Command Center</span>
+                        <span>Back to owner tools</span>
                     </button>
                 </div>
             </main>
