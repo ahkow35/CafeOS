@@ -84,14 +84,14 @@ export default function AdminArchivePage() {
                     alignItems: 'center',
                     gap: '4px',
                     padding: '4px 8px',
-                    borderRadius: '4px',
+                    borderRadius: 'var(--radius-4)',
                     fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                    backgroundColor: '#dcfce7',
-                    color: '#16a34a'
+                    fontWeight: 'var(--font-weight-bold)',
+                    backgroundColor: 'var(--color-status-success-bg)',
+                    color: 'var(--color-status-success)'
                 }}>
                     <CheckCircle size={12} />
-                    APPROVED
+                    Approved
                 </span>
             );
         }
@@ -101,14 +101,14 @@ export default function AdminArchivePage() {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '4px 8px',
-                borderRadius: '4px',
+                borderRadius: 'var(--radius-4)',
                 fontSize: '0.75rem',
-                fontWeight: 'bold',
-                backgroundColor: '#fee2e2',
-                color: '#dc2626'
+                fontWeight: 'var(--font-weight-bold)',
+                backgroundColor: 'var(--color-status-danger-bg)',
+                color: 'var(--color-status-danger-strong)'
             }}>
                 <XCircle size={12} />
-                REJECTED
+                Declined
             </span>
         );
     };
@@ -123,15 +123,15 @@ export default function AdminArchivePage() {
             <main className="page">
                 <div className="container">
                     <section className="page-header animate-in">
-                        <h1 className="page-title">LEAVE ARCHIVE</h1>
-                        <p className="page-subtitle">Historical Leave Records</p>
+                        <h1 className="page-title">Leave history</h1>
+                        <p className="page-subtitle">Historical leave records</p>
                     </section>
 
                     <div className="animate-in" style={{
                         display: 'flex',
                         gap: 'var(--space-sm)',
                         marginBottom: 'var(--space-md)',
-                        borderBottom: '2px solid var(--color-concrete)',
+                        borderBottom: 'var(--border-width) solid var(--color-concrete)',
                         paddingBottom: 'var(--space-sm)'
                     }}>
                         {(['all', 'approved', 'rejected'] as const).map(f => (
@@ -139,11 +139,11 @@ export default function AdminArchivePage() {
                                 key={f}
                                 onClick={() => setFilter(f)}
                                 className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-ghost'}`}
-                                style={{ textTransform: 'capitalize' }}
+                                style={{ textTransform: 'var(--text-transform-capitalize)' }}
                             >
                                 {f === 'all' ? `All (${leaves.length})` :
                                     f === 'approved' ? `Approved (${leaves.filter(l => l.status === 'approved').length})` :
-                                        `Rejected (${leaves.filter(l => l.status === 'rejected').length})`}
+                                        `Declined (${leaves.filter(l => l.status === 'rejected').length})`}
                             </button>
                         ))}
                     </div>
@@ -155,7 +155,7 @@ export default function AdminArchivePage() {
                             <div className="empty-state-icon">
                                 <Calendar size={48} />
                             </div>
-                            <div className="empty-state-title">No Records Found</div>
+                            <div className="empty-state-title">No records found</div>
                             <p>No {filter !== 'all' ? filter : ''} leave history yet.</p>
                         </div>
                     ) : (
@@ -170,7 +170,7 @@ export default function AdminArchivePage() {
                                         <div>
                                             <div className="card-title" style={{
                                                 fontFamily: 'var(--font-heading)',
-                                                textTransform: 'uppercase'
+                                                textTransform: 'var(--text-transform-heading)'
                                             }}>
                                                 {leave.profile?.full_name || 'Unknown User'}
                                             </div>
@@ -198,26 +198,26 @@ export default function AdminArchivePage() {
                                         display: 'grid',
                                         gridTemplateColumns: 'repeat(2, 1fr)',
                                         gap: 'var(--space-sm)',
-                                        borderTop: '1px solid var(--color-concrete)'
+                                        borderTop: 'var(--border-subtle)'
                                     }}>
                                         <div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)' }}>
                                                 Dates
                                             </div>
-                                            <div style={{ fontWeight: 'bold' }}>
+                                            <div style={{ fontWeight: 'var(--font-weight-bold)' }}>
                                                 {new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)' }}>
                                                 Days
                                             </div>
-                                            <div style={{ fontWeight: 'bold' }}>
+                                            <div style={{ fontWeight: 'var(--font-weight-bold)' }}>
                                                 {leave.days_requested} day{leave.days_requested !== 1 ? 's' : ''}
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)' }}>
                                                 Applied On
                                             </div>
                                             <div style={{ fontSize: '0.85rem' }}>
@@ -225,7 +225,7 @@ export default function AdminArchivePage() {
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'var(--text-transform-heading)' }}>
                                                 Decided On
                                             </div>
                                             <div style={{ fontSize: '0.85rem' }}>
@@ -241,7 +241,7 @@ export default function AdminArchivePage() {
                                     {leave.reason && (
                                         <div style={{
                                             padding: 'var(--space-sm) var(--space-md)',
-                                            borderTop: '1px solid var(--color-concrete)',
+                                            borderTop: 'var(--border-subtle)',
                                             fontSize: '0.85rem',
                                             color: 'var(--color-text-muted)'
                                         }}>

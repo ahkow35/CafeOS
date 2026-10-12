@@ -37,7 +37,7 @@ export default function LeaveRequestCard({
             case 'approved':
                 return { label: 'Approved', className: 'badge-success' };
             case 'rejected':
-                return { label: 'Rejected', className: 'badge-danger' };
+                return { label: 'Declined', className: 'badge-danger' };
             default:
                 return { label: status, className: 'badge-neutral' };
         }
@@ -104,10 +104,10 @@ export default function LeaveRequestCard({
 
             {/* Medical Leave Details */}
             {(request.reason || request.attachment_url) && (
-                <div className="leave-request-details" style={{ marginTop: '1rem', padding: '1rem', border: '2px solid black' }}>
+                <div className="leave-request-details" style={{ marginTop: '1rem', padding: '1rem', border: 'var(--border-strong)' }}>
                     {request.reason && (
                         <div className="mb-sm">
-                            <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 'bold' }}>Reason</div>
+                            <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)', fontWeight: 'var(--font-weight-bold)' }}>Reason</div>
                             <div>{request.reason}</div>
                         </div>
                     )}
@@ -138,7 +138,7 @@ export default function LeaveRequestCard({
                         onClick={onReject}
                     >
                         <X size={16} />
-                        <span>Reject</span>
+                        <span>Decline</span>
                     </button>
                 </div>
             )}

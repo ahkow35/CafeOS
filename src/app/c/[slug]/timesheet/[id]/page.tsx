@@ -11,7 +11,7 @@ import { ArrowLeft, Download, Send, Pencil, XCircle } from 'lucide-react';
 import { fmt12, computeHours, getDaysInMonth } from '@/lib/timeUtils';
 import TimesheetEntryRow, { RowState } from '@/components/TimesheetEntryRow';
 
-const SHORT_MONTH = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const SHORT_MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 async function jsonOrError<T = unknown>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -251,9 +251,9 @@ export default function TimesheetDetailPage() {
   const STATUS_META: Record<TimesheetStatus, { color: string; label: string }> = {
     draft:         { color: 'var(--color-gray)',         label: 'draft' },
     submitted:     { color: 'var(--color-orange)',       label: 'awaiting manager' },
-    pending_owner: { color: '#a78bfa',                   label: 'awaiting owner' },
+    pending_owner: { color: 'var(--color-accent-purple-light)',                   label: 'awaiting owner' },
     approved:      { color: 'var(--color-stali-green)',  label: 'approved' },
-    rejected:      { color: 'var(--color-rust)',         label: 'rejected' },
+    rejected:      { color: 'var(--color-rust)',         label: 'declined' },
   };
   const statusMeta = STATUS_META[timesheet.status];
 
@@ -270,19 +270,19 @@ export default function TimesheetDetailPage() {
             onClick={() => router.back()}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray)', marginBottom: 'var(--space-md)', padding: 0, fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)' }}
           >
-            <ArrowLeft size={16} /> BACK
+            <ArrowLeft size={16} /> Back
           </button>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xl)', color: 'var(--color-white)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>
+              <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xl)', color: 'var(--color-white)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-heading)', marginBottom: 2 }}>
                 {profile?.full_name ?? ''}
               </h1>
               <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
                 {monthLabel}
               </div>
               <div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)', marginBottom: 2 }}>
                   Total Hours
                 </div>
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-2xl)', color: 'var(--color-neon)', lineHeight: 1 }}>
@@ -293,7 +293,7 @@ export default function TimesheetDetailPage() {
 
             <span style={{
               fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
+              textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)',
               color: statusMeta.color,
               border: `1px solid ${statusMeta.color}`,
               padding: '3px 8px', whiteSpace: 'nowrap',
@@ -307,9 +307,9 @@ export default function TimesheetDetailPage() {
 
           {timesheet.status === 'rejected' && timesheet.rejection_reason && (
             <div className="section animate-in" style={{ marginTop: 'var(--space-lg)' }}>
-              <div style={{ background: 'var(--color-rust)', color: 'var(--color-white)', padding: 'var(--space-md)', borderLeft: '4px solid var(--color-black)' }}>
+              <div style={{ background: 'var(--color-rust)', color: 'var(--color-white)', padding: 'var(--space-md)', borderLeft: 'var(--border-width-accent) solid var(--color-black)' }}>
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-sm)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <XCircle size={14} /> REJECTED
+                  <XCircle size={14} /> Declined
                 </div>
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-white)' }}>{timesheet.rejection_reason}</p>
                 <button
@@ -319,16 +319,16 @@ export default function TimesheetDetailPage() {
                     marginTop: 'var(--space-sm)',
                     background: 'var(--color-white)',
                     color: 'var(--color-rust)',
-                    border: '2px solid var(--color-white)',
+                    border: 'var(--border-width) solid var(--color-white)',
                     padding: '6px 14px',
                     fontFamily: 'var(--font-heading)',
                     fontSize: 'var(--font-size-xs)',
-                    textTransform: 'uppercase' as const,
-                    letterSpacing: '0.05em',
+                    textTransform: 'var(--text-transform-heading)' as const,
+                    letterSpacing: 'var(--letter-spacing-label)',
                     cursor: 'pointer',
                   }}
                 >
-                  {reopening ? 'REOPENING...' : 'REOPEN TO EDIT'}
+                  {reopening ? 'Reopening...' : 'Reopen to edit'}
                 </button>
               </div>
             </div>
@@ -340,12 +340,12 @@ export default function TimesheetDetailPage() {
               display: 'grid',
               gridTemplateColumns: '44px 1fr 1fr 52px 44px 28px',
               gap: 4, paddingBottom: 6,
-              borderBottom: '2px solid var(--color-black)',
+              borderBottom: 'var(--border-strong)',
             }}>
-              {['DATE', 'IN', 'OUT', 'BRK', 'HRS', ''].map((col, i) => (
+              {['Date', 'In', 'Out', 'Brk', 'Hrs', ''].map((col, i) => (
                 <div key={i} style={{
                   fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)',
-                  color: 'var(--color-gray)', textTransform: 'uppercase', letterSpacing: '0.05em',
+                  color: 'var(--color-gray)', textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)',
                   textAlign: i >= 3 ? 'center' : 'left',
                 }}>{col}</div>
               ))}
@@ -375,7 +375,7 @@ export default function TimesheetDetailPage() {
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 <Download size={16} />
-                {exporting ? 'EXPORTING...' : 'DOWNLOAD TIMESHEET'}
+                {exporting ? 'Exporting...' : 'Download timesheet'}
               </button>
             </div>
           )}
@@ -385,7 +385,7 @@ export default function TimesheetDetailPage() {
       {isDraft && (
         <div style={{
           position: 'fixed', bottom: 'var(--bottom-nav-height)', left: 0, right: 0,
-          background: 'var(--color-white)', borderTop: '2px solid var(--color-black)',
+          background: 'var(--color-white)', borderTop: 'var(--border-strong)',
           padding: 'var(--space-sm) var(--space-md)',
           display: 'flex', gap: 'var(--space-sm)', zIndex: 90,
           maxWidth: 'var(--max-width)', margin: '0 auto',
@@ -396,7 +396,7 @@ export default function TimesheetDetailPage() {
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44 }}
           >
             <Pencil size={14} />
-            {timesheet.employee_signature ? 'RE-SIGN' : 'SIGN'}
+            {timesheet.employee_signature ? 'Re-sign' : 'Sign'}
           </button>
           <button
             onClick={submitTimesheet}
@@ -405,7 +405,7 @@ export default function TimesheetDetailPage() {
             style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, fontSize: 'var(--font-size-xs)' }}
           >
             <Send size={14} />
-            {submitting ? 'SUBMITTING...' : savingCount > 0 ? 'SAVING...' : 'NEED MANAGER SIGN-OFF'}
+            {submitting ? 'Submitting...' : savingCount > 0 ? 'Saving...' : 'Need manager sign-off'}
           </button>
         </div>
       )}

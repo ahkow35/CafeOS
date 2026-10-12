@@ -166,7 +166,7 @@ export default function ClaimForm() {
                                 />
                                 <div
                                     className="btn btn-outline btn-block"
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', border: '2px dashed var(--color-black)', background: file ? 'var(--color-concrete)' : 'transparent' }}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', border: 'var(--border-width) dashed var(--color-black)', background: file ? 'var(--color-concrete)' : 'transparent' }}
                                 >
                                     {file ? (<><FileText size={20} /><span className="truncate">{file.name}</span></>)
                                           : (<><Upload size={20} /><span>Upload receipt (photo or PDF)</span></>)}

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (clean, lockfile-enforced)
+        run: npm ci
+
+      - name: Generate Next.js route types
+        # A fresh checkout has no .next/types, so without this step tsc never
+        # checks route handlers and page props against Next's constraints.
+        run: npx next typegen
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        # tests/db/*.sql tests skip without TEST_DATABASE_URL. Keep it that way:
+        # Vercel previews share the production database, so CI gets no DB URL.
+        run: npm test

@@ -33,28 +33,30 @@ export default function DecisionTicket({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontFamily: 'var(--font-heading)',
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
+                textTransform: 'var(--text-transform-heading)',
+                letterSpacing: 'var(--letter-spacing-tight)'
             }}>
-                <span>TICKET #{request.id.slice(0, 6)}</span>
+                <span>Ticket #{request.id.slice(0, 6)}</span>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
                     {request.is_retrospective && (
                         <span style={{
                             background: 'var(--color-warning)',
-                            color: 'var(--color-black)',
+                            color: 'var(--color-white)',
                             padding: '2px 8px',
+                            borderRadius: 'var(--radius-pill)',
                             fontSize: '0.8rem',
-                            fontWeight: 'bold'
+                            fontWeight: 'var(--font-weight-bold)'
                         }}>
-                            RETRO
+                            Retro
                         </span>
                     )}
                     <span style={{
-                        background: isMedical ? 'var(--color-orange)' : 'var(--color-neon)',
-                        color: 'var(--color-black)',
+                        background: isMedical ? 'var(--color-chip-peach-bg)' : 'var(--color-chip-lime-bg)',
+                        color: isMedical ? 'var(--color-chip-peach-ink)' : 'var(--color-chip-lime-ink)',
                         padding: '2px 8px',
+                        borderRadius: 'var(--radius-pill)',
                         fontSize: '0.8rem',
-                        fontWeight: 'bold'
+                        fontWeight: 'var(--font-weight-bold)'
                     }}>
                         {request.leave_type}
                     </span>
@@ -70,18 +72,18 @@ export default function DecisionTicket({
                     marginBottom: 'var(--space-md)'
                 }}>
                     <div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>REQUESTER</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{userName || 'Unknown'}</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>Requester</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'var(--font-weight-bold)' }}>{userName || 'Unknown'}</div>
                     </div>
                     <div>
-                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>DURATION</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{request.days_requested} DAYS</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>Duration</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'var(--font-weight-bold)' }}>{request.days_requested} days</div>
                     </div>
                 </div>
 
                 <div style={{
-                    borderTop: '2px solid var(--color-concrete)',
-                    borderBottom: '2px solid var(--color-concrete)',
+                    borderTop: 'var(--border-width) solid var(--color-concrete)',
+                    borderBottom: 'var(--border-width) solid var(--color-concrete)',
                     padding: 'var(--space-sm) 0',
                     marginBottom: 'var(--space-md)',
                     display: 'flex',
@@ -103,7 +105,7 @@ export default function DecisionTicket({
                     <div style={{ marginBottom: 'var(--space-md)' }}>
                         {request.reason && (
                             <div style={{ marginBottom: '0.5rem' }}>
-                                <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>REASON</div>
+                                <div className="text-muted" style={{ fontSize: '0.75rem', textTransform: 'var(--text-transform-heading)' }}>Reason</div>
                                 <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>{request.reason}</div>
                             </div>
                         )}
@@ -114,7 +116,7 @@ export default function DecisionTicket({
                                 style={{ marginTop: '0.5rem' }}
                             >
                                 <FileText size={14} />
-                                VIEW PROOF
+                                View proof
                             </button>
                         )}
                     </div>
@@ -127,14 +129,14 @@ export default function DecisionTicket({
                         disabled={processing}
                         className="decision-btn decision-btn-reject"
                     >
-                        REJECT
+                        Decline
                     </button>
                     <button
                         onClick={onApprove}
                         disabled={processing}
                         className="decision-btn decision-btn-approve"
                     >
-                        APPROVE
+                        Approve
                     </button>
                 </div>
             </div>

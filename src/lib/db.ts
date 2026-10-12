@@ -12,13 +12,48 @@
  * Both *Tx helpers run SET LOCAL (transaction-scoped) GUCs so audit triggers can tag
  * audit_log rows with actor_id, cafe_id, and impersonator_id automatically.
  * GUCs are set via set_config() to avoid manual string escaping.
+ *
+ * ── Local dev override ──────────────────────────────────────────────────────
+ * @vercel/postgres only speaks Neon's websocket wire protocol, so it can't reach
+ * a plain local Postgres. When LOCAL_PG_URL is set (and we're not in production),
+ * `sql`, `query`, and the connect() behind withTx/withPlainTx/withTenantTx are
+ * backed by a `pg` Pool on that URL instead — same call shapes, same tagged
+ * template, same {rows, rowCount}. See docs/LOCAL_DEV.md. Unset, production
+ * behaviour is byte-for-byte unchanged.
  */
 
 import { sql as vercelSql, db as vercelDb } from '@vercel/postgres';
+import { Pool } from 'pg';
 import type { VercelPoolClient } from '@vercel/postgres';
 import type { MembershipRole } from '@/lib/validators';
 
-export const sql = vercelSql;
+const localPgUrl = process.env.LOCAL_PG_URL;
+
+if (localPgUrl && process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'LOCAL_PG_URL is set with NODE_ENV=production. LOCAL_PG_URL is a dev-only ' +
+      'escape hatch for talking to a local Postgres instead of Neon — it must ' +
+      'never be set in production. Unset it.',
+  );
+}
+
+const localPool = localPgUrl ? new Pool({ connectionString: localPgUrl }) : null;
+
+/** Tagged-template shim matching @vercel/postgres's `sql` call shape. */
+function localSql(strings: TemplateStringsArray, ...values: unknown[]) {
+  let text = strings[0];
+  for (let i = 0; i < values.length; i++) {
+    text += `$${i + 1}${strings[i + 1]}`;
+  }
+  return localPool!.query(text, values);
+}
+
+export const sql: typeof vercelSql = localPool ? (localSql as unknown as typeof vercelSql) : vercelSql;
+
+async function connect(): Promise<VercelPoolClient> {
+  if (localPool) return (await localPool.connect()) as unknown as VercelPoolClient;
+  return vercelDb.connect();
+}
 
 /**
  * Patterns that mean "we could not talk to the database", as opposed to "the query
@@ -75,7 +110,7 @@ export async function withTx<T>(
   actorId: string,
   fn: (client: VercelPoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await vercelDb.connect();
+  const client = await connect();
   try {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.actor_id', $1, TRUE)`, [actorId]);
@@ -98,7 +133,7 @@ export async function withTx<T>(
 export async function withPlainTx<T>(
   fn: (client: VercelPoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await vercelDb.connect();
+  const client = await connect();
   try {
     await client.query('BEGIN');
     const out = await fn(client);
@@ -121,6 +156,7 @@ export async function query<T extends Record<string, any> = Record<string, any>>
   text: string,
   params: unknown[] = [],
 ) {
+  if (localPool) return localPool.query<T>(text, params as never[]);
   return vercelDb.query<T>(text, params as never[]);
 }
 
@@ -128,7 +164,7 @@ export async function withTenantTx<T>(
   ctx: TenantCtx,
   fn: (client: VercelPoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await vercelDb.connect();
+  const client = await connect();
   try {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.actor_id', $1, TRUE)`, [ctx.userId]);

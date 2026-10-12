@@ -23,11 +23,11 @@ function StageBadge({ status }: { status: string }) {
             display: 'inline-block',
             marginTop: '0.35rem',
             fontSize: '0.7rem',
-            fontWeight: 700,
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.05em',
+            fontWeight: 'var(--font-weight-heading)',
+            textTransform: 'var(--text-transform-heading)' as const,
+            letterSpacing: 'var(--letter-spacing-label)',
             padding: '2px 6px',
-            borderRadius: '3px',
+            borderRadius: 'var(--radius-3)',
             backgroundColor: isPendingManager ? 'var(--color-orange)' : 'var(--color-black)',
             color: isPendingManager ? 'var(--color-white)' : 'var(--color-orange)',
         }}>
@@ -137,7 +137,7 @@ export default function PendingApprovalsWidget({ userRole }: PendingApprovalsWid
                     >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                                <div style={{ fontWeight: 'var(--font-weight-bold)', marginBottom: '0.25rem' }}>
                                     {request.profile?.full_name || 'Unknown'}
                                 </div>
                                 <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
@@ -145,7 +145,7 @@ export default function PendingApprovalsWidget({ userRole }: PendingApprovalsWid
                                 </div>
                                 <div style={{
                                     fontSize: '0.85rem',
-                                    fontWeight: 'bold',
+                                    fontWeight: 'var(--font-weight-bold)',
                                     color: 'var(--color-primary)'
                                 }}>
                                     {request.days_requested} day{request.days_requested !== 1 ? 's' : ''}
@@ -158,7 +158,7 @@ export default function PendingApprovalsWidget({ userRole }: PendingApprovalsWid
                                     className="btn btn-sm"
                                     style={{
                                         backgroundColor: 'var(--color-stali-green)',
-                                        color: 'white',
+                                        color: 'var(--color-white)',
                                         padding: '0.5rem 0.75rem',
                                         fontSize: '0.8rem',
                                     }}
@@ -171,7 +171,7 @@ export default function PendingApprovalsWidget({ userRole }: PendingApprovalsWid
                                     className="btn btn-sm"
                                     style={{
                                         backgroundColor: 'var(--color-rust)',
-                                        color: 'white',
+                                        color: 'var(--color-white)',
                                         padding: '0.5rem 0.75rem',
                                         fontSize: '0.8rem',
                                     }}

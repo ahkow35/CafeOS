@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Coffee, KeyRound } from 'lucide-react';
+import Image from 'next/image';
+import { KeyRound } from 'lucide-react';
 
 interface SetPinResponse {
   error?: string;
@@ -22,7 +23,7 @@ function SetPinForm() {
   if (!token) {
     return (
       <div className="auth-card animate-in" style={{ textAlign: 'center' }}>
-        <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
+        <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS</h1>
         <h2 className="auth-step-title">Missing link</h2>
         <p className="auth-subtitle">
           This page needs the link Telegram sent you. Send <code>/pin</code> to the bot for a fresh one.
@@ -62,7 +63,7 @@ function SetPinForm() {
 
   return (
     <div className="auth-card animate-in">
-      <h1 className="auth-logo"><Coffee size={28} /> CafeOS</h1>
+      <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS</h1>
       <div className="auth-icon" aria-hidden="true"><KeyRound size={26} /></div>
       <h2 className="auth-step-title">Set your PIN</h2>
       <p className="auth-subtitle">Choose a 6-digit PIN to finish setting up your café.</p>
