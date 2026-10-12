@@ -39,6 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Next.js 16.4+ `next dev` generates this for coding agents and re-creates it
+/AGENTS.md
 .worktrees/
 .env*.local
 
