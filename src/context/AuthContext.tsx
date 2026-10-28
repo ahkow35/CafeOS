@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import type { MembershipRole } from '@/lib/validators';
 
 export type Role = MembershipRole;
@@ -163,6 +164,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     return () => { mounted = false; };
   }, [refreshProfile]);
+
+  // The provider lives in the root layout, so it survives in-app navigation.
+  // Re-read the profile on each route change so balances an admin changed
+  // since login (claim cap, leave days) are not shown stale.
+  const pathname = usePathname();
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (firstPath.current) { firstPath.current = false; return; }
+    refreshProfile();
+  }, [pathname, refreshProfile]);
 
   useEffect(() => {
     const onShow = (e: PageTransitionEvent) => {
