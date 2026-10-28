@@ -79,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(json.user);
     } catch (err) {
       console.warn('[AuthContext] /me network error', err);
+    } finally {
+      // Only the latest request ends initial loading; a superseded one must not
+      // report "no user" while a newer /me is still in flight.
+      if (seq === authSeq.current) setLoading(false);
     }
   }, []);
 
@@ -124,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (json.user) {
         authSeq.current++;
         setUser(json.user);
+        setLoading(false);
       }
       return {
         error: null,
@@ -165,15 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     authSeq.current++;
     setUser(null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      await refreshProfile();
-      if (mounted) setLoading(false);
-    })();
-    return () => { mounted = false; };
+    refreshProfile();
   }, [refreshProfile]);
 
   // The provider lives in the root layout, so it survives in-app navigation.
