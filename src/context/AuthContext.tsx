@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import type { MembershipRole } from '@/lib/validators';
 
 export type Role = MembershipRole;
@@ -55,10 +56,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  // Bumped by every /me request and every sign-in/out, so a slow /me reply
+  // can't overwrite newer auth state (e.g. sign a fresh login back out, or
+  // restore an older balance).
+  const authSeq = useRef(0);
 
   const refreshProfile = useCallback(async () => {
+    const seq = ++authSeq.current;
     try {
       const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (seq !== authSeq.current) return;
       if (res.status === 401) {
         setUser(null);
         return;
@@ -68,9 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const json = (await res.json()) as { user: SessionUser | null };
+      if (seq !== authSeq.current) return;
       setUser(json.user);
     } catch (err) {
       console.warn('[AuthContext] /me network error', err);
+    } finally {
+      // Only the latest request ends initial loading; a superseded one must not
+      // report "no user" while a newer /me is still in flight.
+      if (seq === authSeq.current) setLoading(false);
     }
   }, []);
 
@@ -113,7 +125,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Single destination — session cookie already set.
-      if (json.user) setUser(json.user);
+      if (json.user) {
+        authSeq.current++;
+        setUser(json.user);
+        setLoading(false);
+      }
       return {
         error: null,
         outcome: { kind: 'redirect' as const, to: json.redirect ?? '/' } satisfies LoginOutcome,
@@ -152,17 +168,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Cookie still gets cleared on next protected request anyway.
     }
+    authSeq.current++;
     setUser(null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      await refreshProfile();
-      if (mounted) setLoading(false);
-    })();
-    return () => { mounted = false; };
+    refreshProfile();
   }, [refreshProfile]);
+
+  // The provider lives in the root layout, so it survives in-app navigation.
+  // Re-read the profile on each route change so balances an admin changed
+  // since login (claim cap, leave days) are not shown stale.
+  const pathname = usePathname();
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (firstPath.current) { firstPath.current = false; return; }
+    refreshProfile();
+  }, [pathname, refreshProfile]);
 
   useEffect(() => {
     const onShow = (e: PageTransitionEvent) => {
