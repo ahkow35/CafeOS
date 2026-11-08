@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-09 — Migrations apply on merge
+
+### Summary
+Merging to `main` now applies pending `db/migrations/*.sql` files to the production Neon
+database, through `.github/workflows/migrate.yml` ("Migrate production database") and
+`scripts/migrate_prod.sh`. The workflow does not deploy: Vercel auto-deploy stays on, and a Vercel
+Deployment Check on this job (added by hand after merge) holds production promotion until the
+migration has passed. Ported from the payroll-invoice-skill runner (commit af9fc0e3). Why: the old
+rule "apply by hand, then merge" depended on a person remembering the order.
+
+### Design
+- Ledger `public.schema_migrations` (`db/migrations/2026-11-09-schema-migrations.sql`, also in
+  `db/schema.sql`): RLS on, no policy, no revoke (Neon has no anon/authenticated roles).
+- Each pending file runs unchanged in ONE transaction with advisory lock, lock_timeout 5s,
+  statement_timeout 5min, a temp-table tripwire, and its ledger row. First failure stops the run.
+- Refuse-only lint for transaction control and backslash lines; empty-ledger guard
+  (`ALLOW_EMPTY_LEDGER=1`). The 12 existing files carry their own begin/commit, so they must be in
+  the one-time ledger seed (README) or the lint refuses them.
+- Tests: `tests/migrate-prod-script.test.ts` (node:test, real Postgres, new CI job
+  "Migration runner (real Postgres)").
+- Rejected: a dry run or rewriting files to strip begin/commit (cannot be made safe), and a Vercel
+  Deploy Hook (the Deployment Check gives the same ordering without a second deploy path).
+
 ## 2026-09-03 — Medical claims
 
 ### Summary

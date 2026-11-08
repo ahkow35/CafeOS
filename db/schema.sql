@@ -629,3 +629,13 @@ DROP TRIGGER IF EXISTS trg_assert_cafe_match ON public.medical_claims;
 CREATE TRIGGER trg_assert_cafe_match
     BEFORE INSERT OR UPDATE ON public.medical_claims
     FOR EACH ROW EXECUTE FUNCTION public.assert_cafe_match();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SCHEMA_MIGRATIONS (ledger written by scripts/migrate_prod.sh)
+-- Kept in sync with db/migrations/2026-11-09-schema-migrations.sql. Private: RLS on, no policy.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+    filename   TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;

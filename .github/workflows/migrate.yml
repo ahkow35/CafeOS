@@ -1,0 +1,65 @@
+# Apply new database migrations to production on every merge to main, and gate the deploy on it.
+#
+# This workflow does NOT deploy. Vercel's auto-deploy stays on and a Deployment Check holds each
+# production deployment until the check named "Migrate production database" (this job) passes
+# on its commit; only then does Vercel promote it. A failed migration therefore leaves the new
+# build unpromoted and the live site on the last good version. Every commit on main needs this
+# check to pass, so there is deliberately NO path filter: a run with nothing to apply succeeds.
+# See README, "Database migrations".
+#
+# Runs are queued one at a time and never cancelled half way. The group includes the ref, so a
+# manual run from another branch (which the job's "if" skips) cannot take the place of a pending
+# run on main. GitHub keeps only one pending run per group, so a pending main run can still be
+# replaced by a newer main run. That is fine: the replaced commit's deployment is never promoted,
+# and the newer run applies every pending file.
+#
+# scripts/migrate_prod.sh runs each new file unchanged in one transaction with its ledger row.
+# It has no dry run; a file that fails is rolled back and stops the run.
+#
+# One repository secret, never printed: PROD_DB_URL (the DIRECT, unpooled Neon connection
+# string, the one without -pooler in the host). Without it the job fails.
+# Run it by hand from the Actions tab with "Run workflow".
+name: Migrate production database
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    # This name is what Vercel's Deployment Checks picker shows: keep it unique across workflows.
+    name: Migrate production database
+    # A manual run from another branch must never touch production.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secret exists
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          if [ -z "$PROD_DB_URL" ]; then
+            echo "::error::Missing repository secret PROD_DB_URL. Nothing was migrated. Set it under Settings, Secrets and variables, Actions."
+            exit 1
+          fi
+
+      - name: Make sure psql is installed
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          psql --version
+
+      - name: Apply new migrations
+        # Prints file names and counts only; a run with no new files succeeds.
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: scripts/migrate_prod.sh

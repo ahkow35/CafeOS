@@ -129,19 +129,148 @@ The tests in `tests/db/` need a throwaway Postgres set in `TEST_DATABASE_URL`
 and skip themselves without it. Never point it at production.
 
 CI (`.github/workflows/ci.yml`) runs `npm ci`, `npx next typegen`, typecheck,
-lint and `npm test` on Node 22 for every pull request and every push to `main`.
+lint and `npm test` on Node 22 for every ready (non-draft) pull request, plus a
+second job that runs the migration runner tests against a throwaway Postgres
+container.
 
 ## Database migrations
 
-Migrations are plain SQL files in `db/migrations/`. There is no migration tool:
-a person applies each file to the database by hand (for example with `psql`),
-and also keeps `db/schema.sql` up to date.
+Migrations are plain SQL files in `db/migrations/`, named `YYYY-MM-DD-<what>.sql`.
+`db/schema.sql` is the full current schema for a fresh database; keep it in sync
+by hand when a migration changes the schema.
 
-**Order matters.** Merging to `main` deploys to production automatically. If
-the new code needs a schema change, apply the migration to the production
-database first, then merge. Merging first would put code live that queries
-columns or tables that do not exist yet. Make migrations additive so the old
-code keeps working until the new code lands.
+**Merging a pull request to `main` applies its new migrations to production.**
+Nobody runs `psql` against the live database by hand any more, and you must
+never apply a migration by hand before merging: the runner would then try to
+apply it again. The workflow `.github/workflows/migrate.yml` ("Migrate
+production database") runs on every push to `main`, and from the Actions tab
+with "Run workflow" (that button is the manual re-run). It does not deploy:
+Vercel auto-deploy stays on, and a Vercel Deployment Check (setup step 3 below)
+holds each production deployment until this job has passed on its commit.
+
+How the runner (`scripts/migrate_prod.sh`) works:
+
+1. It connects with the `PROD_DB_URL` secret, lists the top-level
+   `db/migrations/*.sql` files in name order, and skips every file that has a row
+   in the ledger table `public.schema_migrations`.
+2. Before anything runs, every new file goes through a simple lint (see the
+   rules below). One failure refuses the whole run.
+3. Each new file then runs, unchanged and from its own path, in ONE transaction:
+   an advisory lock (two runners cannot overlap), `lock_timeout` 5s,
+   `statement_timeout` 5min, a temp table, the file, a read of that temp table,
+   the ledger row, `commit`. A file and its ledger row land together or not at
+   all, and any error rolls everything back. There is no dry run and the runner
+   never edits a file. The temp table is a tripwire: a file that commits early
+   drops it, the read fails, and the run fails with
+   `FAILED: <file> (rolled back; stopping). If the error mentions _migrate_guard,
+   the file committed early: check production.`
+4. The first failure stops everything: no later file runs and the check fails, so
+   Vercel leaves the new build unpromoted and the live site keeps the last good
+   version. Fix forward with a new migration, then merge again.
+5. A run with nothing to apply succeeds, so every commit on `main` passes the
+   check (the workflow has no path filter on purpose). GitHub keeps one pending
+   run per queue, so a pending run can be replaced by a newer one; that commit's
+   deployment is then never promoted, and the newer run applies all pending files.
+6. **Empty-ledger guard:** if the ledger has no rows, files are pending, and
+   `public` already has any table besides `schema_migrations`, the runner refuses
+   before running anything (the seed was forgotten and it would re-run every
+   migration). `ALLOW_EMPTY_LEDGER=1` overrides it, for a brand-new database only.
+
+The job prints file names and counts only; the secret is never echoed. The
+script takes no arguments. Its tests are `tests/migrate-prod-script.test.ts`
+(real Postgres; they skip without `TEST_DATABASE_URL`, and run in CI's
+"Migration runner (real Postgres)" job against a throwaway container).
+
+**Rules for every migration file**
+
+- **Make it additive.** The new build waits for the migration (the Deployment
+  Check), but the old code still runs briefly against the new schema, so a
+  migration must not break it. Also, **previews use the production database**: a
+  preview of an unmerged pull request runs the new code against the schema that is
+  not yet migrated, so a preview can break on a missing column until the pull
+  request merges. Add columns and tables; drop or rename only in a later pull
+  request, once no running code uses them.
+- **Same-day files run in alphabetical order of the part after the date.** Name
+  them so that order is the one you need: `2026-12-01-a-add-table.sql` runs
+  before `2026-12-01-b-backfill.sql`, but `2026-12-01-backfill.sql` runs before
+  `2026-12-01-orders.sql`.
+- **It must be safe to run unattended.** No psql variables or other backslash
+  commands, no `SET` of `app.*` parameters needed from the command line, no
+  manual gate, no "apply this by hand first" step. File names use only letters,
+  digits, dot, dash and underscore.
+- **The runner supplies the transaction; a file must not carry its own.** No
+  `begin;`, `commit;`, `rollback`, `abort`, `end`, `savepoint`, `release`, `start
+  transaction` or `prepare transaction`. The lint refuses (before applying
+  anything, with `refusing <file>: transaction control or psql meta-command`) any
+  new file with a line that starts with `begin;` or `commit;` (also with
+  `work`/`transaction`), `rollback`, `abort`, `savepoint`, `release`, `start
+  transaction` or `prepare transaction`, a line that starts with a backslash, or
+  a `;` followed by a backslash. **The lint is not a parser:** it ignores quotes,
+  comments and dollar-quoting, it does not look for `end` (plpgsql bodies have
+  `end;` lines), and a commit placed after other SQL on the same line gets past
+  it. Pull request review is the backstop, and so is the temp-table tripwire
+  above (a missed early commit fails the run and keeps the deploy unpromoted, but
+  the file may already be live: check production).
+- **The 12 files that existed before the runner** all carry their own
+  `begin;`/`commit;` lines, so the lint would refuse them. They were applied by
+  hand and go in the ledger seed below; the runner never reaches them.
+
+**One-time setup (Nyan, before merging the pull request that added the runner;
+that pull request does none of it)**
+
+1. *Set the secret.* In the GitHub repository, Settings, Secrets and variables,
+   Actions, add `PROD_DB_URL`: the **direct (unpooled)** Neon connection string,
+   the value of Vercel's `POSTGRES_URL_NON_POOLING` (the host has no `-pooler`).
+   The runner takes an advisory lock and runs a transaction, which a pooled
+   connection does not guarantee. Without the secret the job fails with a
+   message saying so.
+2. *Seed the ledger.* The ledger table does not exist in production yet and the
+   runner would create it empty, so without a seed it would try to re-apply every
+   migration (the empty-ledger guard and the lint would stop it, but do not rely
+   on that). Run this once against production, from the Neon SQL editor or
+   `psql`. It lists every file already applied by hand: the 12 on `main` plus
+   `2026-09-24-instant-signup.sql` from draft pull request #16, which was already
+   applied to production by hand. List only files really applied: a file marked
+   applied but not is skipped for ever; a file applied but not marked is run
+   again. Leave the ledger file `2026-11-09-schema-migrations.sql` out: it is safe
+   to run twice. Template (nobody has run it yet):
+
+   ```sql
+   create table if not exists public.schema_migrations (
+     filename   text primary key,
+     applied_at timestamptz not null default now()
+   );
+   alter table public.schema_migrations enable row level security;
+
+   insert into public.schema_migrations (filename) values
+     ('2026-05-04-drop-profile-role.sql'),
+     ('2026-05-04-multitenant-additive.sql'),
+     ('2026-05-04-tripwire-triggers.sql'),
+     ('2026-05-09-billing.sql'),
+     ('2026-06-06-timesheet-unique-per-cafe.sql'),
+     ('2026-07-13-employment-to-membership.sql'),
+     ('2026-07-13-telegram-link-codes.sql'),
+     ('2026-07-14-task-completions.sql'),
+     ('2026-08-06-pin-reset-tokens.sql'),
+     ('2026-09-03-leave-audit-insert-delete.sql'),
+     ('2026-09-03-medical-claims.sql'),
+     ('2026-09-23-suspend-and-pin-provenance.sql'),
+     ('2026-09-24-instant-signup.sql')
+   on conflict do nothing;
+
+   select count(*) from public.schema_migrations;  -- expect 13
+   ```
+
+   If draft pull request #16 is not merged yet, its name in the seed is harmless:
+   the runner cannot see that file, and when #16 merges the file is already in
+   the ledger.
+3. *Add the Deployment Check in Vercel.* Leave production auto-deploy ON. After
+   the first green run of this workflow on `main`, in the Vercel project:
+   Settings, Build and Deployment, Deployment Checks, Add Checks, GitHub,
+   `Migrate production database`. Prerequisite: automatic production domain
+   assignment is on. From then on each production deployment waits for that check
+   on its commit. *Force Promote* in Vercel bypasses the check: use it only when
+   the schema does not matter for that build.
 
 ## Deployment
 
@@ -167,10 +296,10 @@ src/
   middleware.ts    Session and role checks
 db/                schema.sql, migrations/, bootstrap-super-admin.sql
 tests/             Unit tests; tests/db/ needs TEST_DATABASE_URL
-scripts/           One-off scripts (backfill-phones.ts)
+scripts/           migrate_prod.sh (the migration runner), one-off scripts
 public/            Icons and the web manifest
 docs/              Design notes and plans
-.github/workflows/ CI
+.github/workflows/ CI and the production migration runner
 ```
 
 `CHANGELOG.md` records what changed and when.
