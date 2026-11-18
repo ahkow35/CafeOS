@@ -3,7 +3,7 @@ import { sql, withTx } from '@/lib/db';
 import { requireSuperAdmin, hashPin, AuthError } from '@/lib/auth';
 import { createStripeCustomerAndTrial } from '@/lib/billing';
 import { decideOwnerCredential } from '@/lib/cafeApproval';
-import { storeIssuedOwnerPin } from '@/lib/pinWrite';
+import { onClient, storeIssuedOwnerPin } from '@/lib/pinWrite';
 import { decideCafeMove, type CafeStatus } from '@/lib/workflows/cafe';
 import crypto from 'crypto';
 
@@ -119,7 +119,7 @@ export async function POST(
       for (const { user_id } of owners) {
         const decision = ownerDecisions.find((d) => d.userId === user_id)?.decision;
         if (decision?.action !== 'issue_pin') continue; // 'keep_pin' — never touch their credential
-        await storeIssuedOwnerPin(tx, user_id, pinHash as string);
+        await storeIssuedOwnerPin(onClient(tx), user_id, pinHash as string);
       }
       return true;
     });

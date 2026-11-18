@@ -7,7 +7,7 @@ import {
   PICK_COOKIE,
   SESSION_COOKIE_OPTIONS,
 } from '@/lib/auth';
-import { storeNewPin } from '@/lib/pinWrite';
+import { onClient, storeNewPin } from '@/lib/pinWrite';
 import { hashPinResetCode, resetCodeMatches } from '@/lib/pinReset';
 import { parseE164, parseNewPin, parseResetCode, ValidationError } from '@/lib/validators';
 
@@ -78,7 +78,7 @@ export async function POST(req: Request): Promise<Response> {
       }
 
       const newPinHash = await hashPin(newPin);
-      await storeNewPin(client, row.user_id, newPinHash);
+      await storeNewPin(onClient(client), row.user_id, newPinHash);
       await client.query(
         `UPDATE pin_reset_tokens
             SET used_at = COALESCE(used_at, NOW())
