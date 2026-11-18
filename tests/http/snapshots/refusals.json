@@ -208,13 +208,13 @@
   "claim POST | no receipt URL | by staff": {
     "status": 400,
     "body": {
-      "error": "receipt_date cannot be in the future"
+      "error": "A receipt is required"
     }
   },
   "claim POST | receipt URL not belonging to the caller | by staff": {
     "status": 400,
     "body": {
-      "error": "receipt_date cannot be in the future"
+      "error": "Invalid receipt URL"
     }
   },
   "claim POST | signed out": {

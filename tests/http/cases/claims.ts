@@ -159,7 +159,8 @@ export function claimCases(): void {
 
     test('submitting needs a receipt URL that belongs to the caller', async () => {
       const who = await newMember('staff');
-      const body = { receipt_date: '2030-01-15', amount_claimed: 10 };
+      const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+      const body = { receipt_date: twoDaysAgo, amount_claimed: 10 };
       refuse('claim POST | no receipt URL | by staff', await api('POST', '/api/claims', { as: who, body }), 400);
       refuse('claim POST | receipt URL not belonging to the caller | by staff', await api('POST', '/api/claims', { as: who, body: { ...body, receipt_url: RECEIPT } }), 400);
       refuse('claim POST | signed out', await api('POST', '/api/claims', { body }), 401);
