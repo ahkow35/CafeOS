@@ -3,6 +3,7 @@ import { sql, withTenantTx } from '@/lib/db';
 import { lookupCafeAccess } from '@/lib/cafeAccess';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { decideTaskMove, isTaskStatus, type TaskStatus } from '@/lib/workflows/task';
 
 export const runtime = 'nodejs';
 
@@ -14,7 +15,7 @@ interface TaskRow {
   description: string | null;
   deadline: string;
   assigned_to: string;
-  status: 'pending' | 'done';
+  status: TaskStatus;
   created_by: string;
   completed_by: string | null;
   completed_at: string | null;
@@ -63,7 +64,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const isEveryoneTask = task.assigned_to === 'all';
 
     type Update = Partial<{
-      status: 'pending' | 'done';
+      status: TaskStatus;
       title: string;
       description: string | null;
       deadline: string;
@@ -73,13 +74,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }>;
     const update: Update = {};
     // For 'all' tasks completion is per-user (task_completions), not a column write.
-    let completionChange: 'done' | 'pending' | null = null;
+    let completionChange: TaskStatus | null = null;
 
     if ('status' in body) {
-      if (body.status !== 'pending' && body.status !== 'done') {
+      if (!isTaskStatus(body.status)) {
         throw new ValidationError('status must be "pending" or "done"');
       }
-      if (!isAdmin && !isAssignee) {
+      // Who may mark a task done or pending is the table in src/lib/workflows/task.ts;
+      // for a task the row owner is its assignee.
+      if (!decideTaskMove(task.status, body.status, { role: ctx.role, isRowOwner: isAssignee }).ok) {
         throw new AuthError('forbidden', 'Cannot change this task');
       }
       if (isEveryoneTask) {
