@@ -9,11 +9,11 @@ const STATUSES: Status[] = ['pending_manager', 'pending_owner', 'approved', 'rej
 const DAYS = 2;
 const START_BALANCE = 14;
 
-const annual = async (userId: string): Promise<number> =>
+export const annual = async (userId: string): Promise<number> =>
   (await row(`SELECT annual_leave_balance AS b FROM cafe_memberships WHERE user_id = $1 AND cafe_id = $2`, [userId, env.cafe1]))!.b;
 
 /** A leave request in the given status for a fresh requester, with the balance the routes would have left. */
-async function seedLeave(status: Status, role: Role = 'staff'): Promise<{ id: string; who: Person }> {
+export async function seedLeave(status: Status, role: Role = 'staff'): Promise<{ id: string; who: Person }> {
   const who = await newMember(role);
   const held = status !== 'rejected'; // a rejected request has already been refunded
   await row(`UPDATE cafe_memberships SET annual_leave_balance = $1 WHERE user_id = $2 AND cafe_id = $3`,

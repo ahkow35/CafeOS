@@ -26,6 +26,7 @@ import { signInAttemptResetCases } from './cases/sign-in-attempts-reset';
 import { cafeAccessCases } from './cases/cafe-access';
 import { pinWriteCases } from './cases/pin-writes';
 import { accessOrderCases } from './cases/access-order';
+import { statusInsideWriteCases } from './cases/status-inside-write';
 
 describe('http workflows', { skip }, () => {
   before(startHarness, { timeout: 150_000 });
@@ -45,4 +46,5 @@ describe('http workflows', { skip }, () => {
   cafeAccessCases();
   pinWriteCases();
   accessOrderCases();
+  statusInsideWriteCases();
 });
