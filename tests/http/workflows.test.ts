@@ -20,6 +20,8 @@ import { leaveCases } from './cases/leave';
 import { claimCases } from './cases/claims';
 import { taskCases } from './cases/tasks';
 import { cafeStatusCases } from './cases/cafe-status';
+import { signInAttemptCases } from './cases/sign-in-attempts';
+import { signInAttemptResetCases } from './cases/sign-in-attempts-reset';
 
 describe('http workflows', { skip }, () => {
   before(startHarness, { timeout: 150_000 });
@@ -33,4 +35,6 @@ describe('http workflows', { skip }, () => {
   claimCases();
   taskCases();
   cafeStatusCases();
+  signInAttemptCases();
+  signInAttemptResetCases();
 });
