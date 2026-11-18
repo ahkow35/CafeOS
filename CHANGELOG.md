@@ -13,9 +13,10 @@ when it changed nothing.
 ### Behaviour
 - A request that meets a status change answers what the check before the write answers for that route,
   so no screen meets a new reply.
-- Suspending is now for active cafes only (400 "Only active cafes can be suspended" for a pending or a
-  suspended cafe; the cafe screen offers it only for active cafes). Rejecting a cafe checks the id
-  format first and answers 400 "Invalid id" for a malformed one, as suspend does.
+- Suspending is now for every cafe except a pending one (400 "Pending cafes cannot be suspended"; the
+  cafe screen does not offer it for a pending cafe). Suspending an active or an already suspended cafe
+  answers and stamps as before. Rejecting a cafe checks the id format first and answers 400
+  "Invalid id" for a malformed one, as suspend does.
 - `src/lib/workflows/cafe.ts` and `tests/workflows-cafe.test.ts` carry the changed suspend row.
 - New tests: replies for forward and approve from a status they do not start from, a manager or owner
   moving their own timesheet, a manager acting on their own leave request at the owner stage, and cases

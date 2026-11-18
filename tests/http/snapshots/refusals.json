@@ -1036,10 +1036,10 @@
       "error": "Cafe not found"
     }
   },
-  "super suspend | cafe suspended meanwhile | by super": {
+  "super suspend | cafe pending meanwhile | by super": {
     "status": 400,
     "body": {
-      "error": "Only active cafes can be suspended"
+      "error": "Pending cafes cannot be suspended"
     }
   },
   "super suspend | from active | by owner": {
@@ -1057,13 +1057,7 @@
   "super suspend | from pending | by super": {
     "status": 400,
     "body": {
-      "error": "Only active cafes can be suspended"
-    }
-  },
-  "super suspend | from suspended | by super": {
-    "status": 400,
-    "body": {
-      "error": "Only active cafes can be suspended"
+      "error": "Pending cafes cannot be suspended"
     }
   },
   "super suspend | malformed id | by super": {

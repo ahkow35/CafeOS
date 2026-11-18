@@ -12,7 +12,7 @@ const ROWS: Array<[CafeStatus, CafeAction, boolean]> = [
   ['suspended', 'reject', false],
   ['pending', 'suspend', false],
   ['active', 'suspend', true],
-  ['suspended', 'suspend', false],
+  ['suspended', 'suspend', true],
 ];
 
 for (const [from, action, open] of ROWS) {
@@ -25,7 +25,7 @@ test('cafeActionsFor lists the moves open from each status', () => {
   const names = (from: CafeStatus) => cafeActionsFor(from).map((m) => m.action);
   assert.deepEqual(names('pending'), ['approve', 'reject']);
   assert.deepEqual(names('active'), ['suspend']);
-  assert.deepEqual(names('suspended'), []);
+  assert.deepEqual(names('suspended'), ['suspend']);
 });
 
 test('every listed status is covered by the rows above', () => {

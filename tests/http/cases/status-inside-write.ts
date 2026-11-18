@@ -129,27 +129,38 @@ export function statusInsideWriteCases(): void {
       assert.ok(waited, 'the request should have been waiting on the cafe row');
     });
 
-    test('suspend an active cafe that is suspended meanwhile -> 400, the first suspension stamp kept', async () => {
+    test('suspend an active cafe that is suspended with no admin stamp meanwhile -> 200, the admin stamp is set', async () => {
       const { cafeId } = await newCafeWithOwner('active');
-      const suspend = { text: `UPDATE cafes SET status = 'suspended', admin_suspended_at = NOW() - INTERVAL '1 day' WHERE id = $1`, params: [cafeId] };
+      const suspend = { text: `UPDATE cafes SET status = 'suspended' WHERE id = $1`, params: [cafeId] };
       const { reply, waited } = await meetsStatusChange(suspend, '%UPDATE cafes%',
         () => api('POST', `/api/super/cafes/${cafeId}/suspend`, { as: env.people.super }));
-      refuse('super suspend | cafe suspended meanwhile | by super', reply, 400);
-      const old = await row(`SELECT admin_suspended_at < NOW() - INTERVAL '23 hours' AS old FROM cafes WHERE id = $1`, [cafeId]);
-      assert.equal(old?.old, true, 'the stamp from the first suspension is not rewritten');
+      assert.equal(reply.status, 200);
+      const c = await byId('cafes', cafeId);
+      assert.equal(c?.status, 'suspended');
+      assert.ok(c?.admin_suspended_at);
+      assert.ok(waited, 'the request should have been waiting on the cafe row');
+    });
+
+    test('suspend an active cafe that is set to pending meanwhile -> 400, cafe left pending and unstamped', async () => {
+      const { cafeId } = await newCafeWithOwner('active');
+      const toPending = { text: `UPDATE cafes SET status = 'pending' WHERE id = $1`, params: [cafeId] };
+      const { reply, waited } = await meetsStatusChange(toPending, '%UPDATE cafes%',
+        () => api('POST', `/api/super/cafes/${cafeId}/suspend`, { as: env.people.super }));
+      refuse('super suspend | cafe pending meanwhile | by super', reply, 400);
+      const c = await byId('cafes', cafeId);
+      assert.equal(c?.status, 'pending');
+      assert.equal(c?.admin_suspended_at, null);
       assert.ok(waited, 'the request should have been waiting on the cafe row');
     });
   });
 
   describe('cafe status: suspend and reject, one request at a time', () => {
-    for (const status of ['pending', 'suspended'] as const) {
-      test(`suspend a ${status} cafe -> 400, status kept`, async () => {
-        const { cafeId } = await newCafeWithOwner(status);
-        const r = await api('POST', `/api/super/cafes/${cafeId}/suspend`, { as: env.people.super });
-        refuse(`super suspend | from ${status} | by super`, r, 400);
-        assert.equal((await byId('cafes', cafeId))?.status, status);
-      });
-    }
+    test('suspend a pending cafe -> 400, status kept', async () => {
+      const { cafeId } = await newCafeWithOwner('pending');
+      const r = await api('POST', `/api/super/cafes/${cafeId}/suspend`, { as: env.people.super });
+      refuse('super suspend | from pending | by super', r, 400);
+      assert.equal((await byId('cafes', cafeId))?.status, 'pending');
+    });
 
     test('reject with a malformed id -> 400', async () => {
       refuse('super reject | malformed id | by super', await api('DELETE', '/api/super/cafes/nope/reject', { as: env.people.super }), 400);

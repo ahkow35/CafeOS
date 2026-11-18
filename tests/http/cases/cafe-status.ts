@@ -108,6 +108,15 @@ export function cafeStatusCases(): void {
       assert.ok(c?.admin_suspended_at);
     });
 
+    test('suspend on a suspended cafe with no admin stamp -> 200, it stays suspended and is stamped', async () => {
+      const { cafeId } = await newCafeWithOwner('suspended');
+      assert.equal((await byId('cafes', cafeId))?.admin_suspended_at, null);
+      expectStatus(await suspend(cafeId), 200);
+      const c = await byId('cafes', cafeId);
+      assert.equal(c?.status, 'suspended');
+      assert.ok(c?.admin_suspended_at);
+    });
+
     test('unknown id, bad id, and who may call it', async () => {
       const { cafeId } = await newCafeWithOwner('active');
       refuse('super suspend | unknown id | by super', await suspend(NOBODY), 404);
