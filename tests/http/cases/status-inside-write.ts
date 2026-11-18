@@ -61,7 +61,7 @@ export function statusInsideWriteCases(): void {
     test('edit entry while the sheet is submitted meanwhile -> 400, entry unchanged', async () => {
       const { id, pt } = await seedSheet('draft');
       const entry = await seedEntry(id);
-      const { reply, waited } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%FROM timesheets%FOR UPDATE%',
+      const { reply, waited } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%timesheets%FOR UPDATE%',
         () => api('PATCH', `/api/timesheet-entries/${entry}`, { as: pt, body: { remarks: 'edited' } }));
       refuse('timesheet entry PATCH | sheet submitted meanwhile | by pt', reply, 400);
       const after = await byId('timesheet_entries', entry);
@@ -72,7 +72,7 @@ export function statusInsideWriteCases(): void {
     test('delete entry while the sheet is submitted meanwhile -> 400, entry kept', async () => {
       const { id, pt } = await seedSheet('draft');
       const entry = await seedEntry(id);
-      const { reply, waited } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%FROM timesheets%FOR UPDATE%',
+      const { reply, waited } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%timesheets%FOR UPDATE%',
         () => api('DELETE', `/api/timesheet-entries/${entry}`, { as: pt }));
       refuse('timesheet entry DELETE | sheet submitted meanwhile | by pt', reply, 400);
       assert.equal(await count('timesheet_entries', 'id', entry), 1);
@@ -85,7 +85,7 @@ export function statusInsideWriteCases(): void {
       const { id, who } = await seedLeave('pending_manager');
       const before = await annual(who.id);
       const approve = { text: `UPDATE leave_requests SET status = 'approved', owner_action_by = $2, owner_action_at = NOW(), updated_at = NOW() WHERE id = $1`, params: [id, env.people.owner.id] };
-      const { reply, waited } = await meetsStatusChange(approve, '%FROM leave_requests%FOR UPDATE%',
+      const { reply, waited } = await meetsStatusChange(approve, '%leave_requests%FOR UPDATE%',
         () => api('DELETE', `/api/leave-requests/${id}`, { as: who }));
       refuse('leave DELETE | request approved meanwhile | by requester', reply, 403);
       assert.equal(await count('leave_requests', 'id', id), 1);
@@ -96,22 +96,24 @@ export function statusInsideWriteCases(): void {
     test('delete timesheet by its owner while the sheet is submitted meanwhile -> 400, sheet kept', async () => {
       const { id, pt } = await seedSheet('draft');
       await seedEntry(id);
-      const { reply } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%DELETE FROM timesheets%',
+      const { reply, waited } = await meetsStatusChange({ ...SUBMIT, params: [id] }, '%DELETE FROM timesheets%',
         () => api('DELETE', `/api/timesheets/${id}`, { as: pt }));
       refuse('timesheet DELETE | sheet submitted meanwhile | by pt', reply, 400);
       assert.equal(await count('timesheets', 'id', id), 1);
       assert.equal(await count('timesheet_entries', 'timesheet_id', id), 1);
+      assert.ok(waited, 'the request should have been waiting on the timesheet row');
     });
 
     test('delete timesheet by the owner role while the sheet is approved meanwhile -> 400, sheet kept', async () => {
       const { id } = await seedSheet('draft');
       await seedEntry(id);
       const approve = { text: `UPDATE timesheets SET status = 'approved', approved_by = $2, approved_at = NOW() WHERE id = $1`, params: [id, env.people.owner.id] };
-      const { reply } = await meetsStatusChange(approve, '%DELETE FROM timesheets%',
+      const { reply, waited } = await meetsStatusChange(approve, '%DELETE FROM timesheets%',
         () => api('DELETE', `/api/timesheets/${id}`, { as: env.people.owner }));
       refuse('timesheet DELETE | sheet approved meanwhile | by owner', reply, 400);
       assert.equal(await count('timesheets', 'id', id), 1);
       assert.equal(await count('timesheet_entries', 'timesheet_id', id), 1);
+      assert.ok(waited, 'the request should have been waiting on the timesheet row');
     });
   });
 
@@ -119,21 +121,23 @@ export function statusInsideWriteCases(): void {
     test('reject a pending cafe that is activated meanwhile -> 400, cafe and members kept', async () => {
       const { cafeId } = await newCafeWithOwner('pending', { active: false, pinSet: false });
       const activate = { text: `UPDATE cafes SET status = 'active' WHERE id = $1`, params: [cafeId] };
-      const { reply } = await meetsStatusChange(activate, '%DELETE FROM cafes%',
+      const { reply, waited } = await meetsStatusChange(activate, '%DELETE FROM cafes%',
         () => api('DELETE', `/api/super/cafes/${cafeId}/reject`, { as: env.people.super }));
       refuse('super reject | cafe activated meanwhile | by super', reply, 400);
       assert.equal((await byId('cafes', cafeId))?.status, 'active');
       assert.equal(await count('cafe_memberships', 'cafe_id', cafeId), 1);
+      assert.ok(waited, 'the request should have been waiting on the cafe row');
     });
 
     test('suspend an active cafe that is suspended meanwhile -> 400, the first suspension stamp kept', async () => {
       const { cafeId } = await newCafeWithOwner('active');
       const suspend = { text: `UPDATE cafes SET status = 'suspended', admin_suspended_at = NOW() - INTERVAL '1 day' WHERE id = $1`, params: [cafeId] };
-      const { reply } = await meetsStatusChange(suspend, '%UPDATE cafes%',
+      const { reply, waited } = await meetsStatusChange(suspend, '%UPDATE cafes%',
         () => api('POST', `/api/super/cafes/${cafeId}/suspend`, { as: env.people.super }));
       refuse('super suspend | cafe suspended meanwhile | by super', reply, 400);
       const old = await row(`SELECT admin_suspended_at < NOW() - INTERVAL '23 hours' AS old FROM cafes WHERE id = $1`, [cafeId]);
       assert.equal(old?.old, true, 'the stamp from the first suspension is not rewritten');
+      assert.ok(waited, 'the request should have been waiting on the cafe row');
     });
   });
 

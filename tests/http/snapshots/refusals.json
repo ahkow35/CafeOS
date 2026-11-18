@@ -508,6 +508,12 @@
       "error": "Request not found"
     }
   },
+  "leave DELETE | request approved meanwhile | by requester": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
   "leave DELETE | unknown id | by owner": {
     "status": 404,
     "body": {
@@ -988,6 +994,12 @@
       "error": "Cafe not found"
     }
   },
+  "super reject | cafe activated meanwhile | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only pending cafes can be rejected"
+    }
+  },
   "super reject | from active | by super": {
     "status": 400,
     "body": {
@@ -1010,6 +1022,12 @@
     "status": 400,
     "body": {
       "error": "Only pending cafes can be rejected"
+    }
+  },
+  "super reject | malformed id | by super": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
     }
   },
   "super reject | unknown id | by super": {
@@ -1161,6 +1179,18 @@
     "status": 403,
     "body": {
       "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | sheet approved meanwhile | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved timesheets cannot be deleted"
+    }
+  },
+  "timesheet DELETE | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
     }
   },
   "timesheet GET list | scope all with a malformed user_id | by owner": {
@@ -2046,6 +2076,12 @@
       "error": "Entry not found"
     }
   },
+  "timesheet entry DELETE | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
   "timesheet entry PATCH | no known field | by pt": {
     "status": 400,
     "body": {
@@ -2164,6 +2200,12 @@
     "status": 403,
     "body": {
       "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
     }
   },
   "timesheet entry PATCH | unknown entry | by pt": {
