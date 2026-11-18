@@ -3,8 +3,7 @@
  * POST /api/auth/login and POST /api/auth/change-pin (the current-PIN check).
  *
  * Part one pins what happens one request at a time. Part two sends many attempts at
- * the same moment and checks every attempt is counted, so no more than the allowed
- * number are compared before the account locks.
+ * the same moment and pins the replies and the stored count.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -196,7 +195,7 @@ export function signInAttemptCases(): void {
   describe('sign-in attempts: many at the same moment', () => {
     const SENT = 12;
 
-    test('login: attempts sent together are each counted, so at most 5 are answered as a wrong PIN', async () => {
+    test('login: 12 wrong PINs at once give 4 wrong-PIN replies, then locked', async () => {
       const m = await newMember('staff');
       const replies = await Promise.all(Array.from({ length: SENT }, () => loginAs(m, WRONG)));
       const wrong = replies.filter((r) => r.status === 401).length;
@@ -205,12 +204,12 @@ export function signInAttemptCases(): void {
       const c = await counters(m);
       const seen = `answered as wrong PIN: ${wrong}, as locked: ${locked}, other: ${JSON.stringify(other)}, failed_attempts: ${c.failed_attempts}`;
       assert.equal(wrong + locked, SENT, seen);
-      assert.ok(wrong <= 5, `at most 5 should be answered as a wrong PIN; ${seen}`);
-      assert.ok(c.failed_attempts >= 5, `failed_attempts should be at least 5; ${seen}`);
+      assert.equal(wrong, 4, `4 should be answered as a wrong PIN; ${seen}`);
+      assert.equal(c.failed_attempts, 5, `failed_attempts should be 5; ${seen}`);
       assert.ok(c.secs !== null && c.secs > 0, `locked_until should be in the future; ${seen}`);
     });
 
-    test('change PIN: attempts sent together are each counted, so at most 5 are answered as a wrong PIN', async () => {
+    test('change PIN: 12 wrong PINs at once give 4 wrong-PIN replies, then locked', async () => {
       const m = await newMember('staff');
       await m.cookie();
       const replies = await Promise.all(Array.from({ length: SENT }, () => changePin(m, WRONG)));
@@ -220,8 +219,8 @@ export function signInAttemptCases(): void {
       const c = await counters(m);
       const seen = `answered as wrong PIN: ${wrong}, as locked: ${locked}, other: ${JSON.stringify(other)}, failed_attempts: ${c.failed_attempts}`;
       assert.equal(wrong + locked, SENT, seen);
-      assert.ok(wrong <= 5, `at most 5 should be answered as a wrong PIN; ${seen}`);
-      assert.ok(c.failed_attempts >= 5, `failed_attempts should be at least 5; ${seen}`);
+      assert.equal(wrong, 4, `4 should be answered as a wrong PIN; ${seen}`);
+      assert.equal(c.failed_attempts, 5, `failed_attempts should be 5; ${seen}`);
       assert.ok(c.secs !== null && c.secs > 0, `locked_until should be in the future; ${seen}`);
     });
   });

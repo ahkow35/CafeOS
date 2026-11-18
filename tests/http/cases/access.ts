@@ -3,7 +3,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, PIN, type Reply } from '../harness';
 import { byId, expectStatus } from './util';
-import { signInAttemptResetCases } from './sign-in-attempts-reset';
 
 const cookieOf = (r: Reply, name: string): string => {
   for (const c of r.headers.getSetCookie()) {
@@ -14,7 +13,6 @@ const cookieOf = (r: Reply, name: string): string => {
 };
 
 export function accessCases(): void {
-  signInAttemptResetCases();
   describe('access: signed out', () => {
     for (const [method, path] of [
       ['GET', '/api/timesheets'], ['POST', '/api/timesheets'], ['GET', '/api/leave-requests'], ['GET', '/api/claims'],

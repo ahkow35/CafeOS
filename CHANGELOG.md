@@ -3,19 +3,19 @@
 ## 2026-11-18 — Count sign-in attempts in one statement, shared by login and change-PIN
 
 ### Summary
-Login and the current-PIN check in change-PIN each had their own copy of the attempt counting:
-read the count, compare the PIN, write back the count read plus one. Both now call one small
-module, `src/lib/pinAttempts.ts`, which counts the attempt in a single conditional UPDATE
-before the PIN is compared (and which now holds the threshold of 5 and the 15 minutes, once).
-Attempts that arrive together are each counted, and no more than the threshold are compared
-before the account locks. New HTTP cases in `tests/http/cases/sign-in-attempts.ts` pin the
-one-at-a-time behaviour and cover attempts sent together.
+Login and the current-PIN check in change-PIN each had their own copy of the attempt counting.
+Both now call one small module, `src/lib/pinAttempts.ts`, which counts the attempt in a single
+conditional UPDATE before the PIN is compared (and which now holds the threshold of 5 and the
+15 minutes, once). New HTTP cases in `tests/http/cases/sign-in-attempts.ts` pin the behaviour
+for one request at a time and for many at once.
 
 ### Behaviour
 - Unchanged, one request at a time: every status, error text and resulting `failed_attempts` /
   `locked_until`; the count is still not reset when a lock runs out.
 - One decided difference: in change-PIN, a right current PIN now resets the count to 0 even when
   the request is then refused for another reason (for example the new PIN equals the old one).
+- Every sign-in attempt now writes the profile row (the count, then the reset on a right PIN),
+  so `profiles.updated_at` moves on each sign-in. Nothing reads that column.
 - No schema change, no new dependency; the four places that write a new PIN hash are untouched.
 
 ### Rejected alternative
