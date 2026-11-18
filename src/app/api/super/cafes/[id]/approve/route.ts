@@ -3,6 +3,7 @@ import { sql, withTx } from '@/lib/db';
 import { requireSuperAdmin, hashPin, AuthError } from '@/lib/auth';
 import { createStripeCustomerAndTrial } from '@/lib/billing';
 import { decideOwnerCredential } from '@/lib/cafeApproval';
+import { decideCafeMove, type CafeStatus } from '@/lib/workflows/cafe';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -19,14 +20,14 @@ export async function POST(
     if (!UUID_RE.test(cafeId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     const { rows: cafeRows } = await sql<{
-      status: string;
+      status: CafeStatus;
       name: string;
       stripe_customer_id: string | null;
     }>`
       SELECT status, name, stripe_customer_id FROM cafes WHERE id = ${cafeId} LIMIT 1
     `;
     if (cafeRows.length === 0) return NextResponse.json({ error: 'Cafe not found' }, { status: 404 });
-    if (cafeRows[0].status !== 'pending') {
+    if (!decideCafeMove(cafeRows[0].status, 'approve').ok) {
       return NextResponse.json({ error: 'Only pending cafes can be approved' }, { status: 409 });
     }
 
@@ -84,11 +85,11 @@ export async function POST(
     // Activate cafe + membership + profile atomically, re-checking pending under a
     // row lock so a concurrent approval can't double-activate.
     const activated = await withTx(admin.id, async (tx) => {
-      const { rows: locked } = await tx.query<{ status: string }>(
+      const { rows: locked } = await tx.query<{ status: CafeStatus }>(
         `SELECT status FROM cafes WHERE id = $1 FOR UPDATE`,
         [cafeId],
       );
-      if (locked[0]?.status !== 'pending') return false; // already approved by a concurrent request
+      if (!locked[0] || !decideCafeMove(locked[0].status, 'approve').ok) return false; // already approved by a concurrent request
 
       await tx.query(
         `UPDATE cafes

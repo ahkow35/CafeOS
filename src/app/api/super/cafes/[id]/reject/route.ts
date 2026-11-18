@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireSuperAdmin, AuthError } from '@/lib/auth';
+import { decideCafeMove, type CafeStatus } from '@/lib/workflows/cafe';
 
 export const runtime = 'nodejs';
 
@@ -9,11 +10,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     await requireSuperAdmin();
     const { id } = await params;
 
-    const { rows } = await sql<{ status: string }>`
+    const { rows } = await sql<{ status: CafeStatus }>`
       SELECT status FROM cafes WHERE id = ${id}
     `;
     if (rows.length === 0) return NextResponse.json({ error: 'Cafe not found' }, { status: 404 });
-    if (rows[0].status !== 'pending') {
+    if (!decideCafeMove(rows[0].status, 'reject').ok) {
       return NextResponse.json({ error: 'Only pending cafes can be rejected' }, { status: 400 });
     }
 
