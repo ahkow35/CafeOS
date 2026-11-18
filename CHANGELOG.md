@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-19 — One badge for each status on every screen
+
+### Summary
+A status now has one label and one colour wherever it is shown. The labels live in
+`src/lib/workflows/labels.ts`, next to the status tables, and every screen draws them through the
+`StatusBadge` component. The timesheet delete rule joined the other rules in
+`src/lib/workflows/timesheet.ts`, and the timesheets route reads it with the same replies as before.
+
+### What people see
+- Timesheet, leave, claim and cafe statuses are one badge each: Draft, Awaiting manager, Awaiting
+  owner, Approved, Declined (cafes: Awaiting approval, Active, Suspended). This covers the part-timer
+  timesheet list and detail, the admin timesheet list and detail, leave and claim cards, the leave
+  archive, and the super admin cafe list and cafe page.
+- "Awaiting owner" is purple on leave requests and claims (it was light grey on leave and amber on claims).
+  "Awaiting manager" is amber everywhere.
+- The admin timesheet tabs read "Awaiting manager" and "Awaiting owner".
+- The leave archive shows the plain badge, without the small icon, and now tells all four leave
+  statuses apart.
+- On the admin timesheet page an approved timesheet shows a line saying it is kept as the pay record
+  and can't be deleted, in place of the Delete button.
+- A visitor sent back to sign in from a suspended or a pending cafe sees a short notice above the
+  form saying which one it is.
+
+### Behaviour
+- New tests for the timesheet delete rule (every status for every kind of person) and for the label
+  table. The reply pins did not change.
+- No schema change, no new dependency.
+
 ## 2026-11-18 — The status is checked again inside the write
 
 ### Summary
