@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, nextYear, type Person } from '../harness';
-import { SIG, byId, expectStatus, pick, stampIs, type Cell } from './util';
+import { SIG, byId, expectStatus, pick, refuse, stampIs, type Cell } from './util';
 
 type Status = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 const STATUSES: Status[] = ['draft', 'submitted', 'pending_owner', 'approved', 'rejected'];
@@ -86,7 +86,7 @@ export function timesheetCases(): void {
             const r = await api('PATCH', `/api/timesheets/${id}`, { as: who, body: BODIES[action] });
             const after = await byId('timesheets', id);
             if (typeof cell === 'number') {
-              expectStatus(r, cell);
+              refuse(`timesheet PATCH ${action} | from ${from} | by ${actor}`, r, cell);
               assert.deepEqual(pick(after, COLS), before, 'a refused move must leave the row untouched');
               return;
             }
@@ -108,7 +108,8 @@ export function timesheetCases(): void {
         test(`delete ${from} as ${actor} -> ${http}`, async () => {
           const { id, pt } = await seedSheet(from);
           const r = await api('DELETE', `/api/timesheets/${id}`, { as: actorOf(actor, pt) });
-          expectStatus(r, http);
+          if (http === 200) expectStatus(r, http);
+          else refuse(`timesheet DELETE | from ${from} | by ${actor}`, r, http);
           assert.equal((await byId('timesheets', id)) === undefined, http === 200);
         });
       });

@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, row, type Person } from '../harness';
-import { expectStatus } from './util';
+import { expectStatus, refuse } from './util';
 import { seedSheet } from './timesheets';
 
 type Status = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
@@ -34,7 +34,8 @@ export function timesheetEntryCases(): void {
         test(`add entry on ${from} as ${actor} -> ${ok ? 201 : EXPECT(from, i)}`, async () => {
           const { id, pt } = await seedSheet(from);
           const r = await api('POST', `/api/timesheets/${id}/entries`, { as: who(pt), body: { entry_date: `${(await month(id))}-05`, start_time: '09:00', end_time: '13:00' } });
-          expectStatus(r, ok ? 201 : EXPECT(from, i));
+          if (ok) expectStatus(r, 201);
+          else refuse(`timesheet entry POST | on ${from} | by ${actor}`, r, EXPECT(from, i));
           const n = (await row(`SELECT count(*)::int AS n FROM timesheet_entries WHERE timesheet_id = $1`, [id]))?.n;
           assert.equal(n, ok ? 1 : 0);
         });
@@ -42,14 +43,16 @@ export function timesheetEntryCases(): void {
           const { id, pt } = await seedSheet(from);
           const entry = await seedEntry(id);
           const r = await api('PATCH', `/api/timesheet-entries/${entry}`, { as: who(pt), body: { remarks: 'edited' } });
-          expectStatus(r, EXPECT(from, i));
+          if (ok) expectStatus(r, 200);
+          else refuse(`timesheet entry PATCH | on ${from} | by ${actor}`, r, EXPECT(from, i));
           assert.equal((await row(`SELECT remarks FROM timesheet_entries WHERE id = $1`, [entry]))?.remarks, ok ? 'edited' : null);
         });
         test(`delete entry on ${from} as ${actor} -> ${EXPECT(from, i)}`, async () => {
           const { id, pt } = await seedSheet(from);
           const entry = await seedEntry(id);
           const r = await api('DELETE', `/api/timesheet-entries/${entry}`, { as: who(pt) });
-          expectStatus(r, EXPECT(from, i));
+          if (ok) expectStatus(r, 200);
+          else refuse(`timesheet entry DELETE | on ${from} | by ${actor}`, r, EXPECT(from, i));
           const left = (await row(`SELECT count(*)::int AS n FROM timesheet_entries WHERE id = $1`, [entry]))?.n;
           assert.equal(left, ok ? 0 : 1);
         });
@@ -80,15 +83,15 @@ export function timesheetEntryCases(): void {
 
     test('a date outside the timesheet month is refused', async () => {
       const { id, pt } = await seedSheet('draft');
-      expectStatus(await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: '2020-01-05' } }), 400);
+      refuse('timesheet entry POST | date outside the month | by pt', await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: '2020-01-05' } }), 400);
     });
 
     test('bad date, bad time and missing timesheet', async () => {
       const { id, pt } = await seedSheet('draft');
-      expectStatus(await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: '5 May' } }), 400);
-      expectStatus(await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: `${await month(id)}-05`, start_time: '9am' } }), 400);
-      expectStatus(await api('POST', `/api/timesheets/00000000-0000-4000-8000-000000000000/entries`, { as: pt, body: { entry_date: '3000-01-05' } }), 404);
-      expectStatus(await api('POST', `/api/timesheets/not-an-id/entries`, { as: pt, body: {} }), 400);
+      refuse('timesheet entry POST | bad date | by pt', await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: '5 May' } }), 400);
+      refuse('timesheet entry POST | bad time | by pt', await api('POST', `/api/timesheets/${id}/entries`, { as: pt, body: { entry_date: `${await month(id)}-05`, start_time: '9am' } }), 400);
+      refuse('timesheet entry POST | unknown timesheet | by pt', await api('POST', `/api/timesheets/00000000-0000-4000-8000-000000000000/entries`, { as: pt, body: { entry_date: '3000-01-05' } }), 404);
+      refuse('timesheet entry POST | malformed id | by pt', await api('POST', `/api/timesheets/not-an-id/entries`, { as: pt, body: {} }), 400);
     });
 
     test('editing only the break re-derives the total from the stored times', async () => {
@@ -103,14 +106,14 @@ export function timesheetEntryCases(): void {
     test('editing with no known field, or an unknown entry', async () => {
       const { id, pt } = await seedSheet('draft');
       const entry = await seedEntry(id);
-      expectStatus(await api('PATCH', `/api/timesheet-entries/${entry}`, { as: pt, body: { total_hours: 5 } }), 400);
-      expectStatus(await api('PATCH', `/api/timesheet-entries/00000000-0000-4000-8000-000000000000`, { as: pt, body: { remarks: 'x' } }), 404);
+      refuse('timesheet entry PATCH | no known field | by pt', await api('PATCH', `/api/timesheet-entries/${entry}`, { as: pt, body: { total_hours: 5 } }), 400);
+      refuse('timesheet entry PATCH | unknown entry | by pt', await api('PATCH', `/api/timesheet-entries/00000000-0000-4000-8000-000000000000`, { as: pt, body: { remarks: 'x' } }), 404);
     });
 
     test('a member of the other cafe cannot see the entry', async () => {
       const { id } = await seedSheet('draft');
       const entry = await seedEntry(id);
-      expectStatus(await api('DELETE', `/api/timesheet-entries/${entry}`, { as: env.people.owner2 }), 404);
+      refuse('timesheet entry DELETE | other cafe | by owner2', await api('DELETE', `/api/timesheet-entries/${entry}`, { as: env.people.owner2 }), 404);
       assert.equal((await row(`SELECT count(*)::int AS n FROM timesheet_entries WHERE id = $1`, [entry]))?.n, 1);
     });
   });

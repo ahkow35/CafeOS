@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, nextYear, type Person, type Role } from '../harness';
-import { byId, expectStatus, stampIs, type Cell } from './util';
+import { byId, expectStatus, refuse, stampIs, type Cell } from './util';
 
 type Status = 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
 const STATUSES: Status[] = ['pending_manager', 'pending_owner', 'approved', 'rejected'];
@@ -76,12 +76,12 @@ export function leaveCases(): void {
       const who = await newMember('staff');
       const y = nextYear();
       const ask = (b: Record<string, unknown>) => api('POST', '/api/leave-requests', { as: who, body: { leave_type: 'annual', ...b } });
-      expectStatus(await ask({ start_date: `${y}-05-01`, end_date: `${y}-05-20` }), 400); // 20 days > 14
-      expectStatus(await ask({ start_date: `${y}-05-05`, end_date: `${y}-05-01` }), 400);
-      expectStatus(await ask({ start_date: 'soon', end_date: `${y}-05-01` }), 400);
-      expectStatus(await api('POST', '/api/leave-requests', { as: who, body: { leave_type: 'sabbatical', start_date: `${y}-05-01`, end_date: `${y}-05-01` } }), 400);
-      expectStatus(await api('POST', '/api/leave-requests', { as: who, body: { leave_type: 'medical', start_date: `${y}-05-01`, end_date: `${y}-05-01` } }), 400);
-      expectStatus(await api('POST', '/api/leave-requests', { body: { leave_type: 'annual' } }), 401);
+      refuse('leave POST | more days than the balance | by staff', await ask({ start_date: `${y}-05-01`, end_date: `${y}-05-20` }), 400); // 20 days > 14
+      refuse('leave POST | end before start | by staff', await ask({ start_date: `${y}-05-05`, end_date: `${y}-05-01` }), 400);
+      refuse('leave POST | bad start date | by staff', await ask({ start_date: 'soon', end_date: `${y}-05-01` }), 400);
+      refuse('leave POST | unknown leave type | by staff', await api('POST', '/api/leave-requests', { as: who, body: { leave_type: 'sabbatical', start_date: `${y}-05-01`, end_date: `${y}-05-01` } }), 400);
+      refuse('leave POST | medical leave type | by staff', await api('POST', '/api/leave-requests', { as: who, body: { leave_type: 'medical', start_date: `${y}-05-01`, end_date: `${y}-05-01` } }), 400);
+      refuse('leave POST | signed out', await api('POST', '/api/leave-requests', { body: { leave_type: 'annual' } }), 401);
       assert.equal(await annual(who.id), START_BALANCE);
     });
 
@@ -90,7 +90,7 @@ export function leaveCases(): void {
       const y = nextYear();
       const body = { leave_type: 'annual', start_date: `${y}-05-01`, end_date: `${y}-05-03` };
       expectStatus(await api('POST', '/api/leave-requests', { as: who, body }), 201);
-      expectStatus(await api('POST', '/api/leave-requests', { as: who, body: { ...body, start_date: `${y}-05-03`, end_date: `${y}-05-04` } }), 400);
+      refuse('leave POST | overlaps an existing request | by staff', await api('POST', '/api/leave-requests', { as: who, body: { ...body, start_date: `${y}-05-03`, end_date: `${y}-05-04` } }), 400);
       assert.equal(await annual(who.id), START_BALANCE - 3);
     });
   });
@@ -107,7 +107,7 @@ export function leaveCases(): void {
             const r = await api('PATCH', `/api/leave-requests/${id}`, { as: by, body: { action } });
             const after = await byId('leave_requests', id);
             if (typeof cell === 'number') {
-              expectStatus(r, cell);
+              refuse(`leave PATCH ${action} | from ${from} | by ${actor}`, r, cell);
               assert.equal(after?.status, from);
               assert.equal(await annual(who.id), before);
               return;
@@ -128,7 +128,7 @@ export function leaveCases(): void {
     test('a manager cannot act on their own request; an owner can', async () => {
       const own = await seedLeave('pending_manager', 'manager');
       for (const action of ['approve', 'reject']) {
-        expectStatus(await api('PATCH', `/api/leave-requests/${own.id}`, { as: own.who, body: { action } }), 403);
+        refuse(`leave PATCH ${action} | own pending_manager request | by mgr`, await api('PATCH', `/api/leave-requests/${own.id}`, { as: own.who, body: { action } }), 403);
       }
       assert.equal((await byId('leave_requests', own.id))?.status, 'pending_manager');
       const o = await seedLeave('pending_manager', 'owner');
@@ -138,9 +138,9 @@ export function leaveCases(): void {
 
     test('bad action, unknown id, other cafe', async () => {
       const { id } = await seedLeave('pending_manager');
-      expectStatus(await api('PATCH', `/api/leave-requests/${id}`, { as: env.people.owner, body: { action: 'maybe' } }), 400);
-      expectStatus(await api('PATCH', `/api/leave-requests/00000000-0000-4000-8000-000000000000`, { as: env.people.owner, body: { action: 'approve' } }), 404);
-      expectStatus(await api('PATCH', `/api/leave-requests/${id}`, { as: env.people.owner2, body: { action: 'approve' } }), 404);
+      refuse('leave PATCH | unknown action | by owner', await api('PATCH', `/api/leave-requests/${id}`, { as: env.people.owner, body: { action: 'maybe' } }), 400);
+      refuse('leave PATCH | unknown id | by owner', await api('PATCH', `/api/leave-requests/00000000-0000-4000-8000-000000000000`, { as: env.people.owner, body: { action: 'approve' } }), 404);
+      refuse('leave PATCH | other cafe | by owner2', await api('PATCH', `/api/leave-requests/${id}`, { as: env.people.owner2, body: { action: 'approve' } }), 404);
     });
   });
 
@@ -152,7 +152,9 @@ export function leaveCases(): void {
           const { id, who } = await seedLeave(from);
           const by = actor === 'requester' ? who : env.people[actor as 'staff' | 'manager' | 'owner'];
           const before = await annual(who.id);
-          expectStatus(await api('DELETE', `/api/leave-requests/${id}`, { as: by }), http);
+          const r = await api('DELETE', `/api/leave-requests/${id}`, { as: by });
+          if (http === 200) expectStatus(r, http);
+          else refuse(`leave DELETE | from ${from} | by ${actor}`, r, http);
           const gone = (await byId('leave_requests', id)) === undefined;
           assert.equal(gone, http === 200);
           // pending and approved requests hold days, so deleting one gives them back; a rejected one already did
@@ -164,8 +166,8 @@ export function leaveCases(): void {
 
     test('unknown id is 404 and another cafe sees 404', async () => {
       const { id } = await seedLeave('pending_manager');
-      expectStatus(await api('DELETE', `/api/leave-requests/00000000-0000-4000-8000-000000000000`, { as: env.people.owner }), 404);
-      expectStatus(await api('DELETE', `/api/leave-requests/${id}`, { as: env.people.owner2 }), 404);
+      refuse('leave DELETE | unknown id | by owner', await api('DELETE', `/api/leave-requests/00000000-0000-4000-8000-000000000000`, { as: env.people.owner }), 404);
+      refuse('leave DELETE | other cafe | by owner2', await api('DELETE', `/api/leave-requests/${id}`, { as: env.people.owner2 }), 404);
     });
   });
 }

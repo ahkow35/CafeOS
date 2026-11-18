@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, fakePhone, newCafeWithOwner, row, PIN, type Person } from '../harness';
-import { byId, expectStatus, stampIs } from './util';
+import { byId, expectStatus, refuse, stampIs } from './util';
 
 const sup = () => env.people.super;
 const approve = (id: string, as: Person | null = sup()) => api('POST', `/api/super/cafes/${id}/approve`, { as });
@@ -44,7 +44,7 @@ export function cafeStatusCases(): void {
 
     test('an owner whose account is disabled blocks the approval (409, nothing changes)', async () => {
       const { cafeId } = await newCafeWithOwner('pending', { active: false, pinSet: true });
-      expectStatus(await approve(cafeId), 409);
+      refuse('super approve | owner account disabled | by super', await approve(cafeId), 409);
       assert.equal((await byId('cafes', cafeId))?.status, 'pending');
       assert.equal((await row(`SELECT status FROM cafe_memberships WHERE cafe_id = $1`, [cafeId]))?.status, 'pending');
     });
@@ -52,7 +52,7 @@ export function cafeStatusCases(): void {
     for (const status of ['active', 'suspended'] as const) {
       test(`approve on a ${status} cafe -> 409`, async () => {
         const { cafeId } = await newCafeWithOwner(status);
-        expectStatus(await approve(cafeId), 409);
+        refuse(`super approve | from ${status} | by super`, await approve(cafeId), 409);
         assert.equal((await byId('cafes', cafeId))?.status, status);
       });
     }
@@ -60,15 +60,15 @@ export function cafeStatusCases(): void {
     test('approving twice: the second is a 409', async () => {
       const { cafeId } = await newCafeWithOwner('pending', { active: false, pinSet: false });
       expectStatus(await approve(cafeId), 200);
-      expectStatus(await approve(cafeId), 409);
+      refuse('super approve | second approval of the same cafe | by super', await approve(cafeId), 409);
     });
 
     test('unknown id, bad id, and who may call it', async () => {
       const { cafeId } = await newCafeWithOwner('pending', { active: false, pinSet: false });
-      expectStatus(await approve(NOBODY), 404);
-      expectStatus(await approve('nope'), 400);
-      expectStatus(await approve(cafeId, env.people.owner), 403);
-      expectStatus(await approve(cafeId, null), 401);
+      refuse('super approve | unknown id | by super', await approve(NOBODY), 404);
+      refuse('super approve | malformed id | by super', await approve('nope'), 400);
+      refuse('super approve | from pending | by owner', await approve(cafeId, env.people.owner), 403);
+      refuse('super approve | from pending | signed out', await approve(cafeId, null), 401);
       assert.equal((await byId('cafes', cafeId))?.status, 'pending');
     });
   });
@@ -85,16 +85,16 @@ export function cafeStatusCases(): void {
     for (const status of ['active', 'suspended'] as const) {
       test(`reject on a ${status} cafe -> 400, cafe kept`, async () => {
         const { cafeId } = await newCafeWithOwner(status);
-        expectStatus(await reject(cafeId), 400);
+        refuse(`super reject | from ${status} | by super`, await reject(cafeId), 400);
         assert.equal((await byId('cafes', cafeId))?.status, status);
       });
     }
 
     test('unknown id, and who may call it', async () => {
       const { cafeId } = await newCafeWithOwner('pending', { active: false, pinSet: false });
-      expectStatus(await reject(NOBODY), 404);
-      expectStatus(await reject(cafeId, env.people.owner), 403);
-      expectStatus(await reject(cafeId, null), 401);
+      refuse('super reject | unknown id | by super', await reject(NOBODY), 404);
+      refuse('super reject | from pending | by owner', await reject(cafeId, env.people.owner), 403);
+      refuse('super reject | from pending | signed out', await reject(cafeId, null), 401);
       assert.equal((await byId('cafes', cafeId))?.status, 'pending');
     });
   });
@@ -119,10 +119,10 @@ export function cafeStatusCases(): void {
 
     test('unknown id, bad id, and who may call it', async () => {
       const { cafeId } = await newCafeWithOwner('active');
-      expectStatus(await suspend(NOBODY), 404);
-      expectStatus(await suspend('nope'), 400);
-      expectStatus(await suspend(cafeId, env.people.owner), 403);
-      expectStatus(await suspend(cafeId, null), 401);
+      refuse('super suspend | unknown id | by super', await suspend(NOBODY), 404);
+      refuse('super suspend | malformed id | by super', await suspend('nope'), 400);
+      refuse('super suspend | from active | by owner', await suspend(cafeId, env.people.owner), 403);
+      refuse('super suspend | from active | signed out', await suspend(cafeId, null), 401);
       assert.equal((await byId('cafes', cafeId))?.status, 'active');
     });
 
@@ -131,16 +131,16 @@ export function cafeStatusCases(): void {
       expectStatus(await api('GET', '/api/timesheets', { as: owner }), 200);
       expectStatus(await suspend(cafeId), 200);
       const refused = await api('GET', '/api/timesheets', { as: owner });
-      expectStatus(refused, 403);
+      refuse('suspended cafe | GET timesheets | by owner already signed in', refused, 403);
       assert.equal(refused.json.error, 'This cafe has been suspended');
       const again = await api('POST', '/api/auth/login', { body: { phone: owner.phone, pin: PIN } });
-      expectStatus(again, 403);
+      refuse('suspended cafe | sign in | by owner', again, 403);
       assert.equal(again.json.code, 'no_active_membership');
     });
 
     test('a member of a pending cafe cannot sign in', async () => {
       const { owner } = await newCafeWithOwner('pending', { active: true, pinSet: true });
-      expectStatus(await api('POST', '/api/auth/login', { body: { phone: owner.phone, pin: PIN } }), 403);
+      refuse('pending cafe | sign in | by owner', await api('POST', '/api/auth/login', { body: { phone: owner.phone, pin: PIN } }), 403);
     });
   });
 
@@ -155,8 +155,8 @@ export function cafeStatusCases(): void {
       const [c, p] = [await byId('cafes', ids!.cafe_id), await byId('profiles', ids!.user_id)];
       assert.deepEqual([c?.status, p?.is_active, p?.pin_set_at], ['pending', false, null]);
       assert.equal((await row(`SELECT status FROM cafe_memberships WHERE cafe_id = $1`, [ids!.cafe_id]))?.status, 'pending');
-      expectStatus(await api('POST', '/api/start', { body }), 409);
-      expectStatus(await api('POST', '/api/start', { body: { ...body, cafeName: '' } }), 400);
+      refuse('sign-up | same application again', await api('POST', '/api/start', { body }), 409);
+      refuse('sign-up | empty cafe name', await api('POST', '/api/start', { body: { ...body, cafeName: '' } }), 400);
       const ok = await approve(ids!.cafe_id);
       expectStatus(ok, 200);
       assert.match(ok.json.pin, /^\d{6}$/);

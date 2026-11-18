@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, rows, type Json, type Person } from '../harness';
-import { byId, expectStatus, stampIs } from './util';
+import { byId, expectStatus, refuse, stampIs } from './util';
 
 const DEADLINE = '3030-01-01T00:00:00.000Z';
 
@@ -42,7 +42,7 @@ export function taskCases(): void {
     test('someone else on the team cannot tick it; a manager can, and is recorded as the completer', async () => {
       const a = await newMember('staff');
       const id = await seedTask(a.id);
-      expectStatus(await tick(id, env.people.staff, 'done'), 403);
+      refuse('task PATCH tick | assigned to one person | by other staff', await tick(id, env.people.staff, 'done'), 403);
       assert.equal((await byId('tasks', id))?.status, 'pending');
       expectStatus(await tick(id, env.people.manager, 'done'), 200);
       stampIs(await byId('tasks', id), 'completed_by', env.people.manager.id);
@@ -53,9 +53,9 @@ export function taskCases(): void {
     test('only managers change the title or assignee; a missing status field is a 400', async () => {
       const a = await newMember('staff');
       const id = await seedTask(a.id);
-      expectStatus(await api('PATCH', `/api/tasks/${id}`, { as: a, body: { title: 'mine' } }), 403);
-      expectStatus(await api('PATCH', `/api/tasks/${id}`, { as: a, body: {} }), 400);
-      expectStatus(await api('PATCH', `/api/tasks/${id}`, { as: a, body: { status: 'half' } }), 400);
+      refuse('task PATCH title | by assignee', await api('PATCH', `/api/tasks/${id}`, { as: a, body: { title: 'mine' } }), 403);
+      refuse('task PATCH | no status field | by assignee', await api('PATCH', `/api/tasks/${id}`, { as: a, body: {} }), 400);
+      refuse('task PATCH | unknown status value | by assignee', await api('PATCH', `/api/tasks/${id}`, { as: a, body: { status: 'half' } }), 400);
       expectStatus(await api('PATCH', `/api/tasks/${id}`, { as: env.people.manager, body: { title: 'Renamed' } }), 200);
       assert.equal((await byId('tasks', id))?.title, 'Renamed');
     });
@@ -63,7 +63,7 @@ export function taskCases(): void {
     test('other cafe cannot see or tick it', async () => {
       const a = await newMember('staff');
       const id = await seedTask(a.id);
-      expectStatus(await tick(id, env.people.owner2, 'done'), 404);
+      refuse('task PATCH tick | other cafe | by owner2', await tick(id, env.people.owner2, 'done'), 404);
     });
   });
 
@@ -104,11 +104,11 @@ export function taskCases(): void {
     test('creating and deleting: managers only', async () => {
       const a = await newMember('staff');
       const body = { title: 'Close up', deadline: DEADLINE, assigned_to: 'all' };
-      expectStatus(await api('POST', '/api/tasks', { as: a, body }), 403);
+      refuse('task POST | by staff', await api('POST', '/api/tasks', { as: a, body }), 403);
       const r = await api('POST', '/api/tasks', { as: env.people.manager, body });
       expectStatus(r, 201);
       assert.deepEqual([r.json.task.status, r.json.task.assigned_to], ['pending', 'all']);
-      expectStatus(await api('DELETE', `/api/tasks/${r.json.task.id}`, { as: a }), 403);
+      refuse('task DELETE | by staff', await api('DELETE', `/api/tasks/${r.json.task.id}`, { as: a }), 403);
       expectStatus(await api('DELETE', `/api/tasks/${r.json.task.id}`, { as: env.people.manager }), 200);
       assert.equal(await byId('tasks', r.json.task.id), undefined);
     });

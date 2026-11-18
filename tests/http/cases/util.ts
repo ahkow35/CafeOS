@@ -1,6 +1,7 @@
 /** Small helpers shared by the case modules. */
 import assert from 'node:assert/strict';
 import { row, type Json, type Reply } from '../harness';
+import { pinRefusal } from './pins';
 
 export const SIG = 'data:image/png;base64,AAAA';
 
@@ -9,6 +10,12 @@ export type Cell = number | `ok:${string}`;
 
 export function expectStatus(r: Reply, http: number): void {
   assert.equal(r.status, http, `expected HTTP ${http}, got ${r.status}: ${JSON.stringify(r.json)}`);
+}
+
+/** A refusal: the status must match and the whole reply is pinned under `key` (see pins.ts). */
+export function refuse(key: string, r: Reply, http: number): void {
+  expectStatus(r, http);
+  pinRefusal(key, r);
 }
 
 /** Fetch one row by id, or undefined once it is gone. */

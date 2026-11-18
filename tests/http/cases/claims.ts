@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, type Person, type Role } from '../harness';
-import { byId, expectStatus, stampIs } from './util';
+import { byId, expectStatus, refuse, stampIs } from './util';
 
 type Status = 'pending' | 'approved' | 'rejected';
 const STATUSES: Status[] = ['pending', 'approved', 'rejected'];
@@ -55,10 +55,10 @@ export function claimCases(): void {
     test('approve above the claimed amount, above the balance, or with a bad amount is refused', async () => {
       const { id, who } = await seedClaim('pending');
       for (const amount_approved of [31, 'abc', 0, -1]) {
-        expectStatus(await patch(id, env.people.owner, { action: 'approve', amount_approved }), 400);
+        refuse(`claim PATCH approve | amount_approved ${JSON.stringify(amount_approved)} | by owner`, await patch(id, env.people.owner, { action: 'approve', amount_approved }), 400);
       }
       const low = await seedClaim('pending', 'staff', 10);
-      expectStatus(await patch(low.id, env.people.owner, { action: 'approve' }), 400);
+      refuse('claim PATCH approve | claimed amount above the balance | by owner', await patch(low.id, env.people.owner, { action: 'approve' }), 400);
       assert.equal((await byId('medical_claims', low.id))?.status, 'pending');
       assert.equal(await balance(low.who.id), 10);
       assert.equal(await balance(who.id), START_BALANCE);
@@ -78,8 +78,8 @@ export function claimCases(): void {
       expectStatus(await patch(a.id, env.people.owner, { action: 'reject' }), 200);
       assert.equal((await byId('medical_claims', a.id))?.decision_note, null);
       const b = await seedClaim('pending');
-      expectStatus(await patch(b.id, env.people.owner, { action: 'reject', note: 'x'.repeat(501) }), 400);
-      expectStatus(await patch(b.id, env.people.owner, { action: 'reject', note: 5 }), 400);
+      refuse('claim PATCH reject | note of 501 characters | by owner', await patch(b.id, env.people.owner, { action: 'reject', note: 'x'.repeat(501) }), 400);
+      refuse('claim PATCH reject | note that is not text | by owner', await patch(b.id, env.people.owner, { action: 'reject', note: 5 }), 400);
       assert.equal((await byId('medical_claims', b.id))?.status, 'pending');
     });
 
@@ -88,7 +88,7 @@ export function claimCases(): void {
         test(`${action} an already ${from} claim -> 409`, async () => {
           const { id, who } = await seedClaim(from);
           const before = await balance(who.id);
-          expectStatus(await patch(id, env.people.owner, { action }), 409);
+          refuse(`claim PATCH ${action} | from ${from} | by owner`, await patch(id, env.people.owner, { action }), 409);
           assert.equal((await byId('medical_claims', id))?.status, from);
           assert.equal(await balance(who.id), before);
         });
@@ -97,17 +97,17 @@ export function claimCases(): void {
 
     test('only the owner decides: manager, claimant and other staff get 403', async () => {
       const { id, who } = await seedClaim('pending');
-      for (const by of [env.people.manager, who, env.people.staff]) {
-        expectStatus(await patch(id, by, { action: 'approve' }), 403);
+      for (const [name, by] of [['mgr', env.people.manager], ['claimant', who], ['staff', env.people.staff]] as const) {
+        refuse(`claim PATCH approve | from pending | by ${name}`, await patch(id, by, { action: 'approve' }), 403);
       }
       assert.equal((await byId('medical_claims', id))?.status, 'pending');
     });
 
     test('bad action, unknown id, other cafe', async () => {
       const { id } = await seedClaim('pending');
-      expectStatus(await patch(id, env.people.owner, { action: 'maybe' }), 400);
-      expectStatus(await patch('00000000-0000-4000-8000-000000000000', env.people.owner, { action: 'approve' }), 404);
-      expectStatus(await patch(id, env.people.owner2, { action: 'approve' }), 404);
+      refuse('claim PATCH | unknown action | by owner', await patch(id, env.people.owner, { action: 'maybe' }), 400);
+      refuse('claim PATCH | unknown id | by owner', await patch('00000000-0000-4000-8000-000000000000', env.people.owner, { action: 'approve' }), 404);
+      refuse('claim PATCH | other cafe | by owner2', await patch(id, env.people.owner2, { action: 'approve' }), 404);
     });
   });
 
@@ -121,7 +121,9 @@ export function claimCases(): void {
           const { id, who } = await seedClaim(from);
           const by = actor === 'claimant' ? who : env.people[actor as 'staff' | 'manager' | 'owner'];
           const before = await balance(who.id);
-          expectStatus(await api('DELETE', `/api/claims/${id}`, { as: by }), http);
+          const r = await api('DELETE', `/api/claims/${id}`, { as: by });
+          if (http === 200) expectStatus(r, http);
+          else refuse(`claim DELETE | from ${from} | by ${actor}`, r, http);
           assert.equal((await byId('medical_claims', id)) === undefined, http === 200);
           // only purging an approved claim gives its amount back
           assert.equal(await balance(who.id), before + (http === 200 && from === 'approved' ? CLAIMED : 0));
@@ -137,8 +139,8 @@ export function claimCases(): void {
 
     test('unknown id 404, other cafe 404', async () => {
       const { id } = await seedClaim('pending');
-      expectStatus(await api('DELETE', `/api/claims/00000000-0000-4000-8000-000000000000`, { as: env.people.owner }), 404);
-      expectStatus(await api('DELETE', `/api/claims/${id}`, { as: env.people.owner2 }), 404);
+      refuse('claim DELETE | unknown id | by owner', await api('DELETE', `/api/claims/00000000-0000-4000-8000-000000000000`, { as: env.people.owner }), 404);
+      refuse('claim DELETE | other cafe | by owner2', await api('DELETE', `/api/claims/${id}`, { as: env.people.owner2 }), 404);
     });
   });
 
@@ -147,20 +149,20 @@ export function claimCases(): void {
       const { id, who } = await seedClaim('pending');
       const mine = await api('GET', '/api/claims?scope=mine', { as: who });
       assert.deepEqual(mine.json.claims.map((c: { id: string }) => c.id), [id]);
-      expectStatus(await api('GET', '/api/claims?scope=pending', { as: env.people.staff }), 403);
+      refuse('claim GET list | scope pending | by staff', await api('GET', '/api/claims?scope=pending', { as: env.people.staff }), 403);
       for (const by of [env.people.manager, env.people.owner]) {
         const r = await api('GET', '/api/claims?scope=pending', { as: by });
         assert.ok(r.json.claims.some((c: { id: string }) => c.id === id));
       }
-      expectStatus(await api('GET', '/api/claims?scope=bogus', { as: who }), 400);
+      refuse('claim GET list | unknown scope | by staff', await api('GET', '/api/claims?scope=bogus', { as: who }), 400);
     });
 
     test('submitting needs a receipt URL that belongs to the caller', async () => {
       const who = await newMember('staff');
       const body = { receipt_date: '2030-01-15', amount_claimed: 10 };
-      expectStatus(await api('POST', '/api/claims', { as: who, body }), 400);
-      expectStatus(await api('POST', '/api/claims', { as: who, body: { ...body, receipt_url: RECEIPT } }), 400);
-      expectStatus(await api('POST', '/api/claims', { body }), 401);
+      refuse('claim POST | no receipt URL | by staff', await api('POST', '/api/claims', { as: who, body }), 400);
+      refuse('claim POST | receipt URL not belonging to the caller | by staff', await api('POST', '/api/claims', { as: who, body: { ...body, receipt_url: RECEIPT } }), 400);
+      refuse('claim POST | signed out', await api('POST', '/api/claims', { body }), 401);
       assert.equal((await row(`SELECT count(*)::int AS n FROM medical_claims WHERE user_id = $1`, [who.id]))?.n, 0);
     });
   });

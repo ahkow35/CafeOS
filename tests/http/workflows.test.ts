@@ -11,6 +11,7 @@
  * docs/LOCAL_DEV.md, "Running the HTTP tests".
  */
 import { describe, before, after } from 'node:test';
+import { finishPins } from './cases/pins';
 import { skip, startHarness, stopHarness } from './harness';
 import { accessCases } from './cases/access';
 import { timesheetCases } from './cases/timesheets';
@@ -27,6 +28,7 @@ import { cafeAccessCases } from './cases/cafe-access';
 describe('http workflows', { skip }, () => {
   before(startHarness, { timeout: 150_000 });
   after(stopHarness, { timeout: 30_000 });
+  after(finishPins);
 
   accessCases();
   timesheetCases();
