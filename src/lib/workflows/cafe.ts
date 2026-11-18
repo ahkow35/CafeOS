@@ -15,12 +15,12 @@ export interface CafeMove {
 /**
  * Super-admin moves on a cafe (the actor is always a super admin, checked by the
  * route before anything else). Approving and rejecting are for pending cafes only;
- * suspending is open from every status.
+ * suspending is for active cafes only.
  */
 export const CAFE_MOVES: readonly CafeMove[] = [
   { action: 'approve', from: ['pending'], to: 'active' },
   { action: 'reject', from: ['pending'], to: null },
-  { action: 'suspend', from: CAFE_STATUSES, to: 'suspended' },
+  { action: 'suspend', from: ['active'], to: 'suspended' },
 ];
 
 export type CafeMoveDecision = { ok: true } | { ok: false; reason: 'wrong_status' };

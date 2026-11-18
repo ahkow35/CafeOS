@@ -1036,6 +1036,12 @@
       "error": "Cafe not found"
     }
   },
+  "super suspend | cafe suspended meanwhile | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only active cafes can be suspended"
+    }
+  },
   "super suspend | from active | by owner": {
     "status": 403,
     "body": {
@@ -1046,6 +1052,18 @@
     "status": 401,
     "body": {
       "error": "Unauthorized"
+    }
+  },
+  "super suspend | from pending | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only active cafes can be suspended"
+    }
+  },
+  "super suspend | from suspended | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only active cafes can be suspended"
     }
   },
   "super suspend | malformed id | by super": {
