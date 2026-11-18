@@ -6,7 +6,8 @@
  *
  * Safety: refuses any database that is not on this machine, makes its OWN
  * database (never the one tests/db uses), starts the server with an explicit
- * environment (no .env file is read, nothing outside the machine is reachable).
+ * environment that sets every variable the app reads, so no value from a .env
+ * file is used and nothing outside the machine is reachable.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -128,6 +129,12 @@ async function startServer(runUrl: string): Promise<void> {
     STRIPE_WEBHOOK_SECRET: '',
     BLOB_READ_WRITE_TOKEN: '',
     POSTGRES_URL: '',
+    // `next dev` still loads .env* files from the repo folder, but never over a
+    // variable that is already set. So every variable the app reads is set here,
+    // and a developer's .env.local cannot reach this server.
+    APP_BASE_URL: '',
+    STRIPE_PRICE_ID: '',
+    TELEGRAM_WEBHOOK_SECRET: '',
   };
   const bin = path.join(REPO, 'node_modules', 'next', 'dist', 'bin', 'next');
   const child = spawn(process.execPath, [bin, 'dev', '-p', String(port), '-H', '127.0.0.1'], {

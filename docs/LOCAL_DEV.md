@@ -107,7 +107,9 @@ What the harness does:
 - Starts one `next dev` on a free port with an explicit environment: `LOCAL_PG_URL` is the
   per-run database, `JWT_SECRET` is random per run and never written down, and the
   Telegram, Stripe, Blob and Postgres variables are empty, so nothing leaves the machine.
-  No `.env` file is read for the server's settings.
+  `next dev` still loads `.env*` files from the repo folder, but never over a variable
+  that is already set, and the harness sets every variable the app reads. If the app
+  starts reading a new variable, add it to the harness's list.
 - Signs in through the real `POST /api/auth/login` and sends the session cookie.
 
 Add a case by writing a module in `tests/http/cases/` (not named `*.test.ts`, so it
