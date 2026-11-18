@@ -10,17 +10,13 @@ import {
   SESSION_COOKIE_OPTIONS,
   verifyPin,
 } from '@/lib/auth';
+import { attemptPin, LOCKOUT_MINUTES } from '@/lib/pinAttempts';
 import { parseNewPin, parsePin, ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
 
-const LOCKOUT_THRESHOLD = 5;
-const LOCKOUT_MINUTES = 15;
-
 interface CredentialRow {
   pin_hash: string;
-  failed_attempts: number;
-  locked_until: string | null;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -43,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
     const newPin = parseNewPin(data.newPin, user.phone_e164);
 
     const { rows } = await sql<CredentialRow>`
-      SELECT pin_hash, failed_attempts, locked_until::text
+      SELECT pin_hash
         FROM profiles
        WHERE id = ${user.id}
        LIMIT 1
@@ -51,27 +47,15 @@ export async function POST(req: Request): Promise<Response> {
     const credential = rows[0];
     if (!credential) throw new AuthError('unauthorized', 'Not signed in');
 
-    const lockedUntil = credential.locked_until ? new Date(credential.locked_until) : null;
-    if (lockedUntil && lockedUntil.getTime() > Date.now()) {
+    const attempt = await attemptPin(user.id, currentPin, credential.pin_hash);
+    if (attempt.kind === 'missing') throw new AuthError('unauthorized', 'Not signed in');
+    if (attempt.kind === 'locked') {
       return NextResponse.json({ error: 'Too many incorrect attempts. Try again later.' }, { status: 423 });
     }
-
-    if (!(await verifyPin(currentPin, credential.pin_hash))) {
-      const nextAttempts = credential.failed_attempts + 1;
-      await sql`
-        UPDATE profiles
-           SET failed_attempts = ${nextAttempts},
-               locked_until = CASE
-                 WHEN ${nextAttempts} >= ${LOCKOUT_THRESHOLD}
-                 THEN NOW() + (${LOCKOUT_MINUTES} || ' minutes')::interval
-                 ELSE NULL
-               END
-         WHERE id = ${user.id}
-      `;
-      const error = nextAttempts >= LOCKOUT_THRESHOLD
-        ? 'Too many incorrect attempts. Try again in 15 minutes.'
-        : 'Your current PIN is incorrect.';
-      return NextResponse.json({ error }, { status: nextAttempts >= LOCKOUT_THRESHOLD ? 423 : 400 });
+    if (attempt.kind === 'wrong') {
+      return attempt.lockedNow
+        ? NextResponse.json({ error: `Too many incorrect attempts. Try again in ${LOCKOUT_MINUTES} minutes.` }, { status: 423 })
+        : NextResponse.json({ error: 'Your current PIN is incorrect.' }, { status: 400 });
     }
 
     if (await verifyPin(newPin, credential.pin_hash)) {

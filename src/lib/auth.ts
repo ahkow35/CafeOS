@@ -19,6 +19,7 @@ import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { sql } from '@/lib/db';
+import { attemptPin, LOCKOUT_MINUTES } from '@/lib/pinAttempts';
 import type { TenantCtx } from '@/lib/db';
 import type { MembershipRole } from '@/lib/validators';
 type Role = MembershipRole; // local alias for SessionUser.role field
@@ -37,8 +38,6 @@ export const SESSION_COOKIE_OPTIONS = {
 
 export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 const PICK_COOKIE_MAX_AGE = 60 * 5;                      // 5 minutes
-const LOCKOUT_THRESHOLD = 5;
-const LOCKOUT_MINUTES = 15;
 const BCRYPT_COST = 12;
 
 export class AuthError extends Error {
@@ -262,29 +261,21 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
     throw new AuthError('inactive', 'This account is disabled. Contact your manager.');
   }
 
-  const lockedUntil = row.locked_until ? new Date(row.locked_until) : null;
-  if (lockedUntil && lockedUntil.getTime() > Date.now()) {
-    throw new AuthError('locked', `Too many wrong attempts. Try again at ${lockedUntil.toLocaleTimeString()}.`);
-  }
-
-  const ok = await verifyPin(pin, row.pin_hash);
-  if (!ok) {
-    const next = row.failed_attempts + 1;
-    if (next >= LOCKOUT_THRESHOLD) {
-      await sql`
-        UPDATE profiles
-           SET failed_attempts = ${next},
-               locked_until    = NOW() + (${LOCKOUT_MINUTES} || ' minutes')::interval
-         WHERE id = ${row.id}
-      `;
-      throw new AuthError('locked', `Too many wrong attempts. Try again in ${LOCKOUT_MINUTES} minutes.`);
-    }
-    await sql`UPDATE profiles SET failed_attempts = ${next} WHERE id = ${row.id}`;
+  const attempt = await attemptPin(row.id, pin, row.pin_hash);
+  if (attempt.kind === 'missing') {
     throw new AuthError('invalid_credentials', 'Invalid phone or PIN');
   }
-
-  if (row.failed_attempts > 0 || row.locked_until) {
-    await sql`UPDATE profiles SET failed_attempts = 0, locked_until = NULL WHERE id = ${row.id}`;
+  if (attempt.kind === 'locked') {
+    const when = attempt.lockedUntil
+      ? `at ${attempt.lockedUntil.toLocaleTimeString()}`
+      : `in ${LOCKOUT_MINUTES} minutes`;
+    throw new AuthError('locked', `Too many wrong attempts. Try again ${when}.`);
+  }
+  if (attempt.kind === 'wrong') {
+    if (attempt.lockedNow) {
+      throw new AuthError('locked', `Too many wrong attempts. Try again in ${LOCKOUT_MINUTES} minutes.`);
+    }
+    throw new AuthError('invalid_credentials', 'Invalid phone or PIN');
   }
 
   // Fetch active memberships (with café-scoped employment for the active seat).
