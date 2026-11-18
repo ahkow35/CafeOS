@@ -11,6 +11,7 @@ import SignatureModal from '@/components/SignatureModal';
 import { ArrowLeft, CheckCircle, XCircle, Download, Pencil, Trash2 } from 'lucide-react';
 import { fmt12 } from '@/lib/timeUtils';
 import { formatMonthYear } from '@/lib/dateUtils';
+import { decideTimesheetDelete } from '@/lib/workflows/timesheet';
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -195,6 +196,7 @@ export default function AdminTimesheetDetailPage() {
   const role = profile?.role;
   const isManager = role === 'manager';
   const isOwner = role === 'owner';
+  const mayDelete = !!role && decideTimesheetDelete(timesheet.status, { role, isRowOwner: timesheet.user_id === profile?.id }).ok;
   // Manager can act only on the submitted stage.
   // Owner can act on submitted (skip-manager) or pending_owner (final).
   const canAct =
@@ -393,11 +395,18 @@ export default function AdminTimesheetDetailPage() {
               </>
             )}
 
-            <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
-              className="btn btn-outline btn-block"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
-              <Trash2 size={16} /> Delete timesheet
-            </button>
+            {mayDelete && (
+              <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
+                className="btn btn-outline btn-block"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
+                <Trash2 size={16} /> Delete timesheet
+              </button>
+            )}
+            {timesheet.status === 'approved' && (
+              <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)', textAlign: 'center' }}>
+                Approved timesheets are kept as the pay record and can&apos;t be deleted.
+              </p>
+            )}
           </section>
         </div>
       </main>
