@@ -53,8 +53,8 @@ const COLS = ['status', 'comments', 'rejection_reason', 'employee_signature', 'm
   'manager_action_by', 'approved_by'];
 
 /** Insert a timesheet in the given status for a fresh part-timer, shaped the way the routes leave it. */
-export async function seedSheet(status: Status): Promise<{ id: string; pt: Person }> {
-  const pt = await newMember('part_timer');
+export async function seedSheet(status: Status, owner?: Person): Promise<{ id: string; pt: Person }> {
+  const pt = owner ?? await newMember('part_timer');
   const y = nextYear();
   const reviewed = status === 'pending_owner' || status === 'approved';
   const r = await row<{ id: string }>(
@@ -98,6 +98,59 @@ export function timesheetCases(): void {
           });
         });
       }
+    }
+  });
+
+  describe('timesheets: a status the move does not start from', () => {
+    // Only the status is sent (no signature), so the check on the status is what answers.
+    const STATUS_ONLY: [string, Status, Status[], 'mgr' | 'owner'][] = [
+      ['forward', 'pending_owner', ['draft', 'pending_owner', 'approved', 'rejected'], 'mgr'],
+      ['forward', 'pending_owner', ['draft', 'pending_owner', 'approved', 'rejected'], 'owner'],
+      ['approve', 'approved', ['draft', 'approved', 'rejected'], 'owner'],
+    ];
+    for (const [action, target, froms, actor] of STATUS_ONLY) {
+      for (const from of froms) {
+        test(`${action} with the status only, from ${from} as ${actor} -> 400`, async () => {
+          const { id, pt } = await seedSheet(from);
+          const before = pick(await byId('timesheets', id), COLS);
+          const r = await api('PATCH', `/api/timesheets/${id}`, { as: actorOf(actor, pt), body: { status: target } });
+          refuse(`timesheet PATCH ${action} | status only | from ${from} | by ${actor}`, r, 400);
+          assert.deepEqual(pick(await byId('timesheets', id), COLS), before, 'a refused move must leave the row untouched');
+        });
+      }
+    }
+  });
+
+  describe('timesheets: a manager or an owner moves their own sheet', () => {
+    // [action, role of the sheet's owner, starting status, expected]
+    const OWN: [string, 'manager' | 'owner', Status, Cell][] = [
+      ['submit', 'manager', 'draft', 'ok:submitted'],
+      ['forward', 'manager', 'submitted', 'ok:pending_owner'],
+      ['approve', 'manager', 'submitted', 403],
+      ['reject', 'manager', 'submitted', 'ok:rejected'],
+      ['reopen', 'manager', 'rejected', 'ok:draft'],
+      ['submit', 'owner', 'draft', 'ok:submitted'],
+      ['forward', 'owner', 'submitted', 'ok:pending_owner'],
+      ['approve', 'owner', 'submitted', 'ok:approved'],
+      ['reject', 'owner', 'pending_owner', 'ok:rejected'],
+      ['reopen', 'owner', 'rejected', 'ok:draft'],
+    ];
+    for (const [action, role, from, cell] of OWN) {
+      test(`${role} on their own sheet: ${action} from ${from} -> ${cell}`, async () => {
+        const who = await newMember(role);
+        const { id } = await seedSheet(from, who);
+        const before = pick(await byId('timesheets', id), COLS);
+        const r = await api('PATCH', `/api/timesheets/${id}`, { as: who, body: BODIES[action] });
+        const after = await byId('timesheets', id);
+        if (typeof cell === 'number') {
+          refuse(`timesheet PATCH ${action} | own sheet | from ${from} | by ${role}`, r, cell);
+          assert.deepEqual(pick(after, COLS), before, 'a refused move must leave the row untouched');
+          return;
+        }
+        expectStatus(r, 200);
+        assert.equal(after?.status, cell.slice(3));
+        checkStamps(action, from, who, before, after);
+      });
     }
   });
 

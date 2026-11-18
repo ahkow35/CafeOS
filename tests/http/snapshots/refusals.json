@@ -574,6 +574,12 @@
       "error": "Cannot act on your own request"
     }
   },
+  "leave PATCH approve | own pending_owner request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
   "leave PATCH reject | from approved | by manager": {
     "status": 409,
     "body": {
@@ -629,6 +635,12 @@
     }
   },
   "leave PATCH reject | own pending_manager request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
+  "leave PATCH reject | own pending_owner request | by mgr": {
     "status": 403,
     "body": {
       "error": "Cannot act on your own request"
@@ -1295,6 +1307,30 @@
       "error": "Manager signature required before approval"
     }
   },
+  "timesheet PATCH approve | own sheet | from submitted | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "timesheet PATCH approve | status only | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
+  "timesheet PATCH approve | status only | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
+  "timesheet PATCH approve | status only | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
   "timesheet PATCH comments | 2001 characters | by pt": {
     "status": 400,
     "body": {
@@ -1425,6 +1461,54 @@
     "status": 400,
     "body": {
       "error": "Manager signature required to forward to owner"
+    }
+  },
+  "timesheet PATCH forward | status only | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from draft | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from pending_owner | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from pending_owner | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from rejected | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
     }
   },
   "timesheet PATCH reason without a status | by pt": {

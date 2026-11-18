@@ -136,6 +136,16 @@ export function leaveCases(): void {
       assert.equal((await byId('leave_requests', o.id))?.status, 'approved');
     });
 
+    test('a manager cannot act on their own request at the owner stage', async () => {
+      const own = await seedLeave('pending_owner', 'manager');
+      const before = await annual(own.who.id);
+      for (const action of ['approve', 'reject']) {
+        refuse(`leave PATCH ${action} | own pending_owner request | by mgr`, await api('PATCH', `/api/leave-requests/${own.id}`, { as: own.who, body: { action } }), 403);
+      }
+      assert.equal((await byId('leave_requests', own.id))?.status, 'pending_owner');
+      assert.equal(await annual(own.who.id), before);
+    });
+
     test('bad action, unknown id, other cafe', async () => {
       const { id } = await seedLeave('pending_manager');
       refuse('leave PATCH | unknown action | by owner', await api('PATCH', `/api/leave-requests/${id}`, { as: env.people.owner, body: { action: 'maybe' } }), 400);
