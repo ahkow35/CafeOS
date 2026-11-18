@@ -1,7 +1,8 @@
 import { NextResponse, after } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
-import { requireTenantUser, requireOwnerInCafe, requireManagerInCafe, AuthError } from '@/lib/auth';
+import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { decideTimesheetMove, isTimesheetStatus, type TimesheetStatus } from '@/lib/workflows/timesheet';
 import {
   notifyTimesheetSubmitted,
   notifyTimesheetForOwner,
@@ -27,8 +28,6 @@ function parseSignature(input: unknown, label: string): string | null {
   if (s.length > MAX_SIGNATURE_LEN) throw new ValidationError(`${label} is too large`);
   return s;
 }
-
-type TimesheetStatus = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
 
 interface TimesheetRow {
   id: string;
@@ -244,22 +243,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if ('status' in body) {
       const target = body.status;
-      if (target !== 'draft' && target !== 'submitted' && target !== 'pending_owner'
-          && target !== 'approved' && target !== 'rejected') {
-        throw new ValidationError('Invalid status');
-      }
+      if (!isTimesheetStatus(target)) throw new ValidationError('Invalid status');
+
+      // Who may make the move, and from which status, is decided by the table in
+      // src/lib/workflows/timesheet.ts; the messages stay here.
+      const move = decideTimesheetMove(ts.status, target, { role: ctx.role, isRowOwner: isOwnerOfRow });
+      const refuse = (messages: { notPermitted: string; notPermittedAtStatus?: string; wrongStatus: string }) => {
+        if (move.ok) return;
+        if (move.reason === 'wrong_status') throw new ValidationError(messages.wrongStatus);
+        if (move.reason === 'not_permitted_at_status') throw new AuthError('forbidden', messages.notPermittedAtStatus ?? messages.notPermitted);
+        throw new AuthError('forbidden', messages.notPermitted);
+      };
 
       if (target === 'submitted') {
-        if (!isOwnerOfRow) throw new AuthError('forbidden', 'Only the owner can submit');
-        if (ts.status !== 'draft') throw new ValidationError('Only drafts can be submitted');
+        refuse({ notPermitted: 'Only the owner can submit', wrongStatus: 'Only drafts can be submitted' });
         const nextSig = update.employee_signature ?? ts.employee_signature;
         if (!nextSig) throw new ValidationError('Employee signature required to submit');
         update.status = 'submitted';
         notifyEvent = 'submitted';
 
       } else if (target === 'pending_owner') {
-        requireManagerInCafe(ctx);
-        if (ts.status !== 'submitted') throw new ValidationError('Only submitted timesheets can be forwarded');
+        refuse({ notPermitted: 'Manager or owner access required', wrongStatus: 'Only submitted timesheets can be forwarded' });
         const nextMgrSig = update.manager_signature ?? ts.manager_signature;
         if (!nextMgrSig) throw new ValidationError('Manager signature required to forward to owner');
         update.status = 'pending_owner';
@@ -268,10 +272,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         notifyEvent = 'pending_owner';
 
       } else if (target === 'approved') {
-        requireOwnerInCafe(ctx);
-        if (ts.status !== 'submitted' && ts.status !== 'pending_owner') {
-          throw new ValidationError('Only submitted or owner-pending timesheets can be approved');
-        }
+        refuse({ notPermitted: 'Owner access required', wrongStatus: 'Only submitted or owner-pending timesheets can be approved' });
         // If owner approves directly from 'submitted', require manager signature
         // OR allow owner's manager_signature in this same request (they can sign for both).
         const nextMgrSig = update.manager_signature ?? ts.manager_signature;
@@ -287,13 +288,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         notifyEvent = 'approved';
 
       } else if (target === 'rejected') {
-        requireManagerInCafe(ctx);
-        if (ts.status === 'pending_owner' && ctx.role !== 'owner') {
-          throw new AuthError('forbidden', 'Only the owner can reject at this stage');
-        }
-        if (ts.status !== 'submitted' && ts.status !== 'pending_owner') {
-          throw new ValidationError('Only submitted or owner-pending timesheets can be rejected');
-        }
+        refuse({
+          notPermitted: 'Manager or owner access required',
+          notPermittedAtStatus: 'Only the owner can reject at this stage',
+          wrongStatus: 'Only submitted or owner-pending timesheets can be rejected',
+        });
         const reason = update.rejection_reason ?? (typeof body.rejection_reason === 'string' ? body.rejection_reason.trim() : '');
         if (!reason) throw new ValidationError('rejection_reason required');
         update.status = 'rejected';
@@ -301,8 +300,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         notifyEvent = 'rejected';
 
       } else if (target === 'draft') {
-        if (!isOwnerOfRow) throw new AuthError('forbidden', 'Only the owner can reopen');
-        if (ts.status !== 'rejected') throw new ValidationError('Only rejected timesheets can be reopened');
+        refuse({ notPermitted: 'Only the owner can reopen', wrongStatus: 'Only rejected timesheets can be reopened' });
         // Reopen wipes prior signatures + manager action so the part-timer
         // restarts the approval chain from scratch.
         update.status = 'draft';
