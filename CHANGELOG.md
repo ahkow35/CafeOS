@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-18 — HTTP characterization tests for the workflow routes
+
+### Summary
+Tests only, no app change (nothing under `src/` or `db/`, no new dependency). A new suite,
+`tests/http/workflows.test.ts`, calls the real route handlers over HTTP on a local `next dev`
+server with a throwaway Postgres, and pins what they do today: timesheets (every starting
+status x actor x action, entries, delete), leave (apply, two-stage approve/reject, cancel and
+delete, balances), medical claims (approve in full and lower, reject, cancel, owner purge),
+tasks (tick/untick for one person and for everyone), cafe status (sign-up, approve, reject,
+suspend) and access (signed out, other cafe, employment switched off, cafe picker, super admin).
+The point: a later server refactor can be proven behaviour-neutral by these staying green.
+
+### Behaviour
+- Skipped unless `TEST_DATABASE_URL` is set, so CI (no database) is unchanged.
+- Refuses any database that is not local; makes and drops its own database per run.
+- Server environment is explicit (random `JWT_SECRET`, empty Telegram/Stripe/Blob/Postgres variables).
+- How to run: `docs/LOCAL_DEV.md`, "Running the HTTP tests".
+
+### Rejected alternative
+Calling the route handler functions directly in-process: faster, but it bypasses the middleware
+and cookie handling, which a refactor can also break. Real HTTP covers them.
+
 ## 2026-09-03 — Medical claims
 
 ### Summary
