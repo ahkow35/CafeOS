@@ -3,6 +3,7 @@ import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
 import { deriveTotalHours } from '@/lib/timeUtils';
+import type { TimesheetStatus } from '@/lib/workflows/timesheet';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +28,7 @@ interface OwnerCheckRow {
   id: string;
   timesheet_id: string;
   user_id: string;
-  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
+  status: TimesheetStatus;
 }
 
 async function loadOwnership(entryId: string, cafeId: string): Promise<OwnerCheckRow | null> {
