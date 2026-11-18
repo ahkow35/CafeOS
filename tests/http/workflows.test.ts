@@ -24,6 +24,8 @@ import { cafeStatusCases } from './cases/cafe-status';
 import { signInAttemptCases } from './cases/sign-in-attempts';
 import { signInAttemptResetCases } from './cases/sign-in-attempts-reset';
 import { cafeAccessCases } from './cases/cafe-access';
+import { pinWriteCases } from './cases/pin-writes';
+import { accessOrderCases } from './cases/access-order';
 
 describe('http workflows', { skip }, () => {
   before(startHarness, { timeout: 150_000 });
@@ -41,4 +43,6 @@ describe('http workflows', { skip }, () => {
   signInAttemptCases();
   signInAttemptResetCases();
   cafeAccessCases();
+  pinWriteCases();
+  accessOrderCases();
 });

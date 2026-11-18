@@ -52,6 +52,7 @@ let admin: Pool | null = null;
 let server: ChildProcess | null = null;
 let serverLog = '';
 let phoneSeq = 0;
+let serverSecret = '';
 
 // ─── safety ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ export async function stopHarness(): Promise<void> {
 
 async function startServer(runUrl: string): Promise<void> {
   const port = await freePort();
+  serverSecret = randomBytes(48).toString('base64'); // per run, never written down
   const environment: NodeJS.ProcessEnv = {
     PATH: process.env.PATH ?? '',
     HOME: process.env.HOME ?? '',
@@ -125,7 +127,7 @@ async function startServer(runUrl: string): Promise<void> {
     NODE_ENV: 'development',
     NEXT_TELEMETRY_DISABLED: '1',
     LOCAL_PG_URL: runUrl,
-    JWT_SECRET: randomBytes(48).toString('base64'), // per run, never written down
+    JWT_SECRET: serverSecret,
     TELEGRAM_BOT_TOKEN: '',
     STRIPE_SECRET_KEY: '',
     STRIPE_WEBHOOK_SECRET: '',
@@ -163,6 +165,9 @@ async function startServer(runUrl: string): Promise<void> {
 
 /** URL of this run's throwaway database, for cases that run library code against it (in a child process, so its connections end with it). */
 export function runDatabaseUrl(): string { return runUrlValue; }
+
+/** This run's JWT_SECRET, for cases that must write a value the server derives from it (a PIN reset code hash). Memory only. */
+export function serverJwtSecret(): string { return serverSecret; }
 
 /** Server output captured so far, for diagnosing a surprising 500. */
 export function serverOutput(): string { return serverLog; }
