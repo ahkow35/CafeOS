@@ -3,6 +3,7 @@
 import { Palmtree, Stethoscope, Check, X, Trash2 } from 'lucide-react';
 import { LeaveRequest } from '@/lib/database.types';
 import { openMedicalCert } from '@/lib/storageUtils';
+import StatusBadge from '@/components/StatusBadge';
 
 interface LeaveRequestCardProps {
     request: LeaveRequest;
@@ -27,23 +28,6 @@ export default function LeaveRequestCard({
             day: 'numeric',
         });
     };
-
-    const getStatusDisplay = (status: LeaveRequest['status']) => {
-        switch (status) {
-            case 'pending_manager':
-                return { label: 'Awaiting Manager', className: 'badge-warning' };
-            case 'pending_owner':
-                return { label: 'Awaiting Owner', className: 'badge-info' };
-            case 'approved':
-                return { label: 'Approved', className: 'badge-success' };
-            case 'rejected':
-                return { label: 'Declined', className: 'badge-danger' };
-            default:
-                return { label: status, className: 'badge-neutral' };
-        }
-    };
-
-    const statusDisplay = getStatusDisplay(request.status);
 
     return (
         <div className="card leave-request-card" style={{ position: 'relative' }}>
@@ -82,9 +66,7 @@ export default function LeaveRequestCard({
                         </span>
                     )}
                 </div>
-                <span className={`badge ${statusDisplay.className}`}>
-                    {statusDisplay.label}
-                </span>
+                <StatusBadge workflow="leave" status={request.status} />
             </div>
 
             {userName && (

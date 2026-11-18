@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetEntry, TimesheetStatus, User } from '@/lib/database.types';
+import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
+import StatusBadge from '@/components/StatusBadge';
 import SignatureModal from '@/components/SignatureModal';
 import { ArrowLeft, CheckCircle, XCircle, Download, Pencil, Trash2 } from 'lucide-react';
 import { fmt12 } from '@/lib/timeUtils';
@@ -206,16 +207,6 @@ export default function AdminTimesheetDetailPage() {
   const hourlyRate = tsProfile?.hourly_rate ?? null;
   const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
 
-  const STATUS_STYLE: Record<TimesheetStatus, { color: string; bg: string; label: string }> = {
-    draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'Draft' },
-    submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'Awaiting manager' },
-    pending_owner: { color: 'var(--color-accent-purple)',                          bg: 'transparent',     label: 'Awaiting owner' },
-    approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'Approved' },
-    rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'Declined' },
-  };
-  const statusStyle = STATUS_STYLE[timesheet.status];
-  const statusLabel = statusStyle.label;
-
   return (
     <>
       <Header />
@@ -233,20 +224,7 @@ export default function AdminTimesheetDetailPage() {
               <p className="page-subtitle">Contact: {tsProfile.phone_e164}</p>
             )}
             <div style={{ marginTop: 'var(--space-sm)' }}>
-              <span style={{
-                display: 'inline-block',
-                fontFamily: 'var(--font-heading)',
-                fontSize: 'var(--font-size-xs)',
-                textTransform: 'var(--text-transform-heading)',
-                letterSpacing: 'var(--letter-spacing-wide)',
-                padding: '3px 10px',
-                border: 'var(--border-width) solid',
-                borderColor: statusStyle.color,
-                color: statusStyle.color,
-                background: statusStyle.bg,
-              }}>
-                {statusLabel}
-              </span>
+              <StatusBadge workflow="timesheet" status={timesheet.status} />
             </div>
           </section>
 

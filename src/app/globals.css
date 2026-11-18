@@ -551,6 +551,11 @@ a:hover {
   color: var(--color-white);
 }
 
+.badge-owner {
+  background: var(--color-accent-purple);
+  color: var(--color-white);
+}
+
 .badge-info {
   background: var(--color-concrete);
   color: var(--color-black);

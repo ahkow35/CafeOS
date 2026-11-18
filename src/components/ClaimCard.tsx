@@ -5,6 +5,7 @@ import type { MedicalClaim } from '@/lib/database.types';
 import { formatSGD } from '@/lib/money';
 import { formatDateShort } from '@/lib/dateUtils';
 import { openMedicalCert } from '@/lib/storageUtils';
+import StatusBadge from '@/components/StatusBadge';
 
 interface ClaimCardProps {
     claim: MedicalClaim;
@@ -13,14 +14,7 @@ interface ClaimCardProps {
     onDelete?: () => void;   // owner purge, decided only
 }
 
-const STATUS: Record<MedicalClaim['status'], { label: string; className: string }> = {
-    pending: { label: 'Awaiting Owner', className: 'badge-warning' },
-    approved: { label: 'Approved', className: 'badge-success' },
-    rejected: { label: 'Declined', className: 'badge-danger' },
-};
-
 export default function ClaimCard({ claim, userName, onCancel, onDelete }: ClaimCardProps) {
-    const status = STATUS[claim.status];
     const partial = claim.status === 'approved' && claim.amount_approved !== null && claim.amount_approved < claim.amount_claimed;
 
     return (
@@ -41,7 +35,7 @@ export default function ClaimCard({ claim, userName, onCancel, onDelete }: Claim
                     <Receipt size={20} className="leave-type-icon" />
                     <span>Medical Claim</span>
                 </div>
-                <span className={`badge ${status.className}`}>{status.label}</span>
+                <StatusBadge workflow="claim" status={claim.status} />
             </div>
 
             {userName && (

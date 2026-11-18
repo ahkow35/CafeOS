@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Timesheet } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
+import StatusBadge from '@/components/StatusBadge';
 import { Clock, Plus, ChevronRight, FileText } from 'lucide-react';
 import { formatMonthYear } from '@/lib/dateUtils';
 
@@ -18,19 +19,6 @@ async function jsonOrError(res: Response): Promise<unknown> {
     throw new Error(msg);
   }
   return res.json();
-}
-
-// NOTE: these hex values are consumed as `badge.color + '18'` below to build an alpha-blended
-// background tint at render time (string concatenation, not a CSS value) — CSS custom properties
-// cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
-function statusBadge(status: Timesheet['status']): { label: string; color: string } {
-  switch (status) {
-    case 'draft': return { label: 'Draft', color: '#6a6a66' };
-    case 'submitted': return { label: 'Awaiting Manager', color: '#b45309' };
-    case 'pending_owner': return { label: 'Awaiting Owner', color: '#6d28d9' };
-    case 'approved': return { label: 'Approved', color: '#15803d' };
-    case 'rejected': return { label: 'Declined', color: '#b91c1c' };
-  }
 }
 
 export default function TimesheetPage() {
@@ -110,7 +98,6 @@ export default function TimesheetPage() {
               </div>
             ) : (
               timesheets.map(ts => {
-                const badge = statusBadge(ts.status);
                 return (
                   <div
                     key={ts.id}
@@ -131,16 +118,7 @@ export default function TimesheetPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 'var(--font-weight-semibold)',
-                          color: badge.color,
-                          background: badge.color + '18',
-                          padding: '2px 8px',
-                          borderRadius: 'var(--radius-pill)',
-                        }}>
-                          {badge.label}
-                        </span>
+                        <StatusBadge workflow="timesheet" status={ts.status} />
                         <ChevronRight size={18} className="text-muted" />
                       </div>
                     </div>

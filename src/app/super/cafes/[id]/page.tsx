@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import StatusBadge from '@/components/StatusBadge';
 
 interface Cafe {
   id: string;
@@ -141,7 +142,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
           <div>
             <h1 style={{ fontSize: '20px', fontWeight: 'var(--font-weight-heading)' }}>{cafe.name}</h1>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-              /{cafe.slug} · Status: <b>{cafe.status}</b>
+              /{cafe.slug} · Status: <StatusBadge workflow="cafe" status={cafe.status} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
