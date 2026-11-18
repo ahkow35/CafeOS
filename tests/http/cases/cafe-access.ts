@@ -160,7 +160,6 @@ export function cafeAccessCases(): void {
     };
 
     test('only people with access, in the asked roles, are listed', async () => {
-
       const cafeId = await newCafe('active');
       const owner = await newMember('owner', cafeId);
       const manager = await newMember('manager', cafeId);
