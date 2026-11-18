@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import type { LeaveStatus } from '@/lib/workflows/leave';
 import { notifyLeaveSubmitted } from '@/lib/notifications';
 import { isValidOwnAttachmentUrl } from '@/lib/storage';
 import { todayInSingapore } from '@/lib/dateUtils';
@@ -22,7 +23,7 @@ interface LeaveRow {
   reason: string | null;
   attachment_url: string | null;
   is_retrospective: boolean;
-  status: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
+  status: LeaveStatus;
   manager_action_by: string | null;
   manager_action_at: string | null;
   owner_action_by: string | null;
