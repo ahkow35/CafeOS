@@ -183,11 +183,13 @@ export function cafeAccessCases(): void {
       assert.deepEqual(await listAccessChatIds(newCafeIdNone(), ['owner']), []);
     });
 
-    test('a cafe that is not active has no one to notify', async () => {
+    test('the owners of a cafe that is not active are still listed', async () => {
       const cafeId = await newCafe('suspended');
       const owner = await newMember('owner', cafeId);
-      await withChat(owner);
-      assert.deepEqual(await listAccessChatIds(cafeId, ['owner']), []);
+      const offOwner = await newMember('owner', cafeId, { employmentActive: false });
+      const chat = await withChat(owner);
+      await withChat(offOwner);
+      assert.deepEqual(await listAccessChatIds(cafeId, ['owner']), [chat]);
     });
   });
 }

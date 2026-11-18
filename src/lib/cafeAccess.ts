@@ -93,19 +93,21 @@ export async function lookupCafeAccess(userId: string, cafeId: string): Promise<
   };
 }
 
-/** Telegram chat ids of the people who have access to this cafe in one of the given roles. */
+/**
+ * Telegram chat ids of the people in this cafe, in one of the given roles, whose own access is on
+ * (facts 1 to 3). The cafe's status is not checked here: these are alerts to the cafe's own
+ * people, and the billing alert has to reach the owners of a cafe that is not active.
+ */
 export async function listAccessChatIds(cafeId: string, roles: MembershipRole[]): Promise<string[]> {
   const { rows } = await sql<{ telegram_chat_id: string }>`
     SELECT p.telegram_chat_id
       FROM cafe_memberships m
       JOIN profiles p ON p.id = m.user_id
-      JOIN cafes c ON c.id = m.cafe_id
      WHERE m.cafe_id = ${cafeId}
        AND m.role = ANY(string_to_array(${roles.join(',')}, ','))
        AND m.status = 'active'
        AND m.employment_active = TRUE
        AND p.is_active = TRUE
-       AND c.status = 'active'
        AND p.telegram_chat_id IS NOT NULL
   `;
   return rows.map((r) => r.telegram_chat_id);
