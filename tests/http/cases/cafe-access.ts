@@ -3,8 +3,10 @@
  * everywhere (cafe picker, cafe switch, view-as, task assignee).
  */
 import { test, describe } from 'node:test';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import assert from 'node:assert/strict';
-import { addMembership, api, env, newMember, PIN, row, type Person, type Reply } from '../harness';
+import { addMembership, api, env, newCafe, newMember, PIN, row, runDatabaseUrl, type Person, type Reply } from '../harness';
 import { expectStatus } from './util';
 
 const cookieOf = (r: Reply, name: string): string => {
@@ -137,4 +139,58 @@ export function cafeAccessCases(): void {
       }
     });
   });
+
+  describe('cafe access: chat ids to notify', () => {
+    // The library code runs in a child process against this run's database (see probe-recipients.ts).
+    const listAccessChatIds = async (cafeId: string, roles: string[]): Promise<string[]> => {
+      const tsx = path.resolve(__dirname, '..', '..', '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const probe = path.resolve(__dirname, '..', 'probe-recipients.ts');
+      const out = execFileSync(process.execPath, [tsx, probe, cafeId, roles.join(',')], {
+        env: { NODE_ENV: 'development', PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', TMPDIR: process.env.TMPDIR ?? '/tmp', LOCAL_PG_URL: runDatabaseUrl() },
+        encoding: 'utf8', timeout: 60_000,
+      });
+      return JSON.parse(out) as string[];
+    };
+    let chatSeq = 0;
+    const withChat = async (who: Person): Promise<string> => {
+      chatSeq += 1;
+      const chat = `990${Date.now() % 100000}${chatSeq}`;
+      await row(`UPDATE profiles SET telegram_chat_id = $1 WHERE id = $2`, [chat, who.id]);
+      return chat;
+    };
+
+    test('only people with access, in the asked roles, are listed', async () => {
+
+      const cafeId = await newCafe('active');
+      const owner = await newMember('owner', cafeId);
+      const manager = await newMember('manager', cafeId);
+      const staff = await newMember('staff', cafeId);
+      const offManager = await newMember('manager', cafeId, { employmentActive: false });
+      const inactiveOwner = await newMember('owner', cafeId);
+      const suspendedManager = await newMember('manager', cafeId);
+      await newMember('manager', cafeId); // a manager with no chat linked is never listed
+      const otherCafeOwner = await newMember('owner', env.cafe2);
+      await row(`UPDATE profiles SET is_active = FALSE WHERE id = $1`, [inactiveOwner.id]);
+      await row(`UPDATE cafe_memberships SET status = 'suspended' WHERE user_id = $1`, [suspendedManager.id]);
+
+      const chats = {
+        owner: await withChat(owner), manager: await withChat(manager), staff: await withChat(staff),
+        offManager: await withChat(offManager), inactiveOwner: await withChat(inactiveOwner),
+        suspendedManager: await withChat(suspendedManager), otherCafeOwner: await withChat(otherCafeOwner),
+      };
+
+      assert.deepEqual((await listAccessChatIds(cafeId, ['manager', 'owner'])).sort(), [chats.owner, chats.manager].sort());
+      assert.deepEqual(await listAccessChatIds(cafeId, ['owner']), [chats.owner]);
+      assert.deepEqual(await listAccessChatIds(newCafeIdNone(), ['owner']), []);
+    });
+
+    test('a cafe that is not active has no one to notify', async () => {
+      const cafeId = await newCafe('suspended');
+      const owner = await newMember('owner', cafeId);
+      await withChat(owner);
+      assert.deepEqual(await listAccessChatIds(cafeId, ['owner']), []);
+    });
+  });
 }
+
+function newCafeIdNone(): string { return '00000000-0000-4000-8000-000000000000'; }

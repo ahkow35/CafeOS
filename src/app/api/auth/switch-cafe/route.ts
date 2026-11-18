@@ -7,17 +7,9 @@ import {
   SESSION_COOKIE_OPTIONS,
   SESSION_COOKIE_MAX_AGE,
 } from '@/lib/auth';
-import { sql } from '@/lib/db';
-import type { MembershipRole } from '@/lib/validators';
+import { lookupCafeAccess } from '@/lib/cafeAccess';
 
 export const runtime = 'nodejs';
-
-interface MembershipRow {
-  cafe_id: string;
-  cafe_slug: string;
-  role: MembershipRole;
-  cafe_status: string;
-}
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -35,32 +27,24 @@ export async function POST(req: Request) {
   try {
     const user = await requireUser();
 
-    const { rows } = await sql<MembershipRow>`
-      SELECT m.cafe_id, c.slug AS cafe_slug, m.role, c.status AS cafe_status
-        FROM cafe_memberships m
-        JOIN cafes c ON c.id = m.cafe_id
-       WHERE m.user_id = ${user.id}
-         AND m.cafe_id = ${cafeId}
-         AND m.status  = 'active'
-       LIMIT 1
-    `;
-    const membership = rows[0];
-    if (!membership) {
+    // One rule for access to a cafe: src/lib/cafeAccess.ts.
+    const access = await lookupCafeAccess(user.id, cafeId);
+    if (!access || access.verdict === 'no_membership' || access.verdict === 'access_off' || access.verdict === 'profile_inactive') {
       return NextResponse.json({ error: 'No active membership in this cafe', code: 'no_membership' }, { status: 403 });
     }
-    if (membership.cafe_status !== 'active') {
+    if (access.verdict === 'cafe_not_active') {
       return NextResponse.json({ error: 'This cafe is not currently active', code: 'cafe_not_active' }, { status: 403 });
     }
 
     const token = await signFullSession(
       user.id,
-      membership.cafe_id,
-      membership.cafe_slug,
-      membership.role,
+      access.cafeId!,
+      access.cafeSlug!,
+      access.role!,
       user.is_super_admin,
     );
 
-    const res = NextResponse.json({ redirect: `/c/${membership.cafe_slug}/` });
+    const res = NextResponse.json({ redirect: `/c/${access.cafeSlug}/` });
     res.cookies.set(SESSION_COOKIE, token, { ...SESSION_COOKIE_OPTIONS, maxAge: SESSION_COOKIE_MAX_AGE });
     return res;
   } catch (e) {
