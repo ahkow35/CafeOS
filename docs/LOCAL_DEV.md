@@ -83,6 +83,38 @@ The "demo" café also has sample leave requests (each status), medical claims
 (pending + approved), timesheets (submitted / pending_owner / approved), and
 tasks (including one assigned to everyone).
 
+## Running the HTTP tests
+
+`tests/http/workflows.test.ts` drives the real route handlers over HTTP (timesheets,
+leave, medical claims, tasks, cafe status, access) against a real `next dev` server
+and a local throwaway Postgres. It pins what the code does today, so a later server
+refactor can be shown to change nothing. It needs `TEST_DATABASE_URL`; without it the
+whole suite is skipped, which is why CI (no database) stays green.
+
+```
+bash ~/.agents/skills/verify-done/throwaway-pg.sh -- npm test
+```
+
+That starts a throwaway Postgres, sets `TEST_DATABASE_URL` and runs every test. To run
+only this suite, put `npx tsx --test tests/http/workflows.test.ts` after the `--`.
+Both the database and `next dev` need the Claude Code sandbox off. Roughly 15 seconds.
+
+What the harness does:
+
+- Refuses to run unless the database host is `localhost`, `127.0.0.1`, `::1` or a unix socket.
+- Creates its own database (unique name per run, separate from `tests/db`), loads
+  `db/schema.sql`, inserts fake fixtures (phones in `+65 8000xxxx`), and drops the database at the end.
+- Starts one `next dev` on a free port with an explicit environment: `LOCAL_PG_URL` is the
+  per-run database, `JWT_SECRET` is random per run and never written down, and the
+  Telegram, Stripe, Blob and Postgres variables are empty, so nothing leaves the machine.
+  `next dev` still loads `.env*` files from the repo folder, but never over a variable
+  that is already set, and the harness sets every variable the app reads. If the app
+  starts reading a new variable, add it to the harness's list.
+- Signs in through the real `POST /api/auth/login` and sends the session cookie.
+
+Add a case by writing a module in `tests/http/cases/` (not named `*.test.ts`, so it
+runs in the same process) and calling it from `workflows.test.ts`.
+
 ## Never do this
 
 - Never set `LOCAL_PG_URL` to a Neon/production connection string.
