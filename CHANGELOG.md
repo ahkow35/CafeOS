@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-18 — The PIN write and the cafe-access queries each have one home
+
+### Summary
+The statements that store a new PIN hash on a profile are now in `src/lib/pinWrite.ts`: one for change
+PIN, reset with a code and the owner's reset, and one for the first PIN issued to an owner when a cafe
+is approved. The three queries in `src/lib/auth.ts` that read a person's cafe access (the two lists of
+a person's cafes and the per-request check) are now functions in `src/lib/cafeAccess.ts`, and
+`auth.ts` is off the cafe-access guard's allow-list.
+
+### Behaviour
+- No change for callers: reply bodies, status codes, the order of checks, cookies and the stored
+  columns are the same. The two PIN writes keep their own column lists; `pin_reset_tokens` follow-up
+  statements stay in the routes that make them; the owner's reset still runs as one statement outside a
+  transaction. `requireTenantUser` keeps its own ordered checks and messages and still runs one query.
+- New tests: the columns stored after each of the four PIN writes, the reply bodies of the sign-in and
+  access routes, which reply a tenant route gives when several access facts are off at once, and
+  right-PIN requests queued on one profile row.
+- No schema change, no new dependency.
+
 ## 2026-11-18 — Workflow moves in one table per workflow
 
 ### Summary

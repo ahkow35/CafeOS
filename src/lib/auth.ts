@@ -19,6 +19,7 @@ import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { sql } from '@/lib/db';
+import { listActiveMemberships, lookupRequestAccess, type MembershipRow } from '@/lib/cafeAccess';
 import { attemptPin, LOCKOUT_MINUTES } from '@/lib/pinAttempts';
 import type { TenantCtx } from '@/lib/db';
 import type { MembershipRole } from '@/lib/validators';
@@ -222,14 +223,6 @@ const NO_EMPLOYMENT: Employment = {
   hourly_rate: null,
 };
 
-interface MembershipRow extends Employment {
-  cafe_id: string;
-  cafe_slug: string;
-  cafe_name: string;
-  cafe_logo_url: string | null;
-  role: MembershipRole;
-}
-
 // ─── login ────────────────────────────────────────────────────────────────────
 
 export type LoginResult =
@@ -279,18 +272,7 @@ export async function login(phoneE164: string, pin: string): Promise<LoginResult
   }
 
   // Fetch active memberships (with café-scoped employment for the active seat).
-  const { rows: memRows } = await sql<MembershipRow>`
-    SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
-           c.logo_url AS cafe_logo_url, m.role,
-           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate
-      FROM cafe_memberships m
-      JOIN cafes c ON c.id = m.cafe_id
-     WHERE m.user_id = ${row.id}
-       AND m.status  = 'active'
-       AND m.employment_active = TRUE
-       AND c.status  = 'active'
-     ORDER BY c.name
-  `;
+  const memRows = await listActiveMemberships(row.id);
 
   const memberships: MembershipInfo[] = memRows.map((m) => ({
     cafe: { id: m.cafe_id, slug: m.cafe_slug, name: m.cafe_name, logo_url: m.cafe_logo_url },
@@ -422,18 +404,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   // any token minted before the bump.
   if (row.token_version !== claims.token_version) return null;
 
-  const { rows: memRows } = await sql<MembershipRow>`
-    SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
-           c.logo_url AS cafe_logo_url, m.role,
-           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate
-      FROM cafe_memberships m
-      JOIN cafes c ON c.id = m.cafe_id
-     WHERE m.user_id = ${row.id}
-       AND m.status  = 'active'
-       AND m.employment_active = TRUE
-       AND c.status  = 'active'
-     ORDER BY c.name
-  `;
+  const memRows = await listActiveMemberships(row.id);
   const memberships: MembershipInfo[] = memRows.map((m) => ({
     cafe: { id: m.cafe_id, slug: m.cafe_slug, name: m.cafe_name, logo_url: m.cafe_logo_url },
     role: m.role,
@@ -477,24 +448,7 @@ export async function requireTenantUser(): Promise<TenantCtx> {
   // Re-validate everything live on each request — the JWT is only a claim, the DB
   // is truth. Catches: global account disable, session revocation (token_version
   // bump), café-scoped employment disable, membership removal, café suspension.
-  const { rows } = await sql<{
-    role: MembershipRole;
-    cafe_status: string;
-    employment_active: boolean;
-    is_active: boolean;
-    token_version: number;
-  }>`
-    SELECT m.role, c.status AS cafe_status, m.employment_active,
-           p.is_active, p.token_version
-      FROM cafe_memberships m
-      JOIN cafes c    ON c.id = m.cafe_id
-      JOIN profiles p ON p.id = m.user_id
-     WHERE m.user_id = ${claims.sub}
-       AND m.cafe_id = ${claims.cafe_id}
-       AND m.status  = 'active'
-     LIMIT 1
-  `;
-  const membership = rows[0];
+  const membership = await lookupRequestAccess(claims.sub, claims.cafe_id);
   if (!membership) {
     throw new AuthError('no_active_membership', 'Your membership in this cafe is no longer active');
   }
