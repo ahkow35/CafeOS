@@ -22,6 +22,7 @@ import { taskCases } from './cases/tasks';
 import { cafeStatusCases } from './cases/cafe-status';
 import { signInAttemptCases } from './cases/sign-in-attempts';
 import { signInAttemptResetCases } from './cases/sign-in-attempts-reset';
+import { cafeAccessCases } from './cases/cafe-access';
 
 describe('http workflows', { skip }, () => {
   before(startHarness, { timeout: 150_000 });
@@ -37,4 +38,5 @@ describe('http workflows', { skip }, () => {
   cafeStatusCases();
   signInAttemptCases();
   signInAttemptResetCases();
+  cafeAccessCases();
 });
