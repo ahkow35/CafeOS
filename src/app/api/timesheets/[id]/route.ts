@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
-import { decideTimesheetMove, isTimesheetStatus, type TimesheetStatus } from '@/lib/workflows/timesheet';
+import { decideTimesheetDelete, decideTimesheetMove, isTimesheetStatus, type TimesheetStatus } from '@/lib/workflows/timesheet';
 import {
   notifyTimesheetSubmitted,
   notifyTimesheetForOwner,
@@ -458,16 +458,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
     const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
     const checkDelete = (t: { user_id: string; status: TimesheetStatus }) => {
-      if (t.user_id !== ctx.userId && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
-      if (!isAdmin && t.status !== 'draft') {
-        throw new ValidationError('Only drafts can be deleted by the owner');
-      }
-      // An approved timesheet is a finalised payroll record — deleting it silently
-      // would erase pay history. Block it for everyone; correcting an approved sheet
-      // is a deliberate operation, not a delete.
-      if (t.status === 'approved') {
-        throw new ValidationError('Approved timesheets cannot be deleted');
-      }
+      const decision = decideTimesheetDelete(t.status, { role: ctx.role, isRowOwner: t.user_id === ctx.userId });
+      if (decision.ok) return;
+      if (decision.reason === 'not_permitted') throw new AuthError('forbidden', 'Cannot delete this timesheet');
+      if (decision.reason === 'drafts_only') throw new ValidationError('Only drafts can be deleted by the owner');
+      // An approved timesheet is a finalised payroll record, so it is never deleted here;
+      // correcting an approved sheet is a deliberate operation, not a delete.
+      throw new ValidationError('Approved timesheets cannot be deleted');
     };
     checkDelete(ts);
 

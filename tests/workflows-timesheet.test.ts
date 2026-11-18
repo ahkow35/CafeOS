@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   TIMESHEET_STATUSES,
+  decideTimesheetDelete,
   decideTimesheetMove,
   isTimesheetStatus,
   timesheetActionsFor,
@@ -104,3 +105,21 @@ test('timesheetActionsFor lists the moves open to the actor', () => {
   assert.deepEqual(to('rejected', 'part-timer, own sheet'), ['draft']);
   assert.deepEqual(to('rejected', 'owner, other sheet'), []);
 });
+
+// The delete answer for every status and every kind of person, written out as plain conditions.
+function expectedDelete(status: TimesheetStatus, a: WorkflowActor): 'ok' | 'not_permitted' | 'drafts_only' | 'approved' {
+  const admin = a.role === 'manager' || a.role === 'owner';
+  if (!a.isRowOwner && !admin) return 'not_permitted';
+  if (!admin && status !== 'draft') return 'drafts_only';
+  if (status === 'approved') return 'approved';
+  return 'ok';
+}
+
+for (const status of TIMESHEET_STATUSES) {
+  for (const [who, actor] of Object.entries(ACTORS)) {
+    test(`timesheet delete at ${status} by ${who}`, () => {
+      const expected = expectedDelete(status, actor);
+      assert.deepEqual(decideTimesheetDelete(status, actor), expected === 'ok' ? { ok: true } : { ok: false, reason: expected });
+    });
+  }
+}
