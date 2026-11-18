@@ -11,6 +11,7 @@ import {
   verifyPin,
 } from '@/lib/auth';
 import { attemptPin, LOCKOUT_MINUTES } from '@/lib/pinAttempts';
+import { storeNewPin } from '@/lib/pinWrite';
 import { parseNewPin, parsePin, ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -64,16 +65,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const newPinHash = await hashPin(newPin);
     await withPlainTx(async (client) => {
-      await client.query(
-        `UPDATE profiles
-            SET pin_hash = $1,
-                failed_attempts = 0,
-                locked_until = NULL,
-                token_version = token_version + 1,
-                updated_at = NOW()
-          WHERE id = $2`,
-        [newPinHash, user.id],
-      );
+      await storeNewPin(client, user.id, newPinHash);
       await client.query(
         `UPDATE pin_reset_tokens
             SET used_at = COALESCE(used_at, NOW())

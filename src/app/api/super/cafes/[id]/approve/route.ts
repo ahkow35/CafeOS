@@ -3,6 +3,7 @@ import { sql, withTx } from '@/lib/db';
 import { requireSuperAdmin, hashPin, AuthError } from '@/lib/auth';
 import { createStripeCustomerAndTrial } from '@/lib/billing';
 import { decideOwnerCredential } from '@/lib/cafeApproval';
+import { storeIssuedOwnerPin } from '@/lib/pinWrite';
 import { decideCafeMove, type CafeStatus } from '@/lib/workflows/cafe';
 import crypto from 'crypto';
 
@@ -118,16 +119,7 @@ export async function POST(
       for (const { user_id } of owners) {
         const decision = ownerDecisions.find((d) => d.userId === user_id)?.decision;
         if (decision?.action !== 'issue_pin') continue; // 'keep_pin' — never touch their credential
-        await tx.query(
-          `UPDATE profiles
-              SET is_active     = TRUE,
-                  pin_hash      = $1,
-                  pin_set_at    = NOW(),
-                  token_version = token_version + 1,
-                  updated_at    = NOW()
-            WHERE id = $2`,
-          [pinHash, user_id],
-        );
+        await storeIssuedOwnerPin(tx, user_id, pinHash as string);
       }
       return true;
     });
