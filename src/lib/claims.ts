@@ -1,4 +1,5 @@
-import type { MedicalClaim, ClaimStatus, UserRole } from '@/lib/database.types';
+import type { MedicalClaim, UserRole } from '@/lib/database.types';
+import type { ClaimStatus } from '@/lib/workflows/claim';
 import { toMoney, toMoneyOrNull } from '@/lib/money';
 
 /** Raised when a concurrent request already changed the row's state under us. → HTTP 409. */
