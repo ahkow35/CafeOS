@@ -27,6 +27,13 @@ async function jsonOrError(res: Response): Promise<unknown> {
     return res.json();
 }
 
+// The year a leave belongs to is the year it starts, read the same way the card shows the date.
+// The API sends either a plain YYYY-MM-DD or a full timestamp of server-local midnight.
+function startYear(leave: LeaveRequest): string {
+    const raw = String(leave.start_date);
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(0, 4) : String(new Date(raw).getFullYear());
+}
+
 export default function AdminArchivePage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
@@ -36,6 +43,10 @@ export default function AdminArchivePage() {
     const [leaves, setLeaves] = useState<LeaveWithProfile[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [filter, setFilter] = useState<'all' | 'approved' | 'rejected'>('all');
+    const [yearFilter, setYearFilter] = useState<string>('all');
+    const [typeFilter, setTypeFilter] = useState<'all' | LeaveRequest['leave_type']>('all');
+    const [employeeFilter, setEmployeeFilter] = useState<string>('all');
+    const [employeeFilterName, setEmployeeFilterName] = useState('');
     const isOwner = profile?.role === 'owner';
     const isAdmin = profile?.role === 'manager' || profile?.role === 'owner';
 
@@ -73,9 +84,31 @@ export default function AdminArchivePage() {
         }
     };
 
+    // Year, leave type and employee narrow the list first; the status tabs and their counts apply on top.
+    const matching = leaves.filter(l =>
+        (yearFilter === 'all' || startYear(l) === yearFilter) &&
+        (typeFilter === 'all' || l.leave_type === typeFilter) &&
+        (employeeFilter === 'all' || l.user_id === employeeFilter)
+    );
     const filteredLeaves = filter === 'all'
-        ? leaves
-        : leaves.filter(l => l.status === filter);
+        ? matching
+        : matching.filter(l => l.status === filter);
+    const filtersActive = yearFilter !== 'all' || typeFilter !== 'all' || employeeFilter !== 'all';
+
+    // Options come from the records on hand. A chosen value stays listed even after its last record is deleted.
+    const years = Array.from(new Set([...leaves.map(startYear), ...(yearFilter === 'all' ? [] : [yearFilter])]))
+        .sort((a, b) => b.localeCompare(a));
+    const employees = new Map<string, string>();
+    for (const l of leaves) employees.set(l.user_id, l.profile?.full_name || 'Unknown User');
+    if (employeeFilter !== 'all' && !employees.has(employeeFilter)) employees.set(employeeFilter, employeeFilterName);
+    const employeeOptions = Array.from(employees, ([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    const clearFilters = () => {
+        setYearFilter('all');
+        setTypeFilter('all');
+        setEmployeeFilter('all');
+    };
 
     if (loading || !profile || !isAdmin) {
         return <div className="loading"><div className="spinner" /></div>;
@@ -92,6 +125,46 @@ export default function AdminArchivePage() {
                     </section>
 
                     <div className="animate-in" style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 'var(--space-sm)',
+                        marginBottom: 'var(--space-md)'
+                    }}>
+                        <select
+                            className="form-input form-select"
+                            aria-label="Year"
+                            value={yearFilter}
+                            onChange={e => setYearFilter(e.target.value)}
+                        >
+                            <option value="all">All years</option>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                        <select
+                            className="form-input form-select"
+                            aria-label="Leave type"
+                            value={typeFilter}
+                            onChange={e => setTypeFilter(e.target.value as typeof typeFilter)}
+                        >
+                            <option value="all">All types</option>
+                            <option value="annual">Annual</option>
+                            <option value="medical">Medical</option>
+                        </select>
+                        <select
+                            className="form-input form-select"
+                            aria-label="Employee"
+                            value={employeeFilter}
+                            onChange={e => {
+                                setEmployeeFilter(e.target.value);
+                                setEmployeeFilterName(e.target.selectedOptions[0]?.text ?? '');
+                            }}
+                            style={{ gridColumn: '1 / -1' }}
+                        >
+                            <option value="all">All employees</option>
+                            {employeeOptions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="animate-in" style={{
                         display: 'flex',
                         gap: 'var(--space-sm)',
                         marginBottom: 'var(--space-md)',
@@ -105,9 +178,9 @@ export default function AdminArchivePage() {
                                 className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-ghost'}`}
                                 style={{ textTransform: 'var(--text-transform-capitalize)' }}
                             >
-                                {f === 'all' ? `All (${leaves.length})` :
-                                    f === 'approved' ? `Approved (${leaves.filter(l => l.status === 'approved').length})` :
-                                        `Declined (${leaves.filter(l => l.status === 'rejected').length})`}
+                                {f === 'all' ? `All (${matching.length})` :
+                                    f === 'approved' ? `Approved (${matching.filter(l => l.status === 'approved').length})` :
+                                        `Declined (${matching.filter(l => l.status === 'rejected').length})`}
                             </button>
                         ))}
                     </div>
@@ -120,7 +193,16 @@ export default function AdminArchivePage() {
                                 <Calendar size={48} />
                             </div>
                             <div className="empty-state-title">No records found</div>
-                            <p>No {filter !== 'all' ? filter : ''} leave history yet.</p>
+                            {filtersActive ? (
+                                <>
+                                    <p>No records match these filters.</p>
+                                    <button className="btn btn-ghost btn-sm mt-md" onClick={clearFilters}>
+                                        Clear filters
+                                    </button>
+                                </>
+                            ) : (
+                                <p>No {filter !== 'all' ? filter : ''} leave history yet.</p>
+                            )}
                         </div>
                     ) : (
                         <div className="animate-in">
