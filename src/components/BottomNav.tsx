@@ -1,12 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { usePathname, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Home, CheckSquare, Calendar, Clock, UserRound } from 'lucide-react';
 
 const ROLE_CACHE_KEY = 'cafeos_role';
+
+// The cached role is read through useSyncExternalStore so the first browser draw uses the
+// server's value (no role) and the stored role is applied straight after, without a mismatch.
+const noSubscribe = () => () => {};
+const readCachedRole = () => localStorage.getItem(ROLE_CACHE_KEY) ?? '';
+const noCachedRoleOnServer = () => '';
 
 export default function BottomNav() {
     const pathname = usePathname();
@@ -20,7 +26,8 @@ export default function BottomNav() {
         }
     }, [profile?.role]);
 
-    const role = profile?.role ?? (typeof window !== 'undefined' ? localStorage.getItem(ROLE_CACHE_KEY) ?? '' : '');
+    const cachedRole = useSyncExternalStore(noSubscribe, readCachedRole, noCachedRoleOnServer);
+    const role = profile?.role ?? cachedRole;
 
     const isManagerOrOwner = role === 'manager' || role === 'owner';
     const isPartTimer = role === 'part_timer';
