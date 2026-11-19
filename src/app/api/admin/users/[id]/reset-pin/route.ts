@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { hashPin, requireTenantUser, requireOwnerInCafe, AuthError } from '@/lib/auth';
+import { storeNewPin } from '@/lib/pinWrite';
 import { parsePin, ValidationError } from '@/lib/validators';
 
 export const runtime = 'nodejs';
@@ -63,15 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Bump token_version to revoke any sessions the user (or anyone holding a
     // stale/hijacked token) currently has — a reset must invalidate old logins.
-    const { rowCount } = await sql`
-      UPDATE profiles
-         SET pin_hash        = ${pin_hash},
-             failed_attempts = 0,
-             locked_until    = NULL,
-             token_version   = token_version + 1,
-             updated_at      = NOW()
-       WHERE id = ${id}
-    `;
+    const rowCount = await storeNewPin(sql, id, pin_hash);
     if (!rowCount) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     return NextResponse.json({ tempPin: pin });

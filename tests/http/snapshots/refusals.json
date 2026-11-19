@@ -1,4 +1,144 @@
 {
+  "PIN write | approve | session from before the approval": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "PIN write | change PIN | session from before the change": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "PIN write | owner reset | session from before the reset": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "PIN write | reset with a code | session from before the reset": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "access order | access_off + cafe_pending | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Your access to this cafe has been disabled"
+    }
+  },
+  "access order | access_off + cafe_suspended | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Your access to this cafe has been disabled"
+    }
+  },
+  "access order | cafe_pending | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "This cafe is pending approval"
+    }
+  },
+  "access order | cafe_suspended | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "This cafe has been suspended"
+    }
+  },
+  "access order | membership_not_active + access_off + stale_session + profile_inactive + cafe_suspended | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Your membership in this cafe is no longer active"
+    }
+  },
+  "access order | membership_not_active + profile_inactive | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Your membership in this cafe is no longer active"
+    }
+  },
+  "access order | profile_inactive + access_off | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "This account is disabled. Contact your manager."
+    }
+  },
+  "access order | profile_inactive + stale_session | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "This account is disabled. Contact your manager."
+    }
+  },
+  "access order | stale_session + access_off | GET tasks | by staff": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "access order | stale_session + cafe_suspended | GET tasks | by staff": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "cafe access | create task | assignee does not exist": {
+    "status": 400,
+    "body": {
+      "error": "Assignee does not exist"
+    }
+  },
+  "cafe access | create task | assignee in another cafe": {
+    "status": 400,
+    "body": {
+      "error": "Assignee is not a member of this cafe"
+    }
+  },
+  "cafe access | create task | assignee with an inactive profile": {
+    "status": 400,
+    "body": {
+      "error": "Assignee is inactive"
+    }
+  },
+  "cafe access | pick a cafe where access is switched off": {
+    "status": 403,
+    "body": {
+      "error": "No active membership in this cafe",
+      "code": "no_membership"
+    }
+  },
+  "cafe access | reassign task | assignee does not exist": {
+    "status": 400,
+    "body": {
+      "error": "Assignee does not exist"
+    }
+  },
+  "cafe access | reassign task | assignee in another cafe": {
+    "status": 400,
+    "body": {
+      "error": "Assignee is not a member of this cafe"
+    }
+  },
+  "cafe access | reassign task | assignee with an inactive profile": {
+    "status": 400,
+    "body": {
+      "error": "Assignee is inactive"
+    }
+  },
+  "cafe access | switch to a cafe where access is switched off": {
+    "status": 403,
+    "body": {
+      "error": "No active membership in this cafe",
+      "code": "no_membership"
+    }
+  },
+  "cafe access | view as a person whose access is switched off": {
+    "status": 404,
+    "body": {
+      "error": "User has no active membership in this cafe"
+    }
+  },
   "cafe picker | GET timesheets | with the picker cookie": {
     "status": 401,
     "body": {
@@ -29,6 +169,66 @@
     "body": {
       "error": "Session expired — please log in again",
       "code": "pick_expired"
+    }
+  },
+  "change PIN | bad JSON": {
+    "status": 400,
+    "body": {
+      "error": "Invalid JSON body"
+    }
+  },
+  "change PIN | badly formed current PIN": {
+    "status": 400,
+    "body": {
+      "error": "PIN must be exactly 6 digits"
+    }
+  },
+  "change PIN | fifth wrong current PIN locks": {
+    "status": 423,
+    "body": {
+      "error": "Too many incorrect attempts. Try again in 15 minutes."
+    }
+  },
+  "change PIN | locked, right current PIN": {
+    "status": 423,
+    "body": {
+      "error": "Too many incorrect attempts. Try again later."
+    }
+  },
+  "change PIN | missing PINs": {
+    "status": 400,
+    "body": {
+      "error": "PIN is required"
+    }
+  },
+  "change PIN | new PIN equals the current PIN": {
+    "status": 400,
+    "body": {
+      "error": "Choose a PIN that is different from your current PIN"
+    }
+  },
+  "change PIN | new PIN with repeated digits": {
+    "status": 400,
+    "body": {
+      "error": "Choose a less predictable PIN without repeated or sequential digits"
+    }
+  },
+  "change PIN | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Not signed in"
+    }
+  },
+  "change PIN | wrong current PIN": {
+    "status": 400,
+    "body": {
+      "error": "Your current PIN is incorrect."
+    }
+  },
+  "change PIN | wrong current PIN after the lock ran out": {
+    "status": 423,
+    "body": {
+      "error": "Too many incorrect attempts. Try again in 15 minutes."
     }
   },
   "claim DELETE | from approved | by claimant": {
@@ -500,11 +700,107 @@
       "error": "Timesheet not found"
     }
   },
+  "owner reset PIN | bad JSON": {
+    "status": 400,
+    "body": {
+      "error": "Invalid JSON"
+    }
+  },
+  "owner reset PIN | bad PIN": {
+    "status": 400,
+    "body": {
+      "error": "PIN must be exactly 6 digits"
+    }
+  },
+  "owner reset PIN | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "owner reset PIN | malformed user id": {
+    "status": 400,
+    "body": {
+      "error": "Invalid user id"
+    }
+  },
+  "owner reset PIN | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "owner reset PIN | user in other cafes too": {
+    "status": 409,
+    "body": {
+      "error": "This user belongs to other cafés. They must reset their own PIN from their account."
+    }
+  },
+  "owner reset PIN | user not in this cafe": {
+    "status": 404,
+    "body": {
+      "error": "User not found in this cafe"
+    }
+  },
   "pending cafe | sign in | by owner": {
     "status": 403,
     "body": {
       "error": "No active cafe membership. Contact your owner.",
       "code": "no_active_membership"
+    }
+  },
+  "reset with a code | bad JSON": {
+    "status": 400,
+    "body": {
+      "error": "Invalid JSON body"
+    }
+  },
+  "reset with a code | bad code": {
+    "status": 400,
+    "body": {
+      "error": "Verification code must be exactly 6 digits"
+    }
+  },
+  "reset with a code | bad phone": {
+    "status": 400,
+    "body": {
+      "error": "Phone must start with + and country code"
+    }
+  },
+  "reset with a code | code already used": {
+    "status": 400,
+    "body": {
+      "error": "That code is incorrect or has expired. Request a new code and try again."
+    }
+  },
+  "reset with a code | code expired": {
+    "status": 400,
+    "body": {
+      "error": "That code is incorrect or has expired. Request a new code and try again."
+    }
+  },
+  "reset with a code | easy new PIN": {
+    "status": 400,
+    "body": {
+      "error": "Choose a less predictable PIN without repeated or sequential digits"
+    }
+  },
+  "reset with a code | new PIN equals the current PIN": {
+    "status": 400,
+    "body": {
+      "error": "Choose a PIN that is different from your current PIN"
+    }
+  },
+  "reset with a code | no code was requested": {
+    "status": 400,
+    "body": {
+      "error": "That code is incorrect or has expired. Request a new code and try again."
+    }
+  },
+  "reset with a code | wrong code": {
+    "status": 400,
+    "body": {
+      "error": "That code is incorrect or has expired. Request a new code and try again."
     }
   },
   "session counter bumped | GET tasks | by staff": {
@@ -529,6 +825,41 @@
     "status": 400,
     "body": {
       "error": "PIN must be exactly 6 digits"
+    }
+  },
+  "sign in | disabled account": {
+    "status": 403,
+    "body": {
+      "error": "This account is disabled. Contact your manager.",
+      "code": "inactive"
+    }
+  },
+  "sign in | fifth wrong PIN locks": {
+    "status": 423,
+    "body": {
+      "error": "Too many wrong attempts. Try again in 15 minutes.",
+      "code": "locked"
+    }
+  },
+  "sign in | unknown phone": {
+    "status": 401,
+    "body": {
+      "error": "Invalid phone or PIN",
+      "code": "invalid_credentials"
+    }
+  },
+  "sign in | wrong PIN": {
+    "status": 401,
+    "body": {
+      "error": "Invalid phone or PIN",
+      "code": "invalid_credentials"
+    }
+  },
+  "sign in | wrong PIN after the lock ran out": {
+    "status": 423,
+    "body": {
+      "error": "Too many wrong attempts. Try again in 15 minutes.",
+      "code": "locked"
     }
   },
   "sign-up | empty cafe name": {

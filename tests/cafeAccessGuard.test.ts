@@ -13,7 +13,6 @@ const HOME = 'src/lib/cafeAccess.ts';
 
 // Files that still contain the condition today, each with the reason.
 const ALLOWED: Record<string, string> = {
-  'src/lib/auth.ts': 'already applies the full rule; moves to cafeAccess in a later change',
   'src/app/api/telegram/webhook/route.ts': 'waits for the open change to that route',
   'src/app/api/admin/users/route.ts': 'listing: shows people whose access is off on purpose',
   'src/app/api/admin/users/[id]/route.ts': 'listing: shows people whose access is off on purpose',

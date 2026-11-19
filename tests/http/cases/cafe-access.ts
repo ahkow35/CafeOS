@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { addMembership, api, env, newCafe, newMember, PIN, row, runDatabaseUrl, type Person, type Reply } from '../harness';
-import { expectStatus } from './util';
+import { expectStatus, refuse } from './util';
 
 const cookieOf = (r: Reply, name: string): string => {
   for (const c of r.headers.getSetCookie()) {
@@ -45,7 +45,7 @@ export function cafeAccessCases(): void {
       await switchOff(person.id, env.cafe2);
       const notMine = await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: env.pendingCafe } });
       const off = await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: env.cafe2 } });
-      expectStatus(off, 403);
+      refuse('cafe access | pick a cafe where access is switched off', off, 403);
       assert.deepEqual(off.json, { error: 'No active membership in this cafe', code: 'no_membership' });
       assert.deepEqual(off.json, notMine.json);
       assert.equal(cookieOf(off, 'cafeos_session'), '');
@@ -76,7 +76,7 @@ export function cafeAccessCases(): void {
       await switchOff(person.id, env.cafe2);
       const notMine = await api('POST', '/api/auth/switch-cafe', { cookie: session, body: { cafeId: env.pendingCafe } });
       const off = await api('POST', '/api/auth/switch-cafe', { cookie: session, body: { cafeId: env.cafe2 } });
-      expectStatus(off, 403);
+      refuse('cafe access | switch to a cafe where access is switched off', off, 403);
       assert.deepEqual(off.json, { error: 'No active membership in this cafe', code: 'no_membership' });
       assert.deepEqual(off.json, notMine.json);
       assert.equal(cookieOf(off, 'cafeos_session'), '');
@@ -95,7 +95,7 @@ export function cafeAccessCases(): void {
     test('a person whose access is switched off gets the no-membership reply', async () => {
       const m = await newMember('staff', env.cafe1, { employmentActive: false });
       const r = await viewAs(env.cafe1, m.id);
-      expectStatus(r, 404);
+      refuse('cafe access | view as a person whose access is switched off', r, 404);
       assert.deepEqual(r.json, { error: 'User has no active membership in this cafe' });
       assert.equal(cookieOf(r, 'cafeos_session'), '');
     });
@@ -121,8 +121,9 @@ export function cafeAccessCases(): void {
       const inactiveProfile = await newMember('staff');
       await row(`UPDATE profiles SET is_active = FALSE WHERE id = $1`, [inactiveProfile.id]);
 
-      for (const go of [create, reassign]) {
+      for (const [kind, go] of [['create', create], ['reassign', reassign]] as const) {
         const expected = await go(inactiveProfile.id);
+        refuse(`cafe access | ${kind} task | assignee with an inactive profile`, expected, 400);
         assert.equal(expected.json.error, 'Assignee is inactive');
         const r = await go(off.id);
         assert.equal(r.status, expected.status);
@@ -133,9 +134,13 @@ export function cafeAccessCases(): void {
     test('the other assignee replies are unchanged and in the same order', async () => {
       const outsider = await newMember('staff', env.cafe2);
       const unknown = '00000000-0000-4000-8000-000000000000';
-      for (const go of [create, reassign]) {
-        assert.equal((await go(unknown)).json.error, 'Assignee does not exist');
-        assert.equal((await go(outsider.id)).json.error, 'Assignee is not a member of this cafe');
+      for (const [kind, go] of [['create', create], ['reassign', reassign]] as const) {
+        const gone = await go(unknown);
+        refuse(`cafe access | ${kind} task | assignee does not exist`, gone, gone.status);
+        assert.equal(gone.json.error, 'Assignee does not exist');
+        const outside = await go(outsider.id);
+        refuse(`cafe access | ${kind} task | assignee in another cafe`, outside, outside.status);
+        assert.equal(outside.json.error, 'Assignee is not a member of this cafe');
       }
     });
   });

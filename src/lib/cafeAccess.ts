@@ -112,3 +112,63 @@ export async function listAccessChatIds(cafeId: string, roles: MembershipRole[])
   `;
   return rows.map((r) => r.telegram_chat_id);
 }
+
+/** One seat a person holds: the cafe's fields, the role and the employment data kept on the membership. */
+export interface MembershipRow {
+  cafe_id: string;
+  cafe_slug: string;
+  cafe_name: string;
+  cafe_logo_url: string | null;
+  role: MembershipRole;
+  job_title: string | null;
+  annual_leave_balance: number;
+  medical_leave_balance: number;
+  medical_claim_balance: string;
+  hourly_rate: string | null;
+}
+
+/** Every cafe this person has access to (facts 1, 2 and 4; the caller has already checked the profile), by cafe name. */
+export async function listActiveMemberships(userId: string): Promise<MembershipRow[]> {
+  const { rows } = await sql<MembershipRow>`
+    SELECT m.cafe_id, c.slug AS cafe_slug, c.name AS cafe_name,
+           c.logo_url AS cafe_logo_url, m.role,
+           m.job_title, m.annual_leave_balance, m.medical_leave_balance, m.medical_claim_balance, m.hourly_rate
+      FROM cafe_memberships m
+      JOIN cafes c ON c.id = m.cafe_id
+     WHERE m.user_id = ${userId}
+       AND m.status  = 'active'
+       AND m.employment_active = TRUE
+       AND c.status  = 'active'
+     ORDER BY c.name
+  `;
+  return rows;
+}
+
+/** What the per-request check reads: the role, the cafe's status, and the profile's state, for an active membership. */
+export interface RequestAccessRow {
+  role: MembershipRole;
+  cafe_status: string;
+  employment_active: boolean;
+  is_active: boolean;
+  token_version: number;
+}
+
+/**
+ * One query for the per-request check: the membership row for this person and cafe when its status is
+ * 'active', with the cafe status, employment flag and the profile's is_active and token_version.
+ * Returns undefined when there is no such row. The caller decides what each fact means, and in what order.
+ */
+export async function lookupRequestAccess(userId: string, cafeId: string): Promise<RequestAccessRow | undefined> {
+  const { rows } = await sql<RequestAccessRow>`
+    SELECT m.role, c.status AS cafe_status, m.employment_active,
+           p.is_active, p.token_version
+      FROM cafe_memberships m
+      JOIN cafes c    ON c.id = m.cafe_id
+      JOIN profiles p ON p.id = m.user_id
+     WHERE m.user_id = ${userId}
+       AND m.cafe_id = ${cafeId}
+       AND m.status  = 'active'
+     LIMIT 1
+  `;
+  return rows[0];
+}

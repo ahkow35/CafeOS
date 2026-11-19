@@ -7,10 +7,11 @@
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { api, newMember, row, PIN, type Person, type Reply } from '../harness';
-import { expectStatus } from './util';
+import { api, env, newMember, row, PIN, type Person, type Reply } from '../harness';
+import { expectStatus, refuse } from './util';
 
 const WRONG = '135792';
+const THRESHOLD = 5; // wrong attempts that lock the account
 const LOCK_MESSAGE = 'Too many wrong attempts. Try again in 15 minutes.';
 const CP_WRONG = 'Your current PIN is incorrect.';
 const CP_LOCKED_NOW = 'Too many incorrect attempts. Try again in 15 minutes.';
@@ -38,6 +39,40 @@ function assertLockedForFifteenMinutes(c: { secs: number | null }): void {
   assert.ok(c.secs !== null && c.secs > 14 * 60 && c.secs <= 15 * 60 + 5, `locked_until should be about 15 minutes ahead, got ${c.secs}s`);
 }
 
+/**
+ * One count away from the lock, the profile row held by this test's own connection, then `sent`
+ * right-PIN requests queue on it. When the row is released the first request takes the last count and
+ * the lock, and the requests behind it find the account locked. The reply split depends on how fast the
+ * first request clears the count afterwards, so the cases below assert a bound (at least one let in, at
+ * least one told locked), not an exact split.
+ */
+async function rightPinsQueuedOnOneRow(p: Person, send: () => Promise<Reply>, sent: number): Promise<Reply[]> {
+  await row(`UPDATE profiles SET failed_attempts = ${THRESHOLD - 1}, locked_until = NULL WHERE id = $1`, [p.id]);
+  const holder = await env.pool.connect();
+  let replies: Promise<Reply[]>;
+  try {
+    await holder.query('BEGIN');
+    await holder.query(`SELECT id FROM profiles WHERE id = $1 FOR UPDATE`, [p.id]);
+    replies = Promise.all(Array.from({ length: sent }, send));
+    const deadline = Date.now() + 20_000;
+    for (;;) {
+      const waiting = await row<{ n: number }>(
+        `SELECT COUNT(*)::int AS n FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE profiles%'`);
+      if (waiting?.n === sent) break;
+      assert.ok(Date.now() < deadline, `all ${sent} requests should be waiting on the row, ${waiting?.n} were`);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await holder.query('COMMIT');
+  } catch (e) {
+    await holder.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    holder.release();
+  }
+  return replies;
+}
+
 async function expireLock(p: Person): Promise<void> {
   await row(`UPDATE profiles SET locked_until = NOW() - INTERVAL '1 minute' WHERE id = $1`, [p.id]);
 }
@@ -48,14 +83,14 @@ export function signInAttemptCases(): void {
       const m = await newMember('staff');
       for (let i = 1; i <= 4; i++) {
         const r = await loginAs(m, WRONG);
-        expectStatus(r, 401);
+        if (i === 1) refuse('sign in | wrong PIN', r, 401); else expectStatus(r, 401);
         assert.deepEqual(r.json, { error: 'Invalid phone or PIN', code: 'invalid_credentials' });
         const c = await counters(m);
         assert.equal(c.failed_attempts, i);
         assert.equal(c.locked_until, null);
       }
       const fifth = await loginAs(m, WRONG);
-      expectStatus(fifth, 423);
+      refuse('sign in | fifth wrong PIN locks', fifth, 423);
       assert.deepEqual(fifth.json, { error: LOCK_MESSAGE, code: 'locked' });
       const c = await counters(m);
       assert.equal(c.failed_attempts, 5);
@@ -96,7 +131,7 @@ export function signInAttemptCases(): void {
       for (let i = 0; i < 5; i++) await loginAs(b, WRONG);
       await expireLock(b);
       const r = await loginAs(b, WRONG);
-      expectStatus(r, 423);
+      refuse('sign in | wrong PIN after the lock ran out', r, 423);
       assert.equal(r.json.code, 'locked');
       const c = await counters(b);
       assert.equal(c.failed_attempts, 6);
@@ -105,7 +140,7 @@ export function signInAttemptCases(): void {
 
     test('an unknown phone is answered as a wrong PIN', async () => {
       const r = await api('POST', '/api/auth/login', { body: { phone: '+6580099999', pin: WRONG } });
-      expectStatus(r, 401);
+      refuse('sign in | unknown phone', r, 401);
       assert.deepEqual(r.json, { error: 'Invalid phone or PIN', code: 'invalid_credentials' });
     });
 
@@ -113,7 +148,7 @@ export function signInAttemptCases(): void {
       const m = await newMember('staff');
       await row(`UPDATE profiles SET is_active = FALSE WHERE id = $1`, [m.id]);
       const r = await loginAs(m, WRONG);
-      expectStatus(r, 403);
+      refuse('sign in | disabled account', r, 403);
       assert.deepEqual(r.json, { error: 'This account is disabled. Contact your manager.', code: 'inactive' });
       assert.equal((await counters(m)).failed_attempts, 0);
       await row(`UPDATE profiles SET failed_attempts = 5, locked_until = NOW() + INTERVAL '10 minutes' WHERE id = $1`, [m.id]);
@@ -130,14 +165,14 @@ export function signInAttemptCases(): void {
       await m.cookie();
       for (let i = 1; i <= 4; i++) {
         const r = await changePin(m, WRONG);
-        expectStatus(r, 400);
+        if (i === 1) refuse('change PIN | wrong current PIN', r, 400); else expectStatus(r, 400);
         assert.deepEqual(r.json, { error: CP_WRONG });
         const c = await counters(m);
         assert.equal(c.failed_attempts, i);
         assert.equal(c.locked_until, null);
       }
       const fifth = await changePin(m, WRONG);
-      expectStatus(fifth, 423);
+      refuse('change PIN | fifth wrong current PIN locks', fifth, 423);
       assert.deepEqual(fifth.json, { error: CP_LOCKED_NOW });
       const c = await counters(m);
       assert.equal(c.failed_attempts, 5);
@@ -150,7 +185,7 @@ export function signInAttemptCases(): void {
       for (let i = 0; i < 5; i++) await changePin(m, WRONG);
       const before = await counters(m);
       const r = await changePin(m, PIN);
-      expectStatus(r, 423);
+      refuse('change PIN | locked, right current PIN', r, 423);
       assert.deepEqual(r.json, { error: CP_LOCKED });
       const after = await counters(m);
       assert.equal(after.failed_attempts, before.failed_attempts);
@@ -176,7 +211,7 @@ export function signInAttemptCases(): void {
       for (let i = 0; i < 5; i++) await changePin(m, WRONG);
       await expireLock(m);
       const r = await changePin(m, WRONG);
-      expectStatus(r, 423);
+      refuse('change PIN | wrong current PIN after the lock ran out', r, 423);
       assert.deepEqual(r.json, { error: CP_LOCKED_NOW });
       const c = await counters(m);
       assert.equal(c.failed_attempts, 6);
@@ -187,7 +222,7 @@ export function signInAttemptCases(): void {
       const m = await newMember('staff');
       await m.cookie();
       const r = await changePin(m, '12');
-      expectStatus(r, 400);
+      refuse('change PIN | badly formed current PIN', r, 400);
       assert.equal((await counters(m)).failed_attempts, 0);
     });
   });
@@ -222,6 +257,27 @@ export function signInAttemptCases(): void {
       assert.equal(wrong, 4, `4 should be answered as a wrong PIN; ${seen}`);
       assert.equal(c.failed_attempts, 5, `failed_attempts should be 5; ${seen}`);
       assert.ok(c.secs !== null && c.secs > 0, `locked_until should be in the future; ${seen}`);
+    });
+
+    test('login: right PINs sent at once with one count left are not all let in; the others are told locked', async () => {
+      const m = await newMember('staff');
+      const replies = await rightPinsQueuedOnOneRow(m, () => loginAs(m, PIN), 6);
+      const statuses = replies.map((r) => r.status).sort();
+      const [letIn, locked] = [200, 423].map((s) => statuses.filter((x) => x === s).length);
+      assert.ok(letIn >= 1 && locked >= 1 && letIn + locked === 6, `statuses: ${statuses.join(',')}`);
+      for (const r of replies.filter((x) => x.status === 423)) assert.equal(r.json.code, 'locked');
+      await row(`UPDATE profiles SET failed_attempts = 0, locked_until = NULL WHERE id = $1`, [m.id]);
+    });
+
+    test('change PIN: right current PINs sent at once with one count left are not all let in; the others are told locked', async () => {
+      const m = await newMember('staff');
+      await m.cookie();
+      const replies = await rightPinsQueuedOnOneRow(m, () => changePin(m, PIN), 6);
+      const statuses = replies.map((r) => r.status).sort();
+      const [letIn, locked] = [200, 423].map((s) => statuses.filter((x) => x === s).length);
+      assert.ok(letIn >= 1 && locked >= 1 && letIn + locked === 6, `statuses: ${statuses.join(',')}`);
+      for (const r of replies.filter((x) => x.status === 423)) assert.deepEqual(r.json, { error: CP_LOCKED });
+      await row(`UPDATE profiles SET failed_attempts = 0, locked_until = NULL WHERE id = $1`, [m.id]);
     });
   });
 }
