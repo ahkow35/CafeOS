@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-18 — One shared cafe-access rule
+
+### Summary
+"May this person act in this cafe" is now written once, in `src/lib/cafeAccess.ts`: the person's
+membership status is `active`, their access switch (`employment_active`) is on, their profile is
+active, and the cafe is active. People whose access is switched off are treated the same
+everywhere. The Telegram recipient lists (`getManagerRecipients`, `getOwnerRecipients`), the cafe
+picker (`select-cafe`), cafe switch (`switch-cafe`), view-as (`impersonate`) and the task
+assignee check (create and edit) now call it.
+`src/lib/auth.ts` already applied the full rule and is not touched here.
+
+### Behaviour
+- Each caller keeps its own wording and status codes. Picker and switch answer the
+  "no active membership" 403 (a cafe that is not active keeps its own 403); view-as answers its
+  existing 404; the task assignee check answers "Assignee is inactive".
+- Telegram lists use the three facts about the person (membership, access switch, profile) in the
+  same roles as before. They do not check the cafe's status, so the billing alert still reaches
+  the owners of a cafe that is not active.
+- New tests: HTTP cases in `tests/http/cases/cafe-access.ts` (including the recipients list, run
+  against the per-run database), a table test of the verdict function, and a guard test that
+  fails when a new hand-written copy of the membership condition appears under `src/`. The files
+  that still hold the condition are allow-listed there with a reason each.
+- No schema change, no new dependency, no write added.
+
+### Rejected alternative
+Putting the rule in `auth.ts` next to `requireTenantUser`: that file imports `next/headers`, so
+tests and scripts could not load it, and it moves in a later change.
+
 ## 2026-11-18 — Count sign-in attempts in one statement, shared by login and change-PIN
 
 ### Summary

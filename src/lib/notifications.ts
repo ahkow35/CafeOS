@@ -1,4 +1,5 @@
 import { sql } from '@/lib/db';
+import { listAccessChatIds } from '@/lib/cafeAccess';
 import { formatMonthYear } from '@/lib/dateUtils';
 import { appBaseUrl as baseUrl } from '@/lib/appUrl';
 import { formatSGD } from '@/lib/money';
@@ -58,30 +59,12 @@ async function getCafeSlug(cafeId: string): Promise<string | null> {
 
 /** All active managers + owners in the given cafe who have a Telegram chat linked. */
 async function getManagerRecipients(cafeId: string): Promise<string[]> {
-  const { rows } = await sql<{ telegram_chat_id: string }>`
-    SELECT p.telegram_chat_id
-      FROM profiles p
-      JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${cafeId}
-     WHERE m.role IN ('manager', 'owner')
-       AND m.status = 'active'
-       AND p.is_active = TRUE
-       AND p.telegram_chat_id IS NOT NULL
-  `;
-  return rows.map((r) => r.telegram_chat_id);
+  return listAccessChatIds(cafeId, ['manager', 'owner']);
 }
 
 /** Active owners only in the given cafe who have a Telegram chat linked. */
 async function getOwnerRecipients(cafeId: string): Promise<string[]> {
-  const { rows } = await sql<{ telegram_chat_id: string }>`
-    SELECT p.telegram_chat_id
-      FROM profiles p
-      JOIN cafe_memberships m ON m.user_id = p.id AND m.cafe_id = ${cafeId}
-     WHERE m.role = 'owner'
-       AND m.status = 'active'
-       AND p.is_active = TRUE
-       AND p.telegram_chat_id IS NOT NULL
-  `;
-  return rows.map((r) => r.telegram_chat_id);
+  return listAccessChatIds(cafeId, ['owner']);
 }
 
 // ---------------------------------------------------------------------------

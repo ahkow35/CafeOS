@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { sql } from '@/lib/db';
+import { lookupCafeAccess } from '@/lib/cafeAccess';
 import {
   requireSuperAdmin,
   signFullSession,
@@ -8,7 +8,6 @@ import {
   SESSION_COOKIE_OPTIONS,
   AuthError,
 } from '@/lib/auth';
-import type { MembershipRole } from '@/lib/validators';
 
 export const runtime = 'nodejs';
 
@@ -38,24 +37,14 @@ export async function POST(
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    // Verify the target has an active membership in this cafe AND an active profile.
+    // Verify the target has access to this cafe (one rule: src/lib/cafeAccess.ts).
     // Disabled users must not be impersonable.
-    const { rows } = await sql<{ role: MembershipRole; cafe_slug: string }>`
-      SELECT m.role, c.slug AS cafe_slug
-        FROM cafe_memberships m
-        JOIN cafes c ON c.id = m.cafe_id
-        JOIN profiles p ON p.id = m.user_id
-       WHERE m.user_id = ${targetUserId}
-         AND m.cafe_id = ${cafeId}
-         AND m.status = 'active'
-         AND c.status = 'active'
-         AND p.is_active = TRUE
-       LIMIT 1
-    `;
-    if (rows.length === 0) {
+    const access = await lookupCafeAccess(targetUserId, cafeId);
+    if (!access || access.verdict !== 'ok') {
       return NextResponse.json({ error: 'User has no active membership in this cafe' }, { status: 404 });
     }
-    const { role, cafe_slug } = rows[0];
+    const role = access.role!;
+    const cafe_slug = access.cafeSlug!;
 
     const token = await signFullSession(
       targetUserId,

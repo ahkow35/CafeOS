@@ -47,6 +47,7 @@ export interface Env {
 export const env = {} as Env;
 
 let dbName = '';
+let runUrlValue = '';
 let admin: Pool | null = null;
 let server: ChildProcess | null = null;
 let serverLog = '';
@@ -89,6 +90,7 @@ export async function startHarness(): Promise<void> {
     dbName = `cafeos_http_${randomBytes(6).toString('hex')}`;
     await admin.query(`CREATE DATABASE ${dbName}`);
     const runUrl = urlForDb(adminUrl, dbName);
+    runUrlValue = runUrl;
     env.pool = new Pool({ connectionString: runUrl, max: 4 });
     await env.pool.query(readFileSync(path.join(REPO, 'db', 'schema.sql'), 'utf8'));
     await seedFixtures();
@@ -158,6 +160,9 @@ async function startServer(runUrl: string): Promise<void> {
     await new Promise((r) => setTimeout(r, 500));
   }
 }
+
+/** URL of this run's throwaway database, for cases that run library code against it (in a child process, so its connections end with it). */
+export function runDatabaseUrl(): string { return runUrlValue; }
 
 /** Server output captured so far, for diagnosing a surprising 500. */
 export function serverOutput(): string { return serverLog; }
