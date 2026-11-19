@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { api, env, newMember, row, PIN, type Reply } from '../harness';
-import { byId, expectStatus } from './util';
+import { byId, expectStatus, refuse } from './util';
 
 const cookieOf = (r: Reply, name: string): string => {
   for (const c of r.headers.getSetCookie()) {
@@ -19,7 +19,7 @@ export function accessCases(): void {
       ['GET', '/api/tasks'], ['PATCH', '/api/tasks/00000000-0000-4000-8000-000000000000'],
     ]) {
       test(`${method} ${path} -> 401`, async () => {
-        expectStatus(await api(method, path, { body: method === 'GET' ? undefined : {} }), 401);
+        refuse(`signed out | ${method} ${path}`, await api(method, path, { body: method === 'GET' ? undefined : {} }), 401);
       });
     }
 
@@ -29,8 +29,8 @@ export function accessCases(): void {
     });
 
     test('super routes are 401 signed out and 403 for a cafe owner', async () => {
-      expectStatus(await api('GET', '/api/super/cafes'), 401);
-      expectStatus(await api('GET', '/api/super/cafes', { as: env.people.owner }), 403);
+      refuse('super GET cafes | signed out', await api('GET', '/api/super/cafes'), 401);
+      refuse('super GET cafes | by owner', await api('GET', '/api/super/cafes', { as: env.people.owner }), 403);
       expectStatus(await api('GET', '/api/super/cafes', { as: env.people.super }), 200);
     });
   });
@@ -43,12 +43,12 @@ export function accessCases(): void {
       const stranger = await newMember('part_timer');
       const made = await api('POST', '/api/timesheets', { as: stranger, body: { month_year: '3999-12' } });
       assert.equal((await byId('timesheets', made.json.timesheet.id))?.cafe_id, env.cafe1);
-      expectStatus(await api('GET', `/api/timesheets/${made.json.timesheet.id}`, { as: env.people.owner2 }), 404);
+      refuse('other cafe | GET one timesheet | by owner2', await api('GET', `/api/timesheets/${made.json.timesheet.id}`, { as: env.people.owner2 }), 404);
     });
 
     test('a member whose employment is switched off cannot sign in', async () => {
       const r = await api('POST', '/api/auth/login', { body: { phone: env.people.inactive.phone, pin: PIN } });
-      expectStatus(r, 403);
+      refuse('employment off | sign in | by inactive member', r, 403);
       assert.equal(r.json.code, 'no_active_membership');
     });
 
@@ -57,7 +57,7 @@ export function accessCases(): void {
       expectStatus(await api('GET', '/api/tasks', { as: m }), 200);
       await row(`UPDATE cafe_memberships SET employment_active = FALSE WHERE user_id = $1`, [m.id]);
       const r = await api('GET', '/api/tasks', { as: m });
-      expectStatus(r, 403);
+      refuse('employment off after sign in | GET tasks | by staff', r, 403);
       assert.equal(r.json.error, 'Your access to this cafe has been disabled');
     });
 
@@ -68,8 +68,8 @@ export function accessCases(): void {
       await api('GET', '/api/tasks', { as: b });
       await row(`UPDATE profiles SET is_active = FALSE WHERE id = $1`, [a.id]);
       await row(`UPDATE profiles SET token_version = token_version + 1 WHERE id = $1`, [b.id]);
-      expectStatus(await api('GET', '/api/tasks', { as: a }), 403);
-      expectStatus(await api('GET', '/api/tasks', { as: b }), 401);
+      refuse('disabled account | GET tasks | by staff', await api('GET', '/api/tasks', { as: a }), 403);
+      refuse('session counter bumped | GET tasks | by staff', await api('GET', '/api/tasks', { as: b }), 401);
     });
   });
 
@@ -81,7 +81,7 @@ export function accessCases(): void {
       assert.equal(login.json.memberships.length, 2);
       const pick = cookieOf(login, 'cafeos_pick');
       assert.ok(pick);
-      expectStatus(await api('GET', '/api/timesheets', { cookie: pick }), 401); // a picker cookie is not a session
+      refuse('cafe picker | GET timesheets | with the picker cookie', await api('GET', '/api/timesheets', { cookie: pick }), 401); // a picker cookie is not a session
       const sel = await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: env.cafe2 } });
       expectStatus(sel, 200);
       assert.match(sel.json.redirect, /^\/c\/http-/);
@@ -95,23 +95,23 @@ export function accessCases(): void {
       const login = await api('POST', '/api/auth/login', { body: { phone: env.people.multi.phone, pin: PIN } });
       const pick = cookieOf(login, 'cafeos_pick');
       const other = await newMember('staff');
-      expectStatus(await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: env.pendingCafe } }), 403);
-      expectStatus(await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: 'x' } }), 400);
-      expectStatus(await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { goSuper: true } }), 403);
-      expectStatus(await api('POST', '/api/auth/select-cafe', { body: { cafeId: other.cafeId } }), 401);
+      refuse('cafe picker | select a cafe the person is not in', await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: env.pendingCafe } }), 403);
+      refuse('cafe picker | select with a malformed cafe id', await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { cafeId: 'x' } }), 400);
+      refuse('cafe picker | select super admin without being one', await api('POST', '/api/auth/select-cafe', { cookie: pick, body: { goSuper: true } }), 403);
+      refuse('cafe picker | select with no picker cookie', await api('POST', '/api/auth/select-cafe', { body: { cafeId: other.cafeId } }), 401);
     });
 
     test('a super admin with no cafe lands on /super and is refused by tenant routes', async () => {
       const login = await api('POST', '/api/auth/login', { body: { phone: env.people.super.phone, pin: PIN } });
       expectStatus(login, 200);
       assert.equal(login.json.redirect, '/super');
-      expectStatus(await api('GET', '/api/timesheets', { as: env.people.super }), 403);
+      refuse('super admin without a cafe | GET timesheets', await api('GET', '/api/timesheets', { as: env.people.super }), 403);
     });
 
     test('login shape: bad phone or pin format is 400', async () => {
-      expectStatus(await api('POST', '/api/auth/login', { body: { phone: 'abc', pin: PIN } }), 400);
-      expectStatus(await api('POST', '/api/auth/login', { body: { phone: env.people.owner.phone, pin: '12' } }), 400);
-      expectStatus(await api('POST', '/api/auth/login', { raw: '{' }), 400);
+      refuse('sign in | bad phone format', await api('POST', '/api/auth/login', { body: { phone: 'abc', pin: PIN } }), 400);
+      refuse('sign in | bad pin format', await api('POST', '/api/auth/login', { body: { phone: env.people.owner.phone, pin: '12' } }), 400);
+      refuse('sign in | bad JSON', await api('POST', '/api/auth/login', { raw: '{' }), 400);
     });
   });
 }

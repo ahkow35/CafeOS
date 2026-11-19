@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import type { CafeStatus } from '@/lib/workflows/cafe';
 
 // Lazily constructed so importing this module (e.g. during `next build` page-data
 // collection) does not require STRIPE_SECRET_KEY. The client is created on first
@@ -33,8 +34,6 @@ export function cafeStatusFromStripe(
   if (SUSPENDED_STATUSES.includes(stripeStatus)) return 'suspended';
   return null;
 }
-
-export type CafeStatus = 'pending' | 'active' | 'suspended';
 
 /**
  * Decides what the Stripe webhook is allowed to write to cafes.status. Pulled

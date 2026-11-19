@@ -1,3 +1,9 @@
+import type { CafeStatus } from '@/lib/workflows/cafe';
+import type { ClaimStatus } from '@/lib/workflows/claim';
+import type { LeaveStatus } from '@/lib/workflows/leave';
+import type { TaskStatus } from '@/lib/workflows/task';
+import type { TimesheetStatus as WorkflowTimesheetStatus } from '@/lib/workflows/timesheet';
+
 export type Json =
   | string
   | number
@@ -66,7 +72,7 @@ export interface Database {
           cafe_id: string;
           user_id: string;
           role: 'staff' | 'manager' | 'owner' | 'part_timer';
-          status: 'pending' | 'active' | 'suspended';
+          status: CafeStatus;
           job_title: string | null;
           annual_leave_balance: number;
           medical_leave_balance: number;
@@ -79,7 +85,7 @@ export interface Database {
           cafe_id: string;
           user_id: string;
           role: 'staff' | 'manager' | 'owner' | 'part_timer';
-          status?: 'pending' | 'active' | 'suspended';
+          status?: CafeStatus;
           job_title?: string | null;
           annual_leave_balance?: number;
           medical_leave_balance?: number;
@@ -89,7 +95,7 @@ export interface Database {
         };
         Update: {
           role?: 'staff' | 'manager' | 'owner' | 'part_timer';
-          status?: 'pending' | 'active' | 'suspended';
+          status?: CafeStatus;
           job_title?: string | null;
           annual_leave_balance?: number;
           medical_leave_balance?: number;
@@ -108,7 +114,7 @@ export interface Database {
           reason: string | null;
           attachment_url: string | null;
           is_retrospective: boolean;
-          status: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
+          status: LeaveStatus;
           manager_action_by: string | null;
           manager_action_at: string | null;
           owner_action_by: string | null;
@@ -126,7 +132,7 @@ export interface Database {
           reason?: string | null;
           attachment_url?: string | null;
           is_retrospective?: boolean;
-          status?: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
+          status?: LeaveStatus;
           manager_action_by?: string | null;
           manager_action_at?: string | null;
           owner_action_by?: string | null;
@@ -144,7 +150,7 @@ export interface Database {
           reason?: string | null;
           attachment_url?: string | null;
           is_retrospective?: boolean;
-          status?: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
+          status?: LeaveStatus;
           manager_action_by?: string | null;
           manager_action_at?: string | null;
           owner_action_by?: string | null;
@@ -160,7 +166,7 @@ export interface Database {
           description: string | null;
           deadline: string;
           assigned_to: string;
-          status: 'pending' | 'done';
+          status: TaskStatus;
           created_by: string;
           completed_by: string | null;
           completed_at: string | null;
@@ -172,7 +178,7 @@ export interface Database {
           description?: string | null;
           deadline: string;
           assigned_to: string;
-          status?: 'pending' | 'done';
+          status?: TaskStatus;
           created_by: string;
           completed_by?: string | null;
           completed_at?: string | null;
@@ -184,7 +190,7 @@ export interface Database {
           description?: string | null;
           deadline?: string;
           assigned_to?: string;
-          status?: 'pending' | 'done';
+          status?: TaskStatus;
           created_by?: string;
           completed_by?: string | null;
           completed_at?: string | null;
@@ -203,8 +209,8 @@ export type LeaveRequest = Database['public']['Tables']['leave_requests']['Row']
 export type Task = Database['public']['Tables']['tasks']['Row'];
 
 export type UserRole = User['role'];
-export type LeaveStatus = LeaveRequest['status'];
-export type TimesheetStatus = 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
+// The three timesheet screens import this name from here, so it stays as a pointer to the workflow type.
+export type TimesheetStatus = WorkflowTimesheetStatus;
 
 export interface Timesheet {
   id: string;
@@ -239,8 +245,6 @@ export interface TimesheetWithEntries extends Timesheet {
   entries: TimesheetEntry[];
   profile?: Pick<User, 'full_name' | 'email' | 'phone_e164' | 'hourly_rate'>;
 }
-
-export type ClaimStatus = 'pending' | 'approved' | 'rejected';
 
 export interface ClaimProfile {
   full_name: string;

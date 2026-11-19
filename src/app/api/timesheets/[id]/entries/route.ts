@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import type { TimesheetStatus } from '@/lib/workflows/timesheet';
 import { deriveTotalHours } from '@/lib/timeUtils';
 
 export const runtime = 'nodejs';
@@ -27,7 +28,7 @@ interface EntryRow {
 interface TimesheetRow {
   id: string;
   user_id: string;
-  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
+  status: TimesheetStatus;
   month_year: string; // 'YYYY-MM'
 }
 

@@ -1,0 +1,1904 @@
+{
+  "cafe picker | GET timesheets | with the picker cookie": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "cafe picker | select a cafe the person is not in": {
+    "status": 403,
+    "body": {
+      "error": "No active membership in this cafe",
+      "code": "no_membership"
+    }
+  },
+  "cafe picker | select super admin without being one": {
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  "cafe picker | select with a malformed cafe id": {
+    "status": 400,
+    "body": {
+      "error": "cafeId is required"
+    }
+  },
+  "cafe picker | select with no picker cookie": {
+    "status": 401,
+    "body": {
+      "error": "Session expired — please log in again",
+      "code": "pick_expired"
+    }
+  },
+  "claim DELETE | from approved | by claimant": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided claim"
+    }
+  },
+  "claim DELETE | from approved | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | from pending | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | from pending | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | from rejected | by claimant": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided claim"
+    }
+  },
+  "claim DELETE | from rejected | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this claim"
+    }
+  },
+  "claim DELETE | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Claim not found"
+    }
+  },
+  "claim DELETE | unknown id | by owner": {
+    "status": 404,
+    "body": {
+      "error": "Claim not found"
+    }
+  },
+  "claim GET list | scope pending | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "claim GET list | unknown scope | by staff": {
+    "status": 400,
+    "body": {
+      "error": "Unknown scope \"bogus\""
+    }
+  },
+  "claim PATCH approve | amount_approved \"abc\" | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved amount must be an amount with at most 2 decimal places"
+    }
+  },
+  "claim PATCH approve | amount_approved -1 | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved amount must be an amount with at most 2 decimal places"
+    }
+  },
+  "claim PATCH approve | amount_approved 0 | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved amount must be greater than 0"
+    }
+  },
+  "claim PATCH approve | amount_approved 31 | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved amount cannot exceed the claimed S$30.00"
+    }
+  },
+  "claim PATCH approve | claimed amount above the balance | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Balance is S$10.00; cannot approve S$30.00. Lower the amount or raise the cap."
+    }
+  },
+  "claim PATCH approve | from approved | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Claim already approved"
+    }
+  },
+  "claim PATCH approve | from pending | by claimant": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "claim PATCH approve | from pending | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "claim PATCH approve | from pending | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "claim PATCH approve | from rejected | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Claim already rejected"
+    }
+  },
+  "claim PATCH reject | from approved | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Claim already approved"
+    }
+  },
+  "claim PATCH reject | from rejected | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Claim already rejected"
+    }
+  },
+  "claim PATCH reject | note of 501 characters | by owner": {
+    "status": 400,
+    "body": {
+      "error": "note must be at most 500 characters"
+    }
+  },
+  "claim PATCH reject | note that is not text | by owner": {
+    "status": 400,
+    "body": {
+      "error": "note must be text"
+    }
+  },
+  "claim PATCH | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Claim not found"
+    }
+  },
+  "claim PATCH | unknown action | by owner": {
+    "status": 400,
+    "body": {
+      "error": "action must be \"approve\" or \"reject\""
+    }
+  },
+  "claim PATCH | unknown id | by owner": {
+    "status": 404,
+    "body": {
+      "error": "Claim not found"
+    }
+  },
+  "claim POST | no receipt URL | by staff": {
+    "status": 400,
+    "body": {
+      "error": "A receipt is required"
+    }
+  },
+  "claim POST | receipt URL not belonging to the caller | by staff": {
+    "status": 400,
+    "body": {
+      "error": "Invalid receipt URL"
+    }
+  },
+  "claim POST | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "disabled account | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "This account is disabled. Contact your manager."
+    }
+  },
+  "employment off after sign in | GET tasks | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Your access to this cafe has been disabled"
+    }
+  },
+  "employment off | sign in | by inactive member": {
+    "status": 403,
+    "body": {
+      "error": "No active cafe membership. Contact your owner.",
+      "code": "no_active_membership"
+    }
+  },
+  "leave DELETE | from approved | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | from approved | by requester": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | from pending_manager | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this request"
+    }
+  },
+  "leave DELETE | from pending_manager | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this request"
+    }
+  },
+  "leave DELETE | from pending_owner | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this request"
+    }
+  },
+  "leave DELETE | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this request"
+    }
+  },
+  "leave DELETE | from rejected | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | from rejected | by requester": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
+  "leave DELETE | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Request not found"
+    }
+  },
+  "leave DELETE | unknown id | by owner": {
+    "status": 404,
+    "body": {
+      "error": "Request not found"
+    }
+  },
+  "leave PATCH approve | from approved | by manager": {
+    "status": 409,
+    "body": {
+      "error": "Request already approved"
+    }
+  },
+  "leave PATCH approve | from approved | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Request already approved"
+    }
+  },
+  "leave PATCH approve | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH approve | from pending_manager | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH approve | from pending_owner | by manager": {
+    "status": 403,
+    "body": {
+      "error": "This request is past the manager stage"
+    }
+  },
+  "leave PATCH approve | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH approve | from rejected | by manager": {
+    "status": 409,
+    "body": {
+      "error": "Request already rejected"
+    }
+  },
+  "leave PATCH approve | from rejected | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Request already rejected"
+    }
+  },
+  "leave PATCH approve | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH approve | own pending_manager request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
+  "leave PATCH reject | from approved | by manager": {
+    "status": 409,
+    "body": {
+      "error": "Request already approved"
+    }
+  },
+  "leave PATCH reject | from approved | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Request already approved"
+    }
+  },
+  "leave PATCH reject | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH reject | from pending_manager | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH reject | from pending_owner | by manager": {
+    "status": 403,
+    "body": {
+      "error": "This request is past the manager stage"
+    }
+  },
+  "leave PATCH reject | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH reject | from rejected | by manager": {
+    "status": 409,
+    "body": {
+      "error": "Request already rejected"
+    }
+  },
+  "leave PATCH reject | from rejected | by owner": {
+    "status": 409,
+    "body": {
+      "error": "Request already rejected"
+    }
+  },
+  "leave PATCH reject | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "leave PATCH reject | own pending_manager request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
+  "leave PATCH | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Request not found"
+    }
+  },
+  "leave PATCH | unknown action | by owner": {
+    "status": 400,
+    "body": {
+      "error": "action must be \"approve\" or \"reject\""
+    }
+  },
+  "leave PATCH | unknown id | by owner": {
+    "status": 404,
+    "body": {
+      "error": "Request not found"
+    }
+  },
+  "leave POST | bad start date | by staff": {
+    "status": 400,
+    "body": {
+      "error": "start_date must be YYYY-MM-DD"
+    }
+  },
+  "leave POST | end before start | by staff": {
+    "status": 400,
+    "body": {
+      "error": "end_date must be on or after start_date"
+    }
+  },
+  "leave POST | medical leave type | by staff": {
+    "status": 400,
+    "body": {
+      "error": "Reason required for medical leave"
+    }
+  },
+  "leave POST | more days than the balance | by staff": {
+    "status": 400,
+    "body": {
+      "error": "Insufficient annual leave balance. Requested 20, available 14."
+    }
+  },
+  "leave POST | overlaps an existing request | by staff": {
+    "status": 400,
+    "body": {
+      "error": "Overlaps with existing annual request (pending_manager) <date> – <date>."
+    }
+  },
+  "leave POST | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "leave POST | unknown leave type | by staff": {
+    "status": 400,
+    "body": {
+      "error": "leave_type must be \"annual\" or \"medical\""
+    }
+  },
+  "other cafe | GET one timesheet | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Timesheet not found"
+    }
+  },
+  "pending cafe | sign in | by owner": {
+    "status": 403,
+    "body": {
+      "error": "No active cafe membership. Contact your owner.",
+      "code": "no_active_membership"
+    }
+  },
+  "session counter bumped | GET tasks | by staff": {
+    "status": 401,
+    "body": {
+      "error": "Your session has expired. Please sign in again."
+    }
+  },
+  "sign in | bad JSON": {
+    "status": 400,
+    "body": {
+      "error": "Invalid JSON body"
+    }
+  },
+  "sign in | bad phone format": {
+    "status": 400,
+    "body": {
+      "error": "Phone must start with + and country code"
+    }
+  },
+  "sign in | bad pin format": {
+    "status": 400,
+    "body": {
+      "error": "PIN must be exactly 6 digits"
+    }
+  },
+  "sign-up | empty cafe name": {
+    "status": 400,
+    "body": {
+      "error": "Cafe name must be 1–100 characters"
+    }
+  },
+  "sign-up | same application again": {
+    "status": 409,
+    "body": {
+      "error": "A signup request for this phone number is already pending review."
+    }
+  },
+  "signed out | GET /api/claims": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "signed out | GET /api/leave-requests": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "signed out | GET /api/tasks": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "signed out | GET /api/timesheets": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "signed out | PATCH /api/tasks/00000000-0000-4000-8000-000000000000": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "signed out | POST /api/timesheets": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "super GET cafes | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  "super GET cafes | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "super admin without a cafe | GET timesheets": {
+    "status": 403,
+    "body": {
+      "error": "No active cafe — go to /login/select"
+    }
+  },
+  "super approve | from active | by super": {
+    "status": 409,
+    "body": {
+      "error": "Only pending cafes can be approved"
+    }
+  },
+  "super approve | from pending | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  "super approve | from pending | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "super approve | from suspended | by super": {
+    "status": 409,
+    "body": {
+      "error": "Only pending cafes can be approved"
+    }
+  },
+  "super approve | malformed id | by super": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
+    }
+  },
+  "super approve | owner account disabled | by super": {
+    "status": 409,
+    "body": {
+      "error": "This phone number already belongs to an existing account that is currently inactive. Resolve it manually before approving this cafe."
+    }
+  },
+  "super approve | second approval of the same cafe | by super": {
+    "status": 409,
+    "body": {
+      "error": "Only pending cafes can be approved"
+    }
+  },
+  "super approve | unknown id | by super": {
+    "status": 404,
+    "body": {
+      "error": "Cafe not found"
+    }
+  },
+  "super reject | from active | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only pending cafes can be rejected"
+    }
+  },
+  "super reject | from pending | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  "super reject | from pending | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "super reject | from suspended | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only pending cafes can be rejected"
+    }
+  },
+  "super reject | unknown id | by super": {
+    "status": 404,
+    "body": {
+      "error": "Cafe not found"
+    }
+  },
+  "super suspend | from active | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  "super suspend | from active | signed out": {
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  },
+  "super suspend | malformed id | by super": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
+    }
+  },
+  "super suspend | unknown id | by super": {
+    "status": 404,
+    "body": {
+      "error": "Cafe not found"
+    }
+  },
+  "suspended cafe | GET timesheets | by owner already signed in": {
+    "status": 403,
+    "body": {
+      "error": "This cafe has been suspended"
+    }
+  },
+  "suspended cafe | sign in | by owner": {
+    "status": 403,
+    "body": {
+      "error": "No active cafe membership. Contact your owner.",
+      "code": "no_active_membership"
+    }
+  },
+  "task DELETE | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "task PATCH tick | assigned to one person | by other staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot change this task"
+    }
+  },
+  "task PATCH tick | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Task not found"
+    }
+  },
+  "task PATCH title | by assignee": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "task PATCH | no status field | by assignee": {
+    "status": 400,
+    "body": {
+      "error": "No updatable fields provided"
+    }
+  },
+  "task PATCH | unknown status value | by assignee": {
+    "status": 400,
+    "body": {
+      "error": "status must be \"pending\" or \"done\""
+    }
+  },
+  "task POST | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet DELETE | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Approved timesheets cannot be deleted"
+    }
+  },
+  "timesheet DELETE | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved timesheets cannot be deleted"
+    }
+  },
+  "timesheet DELETE | from approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
+    }
+  },
+  "timesheet DELETE | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | from pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
+    }
+  },
+  "timesheet DELETE | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | from rejected | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
+    }
+  },
+  "timesheet DELETE | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | from submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
+    }
+  },
+  "timesheet DELETE | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet GET list | scope all with a malformed user_id | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Invalid user_id"
+    }
+  },
+  "timesheet GET list | scope all | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet GET list | unknown scope | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Unknown scope \"bogus\""
+    }
+  },
+  "timesheet GET one | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Timesheet not found"
+    }
+  },
+  "timesheet GET one | other staff | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot view this timesheet"
+    }
+  },
+  "timesheet PATCH approve | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from approved | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from draft | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from draft | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "timesheet PATCH approve | from pending_owner | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from rejected | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH approve | from rejected | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "timesheet PATCH approve | from submitted | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH approve | no manager signature | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager signature required before approval"
+    }
+  },
+  "timesheet PATCH comments | 2001 characters | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Comments too long"
+    }
+  },
+  "timesheet PATCH comments | on approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Cannot edit comments on an approved timesheet"
+    }
+  },
+  "timesheet PATCH comments | on submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Cannot edit comments"
+    }
+  },
+  "timesheet PATCH forward | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from approved | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from draft | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from draft | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from pending_owner | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | from pending_owner | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | from pending_owner | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from rejected | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Manager can only sign a timesheet under review"
+    }
+  },
+  "timesheet PATCH forward | from rejected | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from submitted | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH forward | no manager signature | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Manager signature required to forward to owner"
+    }
+  },
+  "timesheet PATCH reason without a status | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from approved | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from draft | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from draft | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reject at this stage"
+    }
+  },
+  "timesheet PATCH reject | from pending_owner | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from rejected | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be rejected"
+    }
+  },
+  "timesheet PATCH reject | from rejected | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from submitted | by pt": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Manager or owner access required"
+    }
+  },
+  "timesheet PATCH reject | no reason | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "rejection_reason required"
+    }
+  },
+  "timesheet PATCH reopen | from approved | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from approved | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only rejected timesheets can be reopened"
+    }
+  },
+  "timesheet PATCH reopen | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from draft | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from draft | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only rejected timesheets can be reopened"
+    }
+  },
+  "timesheet PATCH reopen | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from pending_owner | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only rejected timesheets can be reopened"
+    }
+  },
+  "timesheet PATCH reopen | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from rejected | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from rejected | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from submitted | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH reopen | from submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only rejected timesheets can be reopened"
+    }
+  },
+  "timesheet PATCH reopen | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can reopen"
+    }
+  },
+  "timesheet PATCH signature | not an image data URL | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Employee signature must be an image data URL"
+    }
+  },
+  "timesheet PATCH signature | on draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the timesheet owner can sign"
+    }
+  },
+  "timesheet PATCH signature | on submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Can only sign while in draft"
+    }
+  },
+  "timesheet PATCH submit | from approved | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from approved | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be submitted"
+    }
+  },
+  "timesheet PATCH submit | from approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from draft | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from pending_owner | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be submitted"
+    }
+  },
+  "timesheet PATCH submit | from pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from rejected | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from rejected | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from rejected | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be submitted"
+    }
+  },
+  "timesheet PATCH submit | from rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from submitted | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | from submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be submitted"
+    }
+  },
+  "timesheet PATCH submit | from submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can submit"
+    }
+  },
+  "timesheet PATCH submit | no signature on the row or in the request | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Employee signature required to submit"
+    }
+  },
+  "timesheet PATCH | empty body | by pt": {
+    "status": 400,
+    "body": {
+      "error": "No updatable fields provided"
+    }
+  },
+  "timesheet PATCH | malformed id | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
+    }
+  },
+  "timesheet PATCH | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Timesheet not found"
+    }
+  },
+  "timesheet PATCH | unknown id | by pt": {
+    "status": 404,
+    "body": {
+      "error": "Timesheet not found"
+    }
+  },
+  "timesheet PATCH | unknown status value | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Invalid status"
+    }
+  },
+  "timesheet POST | bad JSON | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Invalid JSON"
+    }
+  },
+  "timesheet POST | bad month | by pt": {
+    "status": 400,
+    "body": {
+      "error": "month_year must be YYYY-MM"
+    }
+  },
+  "timesheet POST | month already exists | by pt": {
+    "status": 409,
+    "body": {
+      "error": "Timesheet already exists for that month",
+      "id": "<generated id>"
+    }
+  },
+  "timesheet entry DELETE | on approved | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on approved | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
+  "timesheet entry DELETE | on approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on draft | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on pending_owner | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
+  "timesheet entry DELETE | on pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on rejected | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on rejected | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on rejected | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
+  "timesheet entry DELETE | on rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on submitted | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | on submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
+  "timesheet entry DELETE | on submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can delete entries"
+    }
+  },
+  "timesheet entry DELETE | other cafe | by owner2": {
+    "status": 404,
+    "body": {
+      "error": "Entry not found"
+    }
+  },
+  "timesheet entry PATCH | no known field | by pt": {
+    "status": 400,
+    "body": {
+      "error": "No updatable fields provided"
+    }
+  },
+  "timesheet entry PATCH | on approved | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on approved | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry PATCH | on approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on draft | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on pending_owner | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry PATCH | on pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on rejected | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on rejected | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on rejected | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry PATCH | on rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on submitted | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | on submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry PATCH | on submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | unknown entry | by pt": {
+    "status": 404,
+    "body": {
+      "error": "Entry not found"
+    }
+  },
+  "timesheet entry POST | bad date | by pt": {
+    "status": 400,
+    "body": {
+      "error": "entry_date must be YYYY-MM-DD"
+    }
+  },
+  "timesheet entry POST | bad time | by pt": {
+    "status": 400,
+    "body": {
+      "error": "start_time/end_time must be HH:MM[:SS]"
+    }
+  },
+  "timesheet entry POST | date outside the month | by pt": {
+    "status": 400,
+    "body": {
+      "error": "entry_date must be within <year-month>"
+    }
+  },
+  "timesheet entry POST | malformed id | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
+    }
+  },
+  "timesheet entry POST | on approved | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on approved | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on approved | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry POST | on approved | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on draft | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on draft | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on draft | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on pending_owner | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on pending_owner | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on pending_owner | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry POST | on pending_owner | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on rejected | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on rejected | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on rejected | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry POST | on rejected | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on submitted | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on submitted | by owner": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | on submitted | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
+    }
+  },
+  "timesheet entry POST | on submitted | by staff": {
+    "status": 403,
+    "body": {
+      "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry POST | unknown timesheet | by pt": {
+    "status": 404,
+    "body": {
+      "error": "Timesheet not found"
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import { decideLeaveDelete, decideLeaveMove, type LeaveStatus } from '@/lib/workflows/leave';
 import { deleteAttachment } from '@/lib/storage';
 import { notifyLeaveDecision } from '@/lib/notifications';
 
@@ -24,7 +25,7 @@ interface LeaveRow {
   start_date: string;
   end_date: string;
   days_requested: number;
-  status: 'pending_manager' | 'pending_owner' | 'approved' | 'rejected';
+  status: LeaveStatus;
   attachment_url: string | null;
 }
 
@@ -66,16 +67,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const row = await loadRow(id, ctx.cafeId);
     if (!row) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
-    if (row.status === 'approved' || row.status === 'rejected') {
-      return NextResponse.json({ error: `Request already ${row.status}` }, { status: 409 });
-    }
 
-    // Managers cannot act on their own requests, and cannot final-approve owner-stage rows.
-    if (ctx.role === 'manager') {
-      if (row.user_id === ctx.userId) throw new AuthError('forbidden', 'Cannot act on your own request');
-      if (row.status !== 'pending_manager') {
-        throw new AuthError('forbidden', 'This request is past the manager stage');
+    // Who may make the move, and from which status, is decided by the table in
+    // src/lib/workflows/leave.ts; the messages stay here. A manager passes the request
+    // on to the owner; the owner approves it.
+    const to: LeaveStatus = action === 'reject' ? 'rejected' : ctx.role === 'manager' ? 'pending_owner' : 'approved';
+    const actor = { role: ctx.role, isRowOwner: row.user_id === ctx.userId };
+    const decision = decideLeaveMove(row.status, to, actor);
+    if (!decision.ok) {
+      if (decision.reason === 'already_decided') {
+        return NextResponse.json({ error: `Request already ${row.status}` }, { status: 409 });
       }
+      throw new AuthError(
+        'forbidden',
+        decision.reason === 'own_request' ? 'Cannot act on your own request' : 'This request is past the manager stage',
+      );
     }
 
     const RETURNING =
@@ -91,11 +97,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       );
       const current = lock.rows[0];
       if (!current) throw new RequestConflictError('Request not found');
-      if (current.status === 'approved' || current.status === 'rejected') {
-        throw new RequestConflictError(`Request already ${current.status}`);
-      }
-      if (ctx.role === 'manager' && current.status !== 'pending_manager') {
-        throw new AuthError('forbidden', 'This request is past the manager stage');
+      const recheck = decideLeaveMove(current.status, to, actor);
+      if (!recheck.ok) {
+        if (recheck.reason === 'already_decided') throw new RequestConflictError(`Request already ${current.status}`);
+        throw new AuthError(
+          'forbidden',
+          recheck.reason === 'own_request' ? 'Cannot act on your own request' : 'This request is past the manager stage',
+        );
       }
 
       if (action === 'approve') {
@@ -208,12 +216,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!row) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
 
     const isOwnRow = row.user_id === ctx.userId;
-    const isAdmin = ctx.role === 'owner';
-    if (row.status === 'approved' || row.status === 'rejected') {
-      // Only owners can purge decided records.
-      if (!isAdmin) throw new AuthError('forbidden', 'Cannot delete a decided request');
-    } else if (!isOwnRow && !isAdmin) {
-      throw new AuthError('forbidden', 'Cannot delete this request');
+    // Only owners can purge decided records; an open one can also be cancelled by its requester.
+    const removal = decideLeaveDelete(row.status, { role: ctx.role, isRowOwner: isOwnRow });
+    if (!removal.ok) {
+      throw new AuthError(
+        'forbidden',
+        removal.reason === 'not_permitted_decided' ? 'Cannot delete a decided request' : 'Cannot delete this request',
+      );
     }
 
     await withTenantTx(ctx, async (tx) => {

@@ -4,6 +4,7 @@ import { requireTenantUser, requireOwnerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError, parseMoney } from '@/lib/validators';
 import { deleteAttachment } from '@/lib/storage';
 import { notifyClaimDecision } from '@/lib/notifications';
+import { decideClaimDelete, decideClaimMove } from '@/lib/workflows/claim';
 import { CLAIM_RETURNING, RequestConflictError, serialiseClaim, type ClaimRow } from '@/lib/claims';
 
 export const runtime = 'nodejs';
@@ -61,8 +62,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const row = await loadRow(id, ctx.cafeId);
     if (!row) return NextResponse.json({ error: 'Claim not found' }, { status: 404 });
-    if (row.status !== 'pending') {
-      return NextResponse.json({ error: `Claim already ${row.status}` }, { status: 409 });
+    // Whether the move is open is decided by the table in src/lib/workflows/claim.ts;
+    // the messages stay here.
+    const to = action === 'approve' ? 'approved' : 'rejected';
+    const actor = { role: ctx.role, isRowOwner: row.user_id === ctx.userId };
+    const decision = decideClaimMove(row.status, to, actor);
+    if (!decision.ok) {
+      if (decision.reason === 'not_permitted') throw new AuthError('forbidden', 'Owner access required');
+      throw new RequestConflictError(`Claim already ${row.status}`);
     }
 
     let note: string | null = null;
@@ -88,7 +95,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       );
       const cur = lock.rows[0];
       if (!cur) throw new RequestConflictError('Claim not found');
-      if (cur.status !== 'pending') throw new RequestConflictError(`Claim already ${cur.status}`);
+      if (!decideClaimMove(cur.status, to, actor).ok) throw new RequestConflictError(`Claim already ${cur.status}`);
 
       if (action === 'approve') {
         const amountParam = approvedAmount!.toFixed(2);
@@ -173,10 +180,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!row) return NextResponse.json({ error: 'Claim not found' }, { status: 404 });
 
     const isOwnRow = row.user_id === ctx.userId;
-    const isOwner = ctx.role === 'owner';
-    if (!isOwner) {
-      if (!isOwnRow) throw new AuthError('forbidden', 'Cannot delete this claim');
-      if (row.status !== 'pending') throw new AuthError('forbidden', 'Cannot delete a decided claim');
+    const actor = { role: ctx.role, isRowOwner: isOwnRow };
+    const removal = decideClaimDelete(row.status, actor);
+    if (!removal.ok) {
+      throw new AuthError(
+        'forbidden',
+        removal.reason === 'not_permitted' ? 'Cannot delete this claim' : 'Cannot delete a decided claim',
+      );
     }
 
     await withTenantTx(ctx, async (tx) => {
@@ -187,7 +197,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       );
       const cur = lock.rows[0];
       if (!cur) throw new RequestConflictError('Claim not found');
-      if (!isOwner && cur.status !== 'pending') throw new RequestConflictError(`Claim already ${cur.status}`);
+      if (!decideClaimDelete(cur.status, actor).ok) throw new RequestConflictError(`Claim already ${cur.status}`);
 
       const del = await tx.query(`DELETE FROM medical_claims WHERE id = $1 AND cafe_id = $2`, [id, ctx.cafeId]);
       if (del.rowCount === 1 && cur.status === 'approved' && cur.amount_approved !== null) {

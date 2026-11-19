@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { lookupCafeAccess } from '@/lib/cafeAccess';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import type { TaskStatus } from '@/lib/workflows/task';
 
 export const runtime = 'nodejs';
 
@@ -14,7 +15,7 @@ interface TaskRow {
   description: string | null;
   deadline: string;
   assigned_to: string;
-  status: 'pending' | 'done';
+  status: TaskStatus;
   created_by: string;
   completed_by: string | null;
   completed_at: string | null;

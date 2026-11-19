@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireTenantUser, requireManagerInCafe, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
+import type { TimesheetStatus } from '@/lib/workflows/timesheet';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +12,7 @@ interface TimesheetRow {
   id: string;
   user_id: string;
   month_year: string;
-  status: 'draft' | 'submitted' | 'pending_owner' | 'approved' | 'rejected';
+  status: TimesheetStatus;
   comments: string | null;
   rejection_reason: string | null;
   approved_by: string | null;

@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-11-18 — Workflow moves in one table per workflow
+
+### Summary
+For each workflow, "who may move a row from one status to another" is now written once, in a small
+pure module under `src/lib/workflows/`: `timesheet.ts`, `leave.ts`, `claim.ts`, `task.ts` and
+`cafe.ts`. Each holds the status list (the status type is derived from it), a table of moves
+(from status, to status, which kind of person may make it), and a decision function that answers
+"ok" or a short reason code. `actor.ts` holds the shared actor kinds. The routes for timesheet
+PATCH, leave PATCH and DELETE, claim PATCH and DELETE, task PATCH, and cafe approve and reject ask
+the table and map the reason code to their own message and status code.
+
+### Behaviour
+- No change for callers: reply bodies, status codes, the order of checks and the stored rows are the
+  same. The routes keep their own messages, signature rules, audit stamps, balance refunds,
+  notifications and all SQL, including the status conditions inside SQL statements.
+- Status types have one home each, next to their table. The copies in the API routes and in
+  `src/lib/database.types.ts` now import them; `CafeStatus` moved out of `src/lib/billing.ts`.
+  `database.types.ts` still exports `TimesheetStatus`, as a pointer to the workflow type, because
+  three timesheet screens import it from there.
+- The cafe suspend route does not read the cafe's status, so it is unchanged; the cafe table lists
+  suspend as open from every status.
+- One reply that was pinned before now reaches its own check: the two claim-submit cases for a
+  missing or foreign receipt URL send a past receipt date, so their pinned replies are the
+  receipt-URL replies.
+- New tests: one table-driven unit test per workflow module (`tests/workflows-*.test.ts`).
+- No schema change, no new dependency, no write added.
+
 ## 2026-11-18 — One shared cafe-access rule
 
 ### Summary

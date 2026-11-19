@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireSuperAdmin, AuthError } from '@/lib/auth';
+import type { CafeStatus } from '@/lib/workflows/cafe';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,7 @@ interface CafeListRow {
   slug: string;
   name: string;
   logo_url: string | null;
-  status: 'pending' | 'active' | 'suspended';
+  status: CafeStatus;
   created_at: string;
   approved_at: string | null;
   member_count: string;

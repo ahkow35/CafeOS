@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getStripe, resolveBillingStatus, type CafeStatus } from '@/lib/billing';
+import { getStripe, resolveBillingStatus } from '@/lib/billing';
+import type { CafeStatus } from '@/lib/workflows/cafe';
 import { withPlainTx } from '@/lib/db';
 import { notifyPaymentFailed } from '@/lib/notifications';
 import type Stripe from 'stripe';
