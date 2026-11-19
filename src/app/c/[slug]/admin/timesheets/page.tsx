@@ -3,25 +3,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetStatus, User } from '@/lib/database.types';
+import { Timesheet, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
+import StatusBadge from '@/components/StatusBadge';
+import { TIMESHEET_LABELS } from '@/lib/workflows/labels';
 import { ArrowLeft, Clock, ChevronRight } from 'lucide-react';
 import { formatMonthYear } from '@/lib/dateUtils';
 
 type ProfileMini = Pick<User, 'full_name' | 'email' | 'phone_e164' | 'role' | 'hourly_rate'>;
 type TimesheetWithProfile = Timesheet & { profile: ProfileMini };
-
-// NOTE: these hex values are consumed as `badge.color + '18'` below to build an alpha-blended
-// background tint at render time (string concatenation, not a CSS value) — CSS custom properties
-// cannot be concatenated this way, so these stay raw hex per the task's "computed from data" carve-out.
-const STATUS_BADGE: Record<TimesheetStatus, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: '#6a6a66' },
-  submitted: { label: 'Awaiting Manager', color: '#b45309' },
-  pending_owner: { label: 'Awaiting Owner', color: '#6d28d9' },
-  approved: { label: 'Approved', color: '#15803d' },
-  rejected: { label: 'Declined', color: '#b91c1c' },
-};
 
 export default function AdminTimesheetsPage() {
   const router = useRouter();
@@ -97,11 +88,11 @@ export default function AdminTimesheetsPage() {
           <section className="section animate-in">
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
               {([
-                ['submitted', 'Awaiting Mgr'],
-                ['pending_owner', 'Awaiting Owner'],
+                ['submitted', TIMESHEET_LABELS.submitted.label],
+                ['pending_owner', TIMESHEET_LABELS.pending_owner.label],
                 ['all', 'All'],
-                ['approved', 'Approved'],
-                ['rejected', 'Declined'],
+                ['approved', TIMESHEET_LABELS.approved.label],
+                ['rejected', TIMESHEET_LABELS.rejected.label],
               ] as const).map(([f, label]) => (
                 <button key={f} onClick={() => setFilter(f)}
                   style={{
@@ -129,7 +120,6 @@ export default function AdminTimesheetsPage() {
               </div>
             ) : (
               filtered.map(ts => {
-                const badge = STATUS_BADGE[ts.status];
                 return (
                   <div key={ts.id} className="card mb-md" style={{ cursor: 'pointer' }}
                     onClick={() => router.push(`/c/${slug}/admin/timesheets/${ts.id}`)}>
@@ -142,10 +132,7 @@ export default function AdminTimesheetsPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          fontSize: '0.75rem', fontWeight: 'var(--font-weight-semibold)', color: badge.color,
-                          background: badge.color + '18', padding: '2px 8px', borderRadius: 'var(--radius-pill)',
-                        }}>{badge.label}</span>
+                        <StatusBadge workflow="timesheet" status={ts.status} />
                         <ChevronRight size={18} className="text-muted" />
                       </div>
                     </div>

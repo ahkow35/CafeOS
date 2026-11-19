@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetEntry, TimesheetStatus } from '@/lib/database.types';
+import { Timesheet, TimesheetEntry } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
+import StatusBadge from '@/components/StatusBadge';
 import SignatureModal from '@/components/SignatureModal';
 import { ArrowLeft, Download, Send, Pencil, XCircle } from 'lucide-react';
 import { fmt12, computeHours, getDaysInMonth } from '@/lib/timeUtils';
@@ -248,15 +249,6 @@ export default function TimesheetDetailPage() {
   const [y, mo] = timesheet.month_year.split('-').map(Number);
   const monthLabel = `${SHORT_MONTH[mo - 1]} ${y}`;
 
-  const STATUS_META: Record<TimesheetStatus, { color: string; label: string }> = {
-    draft:         { color: 'var(--color-gray)',         label: 'draft' },
-    submitted:     { color: 'var(--color-orange)',       label: 'awaiting manager' },
-    pending_owner: { color: 'var(--color-accent-purple-light)',                   label: 'awaiting owner' },
-    approved:      { color: 'var(--color-stali-green)',  label: 'approved' },
-    rejected:      { color: 'var(--color-rust)',         label: 'declined' },
-  };
-  const statusMeta = STATUS_META[timesheet.status];
-
   return (
     <>
       <Header />
@@ -291,15 +283,7 @@ export default function TimesheetDetailPage() {
               </div>
             </div>
 
-            <span style={{
-              fontFamily: 'var(--font-heading)', fontSize: 'var(--font-size-xs)',
-              textTransform: 'var(--text-transform-heading)', letterSpacing: 'var(--letter-spacing-label)',
-              color: statusMeta.color,
-              border: `1px solid ${statusMeta.color}`,
-              padding: '3px 8px', whiteSpace: 'nowrap',
-            }}>
-              {statusMeta.label}
-            </span>
+            <StatusBadge workflow="timesheet" status={timesheet.status} />
           </div>
         </div>
 

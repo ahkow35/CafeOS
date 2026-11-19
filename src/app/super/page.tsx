@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import StatusBadge from '@/components/StatusBadge';
 
 interface Cafe {
   id: string;
@@ -13,12 +14,6 @@ interface Cafe {
   owner_name: string | null;
   owner_phone: string | null;
 }
-
-const STATUS_LABEL: Record<Cafe['status'], string> = {
-  pending: '⏳ Pending',
-  active: '✅ Active',
-  suspended: '🚫 Suspended',
-};
 
 export default function SuperPage() {
   const [cafes, setCafes] = useState<Cafe[]>([]);
@@ -111,8 +106,8 @@ function CafeSection({ title, cafes }: { title: string; cafes: Cafe[] }) {
                   </div>
                 )}
               </div>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', marginLeft: '12px' }}>
-                {STATUS_LABEL[cafe.status]}
+              <span style={{ whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                <StatusBadge workflow="cafe" status={cafe.status} />
               </span>
             </div>
           </Link>

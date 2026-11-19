@@ -53,9 +53,8 @@ export default async function TenantLayout({
       if (e.code === 'unauthorized' || e.code === 'need_cafe_selection') {
         redirect('/login');
       }
-      if (e.code === 'cafe_suspended' || e.code === 'cafe_pending') {
-        redirect('/login?suspended=1');
-      }
+      if (e.code === 'cafe_suspended') redirect('/login?notice=cafe-suspended');
+      if (e.code === 'cafe_pending') redirect('/login?notice=cafe-pending');
     }
     redirect('/login');
   }

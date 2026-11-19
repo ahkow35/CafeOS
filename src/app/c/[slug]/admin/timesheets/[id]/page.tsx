@@ -3,13 +3,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Timesheet, TimesheetEntry, TimesheetStatus, User } from '@/lib/database.types';
+import { Timesheet, TimesheetEntry, User } from '@/lib/database.types';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
+import StatusBadge from '@/components/StatusBadge';
 import SignatureModal from '@/components/SignatureModal';
 import { ArrowLeft, CheckCircle, XCircle, Download, Pencil, Trash2 } from 'lucide-react';
 import { fmt12 } from '@/lib/timeUtils';
 import { formatMonthYear } from '@/lib/dateUtils';
+import { decideTimesheetDelete } from '@/lib/workflows/timesheet';
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -194,6 +196,7 @@ export default function AdminTimesheetDetailPage() {
   const role = profile?.role;
   const isManager = role === 'manager';
   const isOwner = role === 'owner';
+  const mayDelete = !!role && decideTimesheetDelete(timesheet.status, { role, isRowOwner: timesheet.user_id === profile?.id }).ok;
   // Manager can act only on the submitted stage.
   // Owner can act on submitted (skip-manager) or pending_owner (final).
   const canAct =
@@ -205,16 +208,6 @@ export default function AdminTimesheetDetailPage() {
   const approveLabel = isManager ? 'Approve & forward' : 'Final approve';
   const hourlyRate = tsProfile?.hourly_rate ?? null;
   const salary = hourlyRate !== null ? totalHours * hourlyRate : null;
-
-  const STATUS_STYLE: Record<TimesheetStatus, { color: string; bg: string; label: string }> = {
-    draft:         { color: 'var(--color-gray)',                bg: 'transparent',     label: 'Draft' },
-    submitted:     { color: 'var(--color-black)',               bg: 'var(--color-neon)', label: 'Awaiting manager' },
-    pending_owner: { color: 'var(--color-accent-purple)',                          bg: 'transparent',     label: 'Awaiting owner' },
-    approved:      { color: 'var(--color-success, #22c55e)',    bg: 'transparent',     label: 'Approved' },
-    rejected:      { color: 'var(--color-rust)',                bg: 'transparent',     label: 'Declined' },
-  };
-  const statusStyle = STATUS_STYLE[timesheet.status];
-  const statusLabel = statusStyle.label;
 
   return (
     <>
@@ -233,20 +226,7 @@ export default function AdminTimesheetDetailPage() {
               <p className="page-subtitle">Contact: {tsProfile.phone_e164}</p>
             )}
             <div style={{ marginTop: 'var(--space-sm)' }}>
-              <span style={{
-                display: 'inline-block',
-                fontFamily: 'var(--font-heading)',
-                fontSize: 'var(--font-size-xs)',
-                textTransform: 'var(--text-transform-heading)',
-                letterSpacing: 'var(--letter-spacing-wide)',
-                padding: '3px 10px',
-                border: 'var(--border-width) solid',
-                borderColor: statusStyle.color,
-                color: statusStyle.color,
-                background: statusStyle.bg,
-              }}>
-                {statusLabel}
-              </span>
+              <StatusBadge workflow="timesheet" status={timesheet.status} />
             </div>
           </section>
 
@@ -415,11 +395,18 @@ export default function AdminTimesheetDetailPage() {
               </>
             )}
 
-            <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
-              className="btn btn-outline btn-block"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
-              <Trash2 size={16} /> Delete timesheet
-            </button>
+            {mayDelete && (
+              <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
+                className="btn btn-outline btn-block"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
+                <Trash2 size={16} /> Delete timesheet
+              </button>
+            )}
+            {timesheet.status === 'approved' && (
+              <p className="text-muted" style={{ fontSize: 'var(--font-size-sm)', textAlign: 'center' }}>
+                Approved timesheets are kept as the pay record and can&apos;t be deleted.
+              </p>
+            )}
           </section>
         </div>
       </main>

@@ -1,11 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { KeyRound } from 'lucide-react';
 import Image from 'next/image';
+
+const NOTICE_TEXT: Record<string, string> = {
+  'cafe-suspended': "This café's account is suspended, so it can't be opened right now. Please speak to your café owner.",
+  'cafe-pending': 'This café is still waiting for approval. Please try again once it has been approved.',
+};
+
+/** Why the visitor was sent back here, when the cafe layout said so. Any other value shows nothing. */
+function LoginNotice() {
+  const notice = useSearchParams().get('notice') ?? '';
+  if (!Object.prototype.hasOwnProperty.call(NOTICE_TEXT, notice)) return null;
+  return (
+    <div className="form-message form-message-info mb-md" role="status">
+      {NOTICE_TEXT[notice]}
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -48,6 +64,11 @@ export default function LoginPage() {
       <div className="auth-card animate-in">
         <h1 className="auth-logo"><Image src="/logo.svg" alt="" width={28} height={28} unoptimized /> CafeOS</h1>
         <p className="auth-subtitle">Sign in to your café.</p>
+
+        {/* Reads the address on the client, so the page itself stays prerendered. */}
+        <Suspense fallback={null}>
+          <LoginNotice />
+        </Suspense>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

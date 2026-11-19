@@ -2,7 +2,8 @@
 
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import StatusBadge from '@/components/StatusBadge';
+import { ArrowLeft, Calendar, Trash2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
@@ -76,43 +77,6 @@ export default function AdminArchivePage() {
         ? leaves
         : leaves.filter(l => l.status === filter);
 
-    const getStatusBadge = (status: string) => {
-        if (status === 'approved') {
-            return (
-                <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-4)',
-                    fontSize: '0.75rem',
-                    fontWeight: 'var(--font-weight-bold)',
-                    backgroundColor: 'var(--color-status-success-bg)',
-                    color: 'var(--color-status-success)'
-                }}>
-                    <CheckCircle size={12} />
-                    Approved
-                </span>
-            );
-        }
-        return (
-            <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-4)',
-                fontSize: '0.75rem',
-                fontWeight: 'var(--font-weight-bold)',
-                backgroundColor: 'var(--color-status-danger-bg)',
-                color: 'var(--color-status-danger-strong)'
-            }}>
-                <XCircle size={12} />
-                Declined
-            </span>
-        );
-    };
-
     if (loading || !profile || !isAdmin) {
         return <div className="loading"><div className="spinner" /></div>;
     }
@@ -179,7 +143,7 @@ export default function AdminArchivePage() {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            {getStatusBadge(leave.status)}
+                                            <StatusBadge workflow="leave" status={leave.status} />
                                             {isOwner && (
                                                 <button
                                                     onClick={() => handleDelete(leave.id)}

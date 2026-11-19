@@ -54,3 +54,39 @@ export function decideTimesheetMove(from: TimesheetStatus, to: TimesheetStatus, 
 export function timesheetActionsFor(from: TimesheetStatus, actor: WorkflowActor): TimesheetMove[] {
   return TIMESHEET_MOVES.filter((m) => m.from === from && actorMay(m.who, actor));
 }
+
+export interface TimesheetDeleteRule {
+  from: TimesheetStatus;
+  who: readonly ActorKind[];
+}
+
+/**
+ * Who may delete a timesheet in each status: its owner while it is a draft, a manager or the
+ * owner while it is not approved. An approved timesheet is the pay record and nobody deletes it.
+ */
+export const TIMESHEET_DELETES: readonly TimesheetDeleteRule[] = [
+  { from: 'draft', who: ['row_owner', 'manager', 'owner'] },
+  { from: 'submitted', who: ['manager', 'owner'] },
+  { from: 'pending_owner', who: ['manager', 'owner'] },
+  { from: 'approved', who: [] },
+  { from: 'rejected', who: ['manager', 'owner'] },
+];
+
+/**
+ * - not_permitted: the actor is neither a manager, the owner nor the sheet's own person
+ * - drafts_only: the actor is the sheet's own person and the sheet is no longer a draft
+ * - approved: a manager or the owner asks to delete an approved sheet
+ */
+export type TimesheetDeleteDecision =
+  | { ok: true }
+  | { ok: false; reason: 'not_permitted' | 'drafts_only' | 'approved' };
+
+/** The checks run in this order, as the route has always answered. */
+export function decideTimesheetDelete(from: TimesheetStatus, actor: WorkflowActor): TimesheetDeleteDecision {
+  const rule = TIMESHEET_DELETES.find((r) => r.from === from);
+  if (rule && actorMay(rule.who, actor)) return { ok: true };
+  const isAdmin = actor.role === 'manager' || actor.role === 'owner';
+  if (!actor.isRowOwner && !isAdmin) return { ok: false, reason: 'not_permitted' };
+  if (!isAdmin) return { ok: false, reason: 'drafts_only' };
+  return { ok: false, reason: 'approved' };
+}
