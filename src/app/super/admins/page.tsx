@@ -84,8 +84,8 @@ export default function SuperAdminsPage() {
             </div>
             {a.id !== user?.id && (
               <button
-                className="btn"
-                style={{ fontSize: '13px', padding: '6px 12px', background: 'var(--color-error)', color: 'var(--color-white)' }}
+                className="btn btn-danger"
+                style={{ fontSize: '13px', padding: '6px 12px' }}
                 onClick={() => toggle(a)}
                 disabled={busy}
               >

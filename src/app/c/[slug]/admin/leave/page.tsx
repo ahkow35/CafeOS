@@ -10,6 +10,7 @@ import LeaveRequestCard from '@/components/LeaveRequestCard';
 import DecisionTicket from '@/components/DecisionTicket';
 import { CheckCircle, ArrowLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { leaveActionsFor } from '@/lib/workflows/leave';
 
 type ProfileMini = Pick<
     User,
@@ -184,18 +185,23 @@ export default function AdminLeavePage() {
                         <section className="section animate-in">
                             {requests.map(request => {
                                 const displayName = request.profile?.full_name || 'Unknown';
+                                // Offer a decision only where the leave table (the rule the server applies) has a move for this person.
+                                const canDecide = !!profile?.role && leaveActionsFor(request.status, {
+                                    role: profile.role,
+                                    isRowOwner: request.user_id === user?.id,
+                                }).length > 0;
 
                                 return (
                                     <div key={request.id} style={{ opacity: processing === request.id ? 0.5 : 1 }}>
                                         {isOwner ? (
                                             <>
-                                                <DecisionTicket
+                                                {canDecide ? <DecisionTicket
                                                     request={request}
                                                     userName={displayName}
                                                     onApprove={() => handleApprove(request)}
                                                     onReject={() => handleReject(request)}
                                                     processing={processing === request.id}
-                                                />
+                                                /> : <LeaveRequestCard request={request} userName={displayName} />}
                                                 <button
                                                     onClick={() => handleDelete(request)}
                                                     className="btn btn-ghost btn-sm btn-block"
@@ -219,7 +225,7 @@ export default function AdminLeavePage() {
                                             <LeaveRequestCard
                                                 request={request}
                                                 userName={displayName}
-                                                showActions={true}
+                                                showActions={canDecide}
                                                 onApprove={() => handleApprove(request)}
                                                 onReject={() => handleReject(request)}
                                             />

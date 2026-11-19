@@ -54,6 +54,7 @@ export default function AdminTimesheetDetailPage() {
   const [showManagerSignModal, setShowManagerSignModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const totalHours = entries.reduce((sum, e) => sum + e.total_hours, 0);
 
@@ -106,13 +107,15 @@ export default function AdminTimesheetDetailPage() {
   async function deleteTimesheet() {
     if (!timesheet) return;
     setDeleting(true);
-    setError('');
+    setDeleteError('');
     try {
       await jsonOrError(await fetch(`/api/timesheets/${timesheet.id}`, { method: 'DELETE' }));
       router.push(`/c/${slug}/admin/timesheets`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
+      // Show the refusal inside the dialog, and re-read the sheet: it may have moved on since the page loaded.
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed');
       setDeleting(false);
+      load();
     }
   }
 
@@ -396,7 +399,7 @@ export default function AdminTimesheetDetailPage() {
             )}
 
             {mayDelete && (
-              <button onClick={() => setShowDeleteModal(true)} disabled={deleting}
+              <button onClick={() => { setDeleteError(''); setShowDeleteModal(true); }} disabled={deleting}
                 className="btn btn-outline btn-block"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--color-rust)', borderColor: 'var(--color-rust)' }}>
                 <Trash2 size={16} /> Delete timesheet
@@ -504,6 +507,11 @@ export default function AdminTimesheetDetailPage() {
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--font-size-sm)', color: 'var(--color-gray)', marginBottom: 'var(--space-md)' }}>
               This permanently deletes the timesheet and all its entries. This cannot be undone.
             </p>
+            {deleteError && (
+              <p role="alert" style={{ color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-md)' }}>
+                {deleteError}
+              </p>
+            )}
             <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
               <button
                 onClick={() => setShowDeleteModal(false)}
@@ -511,16 +519,18 @@ export default function AdminTimesheetDetailPage() {
                 className="btn btn-outline"
                 style={{ flex: 1 }}
               >
-                Cancel
+                {deleteError ? 'Close' : 'Cancel'}
               </button>
-              <button
-                onClick={deleteTimesheet}
-                disabled={deleting}
-                className="btn btn-danger"
-                style={{ flex: 1 }}
-              >
-                {deleting ? 'Deleting...' : 'Confirm delete'}
-              </button>
+              {!deleteError && (
+                <button
+                  onClick={deleteTimesheet}
+                  disabled={deleting}
+                  className="btn btn-danger"
+                  style={{ flex: 1 }}
+                >
+                  {deleting ? 'Deleting...' : 'Confirm delete'}
+                </button>
+              )}
             </div>
           </div>
         </div>

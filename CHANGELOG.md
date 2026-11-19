@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-20 — Three small screen fixes
+
+### What people see
+- Admin timesheet page: when a delete is refused (for example the sheet was approved in the
+  meantime), the reason now shows inside the delete dialog, the Confirm button is replaced by
+  Close, and the page re-reads the sheet so its badge is current.
+- Super admin pages: the Reject and Suspend buttons on a café and the Revoke button on the admins
+  page are red again. They pointed at a colour setting that does not exist.
+- Admin leave page: Approve and Decline are offered only where the leave rules have a move for the
+  person looking, the same rule the server applies. Today's lists already match it, so nothing
+  changes on screen.
+
 ## 2026-11-20 — Filters on the leave history page
 
 ### What people see
