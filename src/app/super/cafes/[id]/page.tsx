@@ -156,8 +156,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
                   {busy ? 'Approving…' : 'Approve'}
                 </button>
                 <button
-                  className="btn"
-                  style={{ background: 'var(--color-error)', color: 'var(--color-white)' }}
+                  className="btn btn-danger"
                   onClick={handleReject}
                   disabled={busy}
                 >
@@ -167,8 +166,7 @@ export default function CafeDetailPage({ params }: { params: Promise<{ id: strin
             )}
             {cafe.status === 'active' && (
               <button
-                className="btn"
-                style={{ background: 'var(--color-error)', color: 'var(--color-white)' }}
+                className="btn btn-danger"
                 onClick={handleSuspend}
                 disabled={busy}
               >
