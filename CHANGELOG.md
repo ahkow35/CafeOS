@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-20 — Next.js 16.4.5
+
+### Summary
+Next.js and its lint config move from 16.4.1 to 16.4.5, a patch release that closes four security
+advisories about cached data shared across route parameters. CafeOS does not use the affected
+caching features, so nothing changes for people using the app.
+
 ## 2026-11-20 — Three small screen fixes
 
 ### What people see
