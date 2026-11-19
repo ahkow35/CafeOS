@@ -508,6 +508,12 @@
       "error": "Request not found"
     }
   },
+  "leave DELETE | request approved meanwhile | by requester": {
+    "status": 403,
+    "body": {
+      "error": "Cannot delete a decided request"
+    }
+  },
   "leave DELETE | unknown id | by owner": {
     "status": 404,
     "body": {
@@ -574,6 +580,12 @@
       "error": "Cannot act on your own request"
     }
   },
+  "leave PATCH approve | own pending_owner request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
   "leave PATCH reject | from approved | by manager": {
     "status": 409,
     "body": {
@@ -629,6 +641,12 @@
     }
   },
   "leave PATCH reject | own pending_manager request | by mgr": {
+    "status": 403,
+    "body": {
+      "error": "Cannot act on your own request"
+    }
+  },
+  "leave PATCH reject | own pending_owner request | by mgr": {
     "status": 403,
     "body": {
       "error": "Cannot act on your own request"
@@ -976,6 +994,12 @@
       "error": "Cafe not found"
     }
   },
+  "super reject | cafe activated meanwhile | by super": {
+    "status": 400,
+    "body": {
+      "error": "Only pending cafes can be rejected"
+    }
+  },
   "super reject | from active | by super": {
     "status": 400,
     "body": {
@@ -1000,10 +1024,22 @@
       "error": "Only pending cafes can be rejected"
     }
   },
+  "super reject | malformed id | by super": {
+    "status": 400,
+    "body": {
+      "error": "Invalid id"
+    }
+  },
   "super reject | unknown id | by super": {
     "status": 404,
     "body": {
       "error": "Cafe not found"
+    }
+  },
+  "super suspend | cafe pending meanwhile | by super": {
+    "status": 400,
+    "body": {
+      "error": "Pending cafes cannot be suspended"
     }
   },
   "super suspend | from active | by owner": {
@@ -1016,6 +1052,12 @@
     "status": 401,
     "body": {
       "error": "Unauthorized"
+    }
+  },
+  "super suspend | from pending | by super": {
+    "status": 400,
+    "body": {
+      "error": "Pending cafes cannot be suspended"
     }
   },
   "super suspend | malformed id | by super": {
@@ -1149,6 +1191,18 @@
     "status": 403,
     "body": {
       "error": "Cannot delete this timesheet"
+    }
+  },
+  "timesheet DELETE | sheet approved meanwhile | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Approved timesheets cannot be deleted"
+    }
+  },
+  "timesheet DELETE | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Only drafts can be deleted by the owner"
     }
   },
   "timesheet GET list | scope all with a malformed user_id | by owner": {
@@ -1295,6 +1349,30 @@
       "error": "Manager signature required before approval"
     }
   },
+  "timesheet PATCH approve | own sheet | from submitted | by manager": {
+    "status": 403,
+    "body": {
+      "error": "Owner access required"
+    }
+  },
+  "timesheet PATCH approve | status only | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
+  "timesheet PATCH approve | status only | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
+  "timesheet PATCH approve | status only | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted or owner-pending timesheets can be approved"
+    }
+  },
   "timesheet PATCH comments | 2001 characters | by pt": {
     "status": 400,
     "body": {
@@ -1425,6 +1503,54 @@
     "status": 400,
     "body": {
       "error": "Manager signature required to forward to owner"
+    }
+  },
+  "timesheet PATCH forward | status only | from approved | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from approved | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from draft | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from draft | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from pending_owner | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from pending_owner | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from rejected | by mgr": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
+    }
+  },
+  "timesheet PATCH forward | status only | from rejected | by owner": {
+    "status": 400,
+    "body": {
+      "error": "Only submitted timesheets can be forwarded"
     }
   },
   "timesheet PATCH reason without a status | by pt": {
@@ -1962,6 +2088,12 @@
       "error": "Entry not found"
     }
   },
+  "timesheet entry DELETE | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be deleted while in draft"
+    }
+  },
   "timesheet entry PATCH | no known field | by pt": {
     "status": 400,
     "body": {
@@ -2080,6 +2212,12 @@
     "status": 403,
     "body": {
       "error": "Only the owner can edit entries"
+    }
+  },
+  "timesheet entry PATCH | sheet submitted meanwhile | by pt": {
+    "status": 400,
+    "body": {
+      "error": "Entries can only be edited while in draft"
     }
   },
   "timesheet entry PATCH | unknown entry | by pt": {

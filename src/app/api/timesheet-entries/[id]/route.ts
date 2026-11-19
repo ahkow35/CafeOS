@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { VercelPoolClient } from '@vercel/postgres';
 import { sql, withTenantTx } from '@/lib/db';
 import { requireTenantUser, AuthError } from '@/lib/auth';
 import { ValidationError } from '@/lib/validators';
@@ -43,6 +44,27 @@ async function loadOwnership(entryId: string, cafeId: string): Promise<OwnerChec
   return rows[0] ?? null;
 }
 
+/** Lock the entry's timesheet and read its owner and status, so the checks and the write see the same row. */
+async function lockOwnership(tx: VercelPoolClient, entryId: string, cafeId: string): Promise<OwnerCheckRow> {
+  const { rows } = await tx.query<OwnerCheckRow>(
+    `SELECT te.id, te.timesheet_id, t.user_id, t.status
+       FROM timesheet_entries te
+       JOIN timesheets t ON t.id = te.timesheet_id
+      WHERE te.id = $1
+        AND t.cafe_id = $2
+        FOR UPDATE OF t`,
+    [entryId, cafeId],
+  );
+  if (!rows[0]) throw new NotFoundError('Entry not found');
+  return rows[0];
+}
+
+/** Entries are changed only by the timesheet's owner while it is a draft; checked before the transaction and again on the locked row. */
+function assertDraftOwner(owner: OwnerCheckRow, userId: string, verb: 'edit' | 'delete'): void {
+  if (owner.user_id !== userId) throw new AuthError('forbidden', `Only the owner can ${verb} entries`);
+  if (owner.status !== 'draft') throw new ValidationError(`Entries can only be ${verb === 'edit' ? 'edited' : 'deleted'} while in draft`);
+}
+
 function parseTime(input: unknown): string | null | undefined {
   if (input === undefined) return undefined;
   if (input == null) return null;
@@ -83,8 +105,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const owner = await loadOwnership(id, ctx.cafeId);
     if (!owner) return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
-    if (owner.user_id !== ctx.userId) throw new AuthError('forbidden', 'Only the owner can edit entries');
-    if (owner.status !== 'draft') throw new ValidationError('Entries can only be edited while in draft');
+    assertDraftOwner(owner, ctx.userId, 'edit');
 
     const start_time = 'start_time' in body ? parseTime(body.start_time) : undefined;
     const end_time = 'end_time' in body ? parseTime(body.end_time) : undefined;
@@ -101,8 +122,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const updated = await withTenantTx(ctx, async (tx) => {
-      // Lock the row first: the new total is derived from the merged old + new values,
-      // so a concurrent edit of the same entry must not interleave between read and write.
+      // Lock the timesheet first and check it again, then the entry (the same order as adding
+      // an entry). The entry is locked because the new total is derived from the merged old + new
+      // values, so a concurrent edit of the same entry must not interleave between read and write.
+      assertDraftOwner(await lockOwnership(tx, id, ctx.cafeId), ctx.userId, 'edit');
       const cur = await tx.query<EntryRow>(
         `SELECT start_time::text AS start_time, end_time::text AS end_time, break_hours
            FROM timesheet_entries
@@ -177,12 +200,17 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
     const owner = await loadOwnership(id, ctx.cafeId);
     if (!owner) return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
-    if (owner.user_id !== ctx.userId) throw new AuthError('forbidden', 'Only the owner can delete entries');
-    if (owner.status !== 'draft') throw new ValidationError('Entries can only be deleted while in draft');
+    assertDraftOwner(owner, ctx.userId, 'delete');
 
-    await sql`DELETE FROM timesheet_entries WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
+    await withTenantTx(ctx, async (tx) => {
+      // Lock the timesheet and check it again before deleting, as the edit does.
+      assertDraftOwner(await lockOwnership(tx, id, ctx.cafeId), ctx.userId, 'delete');
+      const del = await tx.query(`DELETE FROM timesheet_entries WHERE id = $1 AND cafe_id = $2`, [id, ctx.cafeId]);
+      if (del.rowCount === 0) throw new NotFoundError('Entry not found');
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (e instanceof NotFoundError) return NextResponse.json({ error: e.message }, { status: 404 });
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof AuthError) {
       const status = e.code === 'unauthorized' ? 401 : 403;

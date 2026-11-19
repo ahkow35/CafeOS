@@ -108,14 +108,14 @@ export function cafeStatusCases(): void {
       assert.ok(c?.admin_suspended_at);
     });
 
-    for (const status of ['pending', 'suspended'] as const) {
-      test(`suspend on a ${status} cafe -> 200 and it is suspended`, async () => {
-        const { cafeId } = await newCafeWithOwner(status);
-        // pins current behaviour; may change in a later PR
-        expectStatus(await suspend(cafeId), 200);
-        assert.equal((await byId('cafes', cafeId))?.status, 'suspended');
-      });
-    }
+    test('suspend on a suspended cafe with no admin stamp -> 200, it stays suspended and is stamped', async () => {
+      const { cafeId } = await newCafeWithOwner('suspended');
+      assert.equal((await byId('cafes', cafeId))?.admin_suspended_at, null);
+      expectStatus(await suspend(cafeId), 200);
+      const c = await byId('cafes', cafeId);
+      assert.equal(c?.status, 'suspended');
+      assert.ok(c?.admin_suspended_at);
+    });
 
     test('unknown id, bad id, and who may call it', async () => {
       const { cafeId } = await newCafeWithOwner('active');

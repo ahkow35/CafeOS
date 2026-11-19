@@ -9,11 +9,11 @@ const STATUSES: Status[] = ['pending_manager', 'pending_owner', 'approved', 'rej
 const DAYS = 2;
 const START_BALANCE = 14;
 
-const annual = async (userId: string): Promise<number> =>
+export const annual = async (userId: string): Promise<number> =>
   (await row(`SELECT annual_leave_balance AS b FROM cafe_memberships WHERE user_id = $1 AND cafe_id = $2`, [userId, env.cafe1]))!.b;
 
 /** A leave request in the given status for a fresh requester, with the balance the routes would have left. */
-async function seedLeave(status: Status, role: Role = 'staff'): Promise<{ id: string; who: Person }> {
+export async function seedLeave(status: Status, role: Role = 'staff'): Promise<{ id: string; who: Person }> {
   const who = await newMember(role);
   const held = status !== 'rejected'; // a rejected request has already been refunded
   await row(`UPDATE cafe_memberships SET annual_leave_balance = $1 WHERE user_id = $2 AND cafe_id = $3`,
@@ -134,6 +134,16 @@ export function leaveCases(): void {
       const o = await seedLeave('pending_manager', 'owner');
       expectStatus(await api('PATCH', `/api/leave-requests/${o.id}`, { as: o.who, body: { action: 'approve' } }), 200);
       assert.equal((await byId('leave_requests', o.id))?.status, 'approved');
+    });
+
+    test('a manager cannot act on their own request at the owner stage', async () => {
+      const own = await seedLeave('pending_owner', 'manager');
+      const before = await annual(own.who.id);
+      for (const action of ['approve', 'reject']) {
+        refuse(`leave PATCH ${action} | own pending_owner request | by mgr`, await api('PATCH', `/api/leave-requests/${own.id}`, { as: own.who, body: { action } }), 403);
+      }
+      assert.equal((await byId('leave_requests', own.id))?.status, 'pending_owner');
+      assert.equal(await annual(own.who.id), before);
     });
 
     test('bad action, unknown id, other cafe', async () => {

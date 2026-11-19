@@ -40,6 +40,13 @@ async function loadRow(id: string, cafeId: string): Promise<LeaveRow | null> {
   return rows[0] ?? null;
 }
 
+function deleteRefusal(reason: 'not_permitted_decided' | 'not_permitted'): AuthError {
+  return new AuthError(
+    'forbidden',
+    reason === 'not_permitted_decided' ? 'Cannot delete a decided request' : 'Cannot delete this request',
+  );
+}
+
 /**
  * PATCH /api/leave-requests/[id]
  * Body: { action: 'approve' | 'reject' }
@@ -218,12 +225,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const isOwnRow = row.user_id === ctx.userId;
     // Only owners can purge decided records; an open one can also be cancelled by its requester.
     const removal = decideLeaveDelete(row.status, { role: ctx.role, isRowOwner: isOwnRow });
-    if (!removal.ok) {
-      throw new AuthError(
-        'forbidden',
-        removal.reason === 'not_permitted_decided' ? 'Cannot delete a decided request' : 'Cannot delete this request',
-      );
-    }
+    if (!removal.ok) throw deleteRefusal(removal.reason);
 
     await withTenantTx(ctx, async (tx) => {
       // Lock + re-read status inside the tx so concurrent deletes can't both refund.
@@ -239,6 +241,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       );
       const cur = lock.rows[0];
       if (!cur) throw new RequestConflictError('Request not found');
+      // The status is checked again on the locked row, with the same answers as before the transaction.
+      const recheck = decideLeaveDelete(cur.status, { role: ctx.role, isRowOwner: cur.user_id === ctx.userId });
+      if (!recheck.ok) throw deleteRefusal(recheck.reason);
 
       const refundsBalance =
         cur.status === 'pending_manager' ||

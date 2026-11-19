@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-11-18 — The status is checked again inside the write
+
+### Summary
+Six routes read a row's status and then wrote in a separate step. Each now checks the status again as
+part of the write, the way adding a timesheet entry and deleting a claim already did. Editing and
+deleting a timesheet entry lock the entry's timesheet first and check its owner and draft status on
+the locked row. Deleting a leave request decides again on the locked row. Deleting a timesheet, rejecting
+a cafe and suspending a cafe carry the status in the `DELETE` or `UPDATE` itself and read the row again
+when it changed nothing.
+
+### Behaviour
+- A request that meets a status change answers what the check before the write answers for that route,
+  so no screen meets a new reply.
+- Suspending is now for every cafe except a pending one (400 "Pending cafes cannot be suspended"; the
+  cafe screen does not offer it for a pending cafe). Suspending an active or an already suspended cafe
+  answers and stamps as before. Rejecting a cafe checks the id format first and answers 400
+  "Invalid id" for a malformed one, as suspend does.
+- `src/lib/workflows/cafe.ts` and `tests/workflows-cafe.test.ts` carry the changed suspend row.
+- New tests: replies for forward and approve from a status they do not start from, a manager or owner
+  moving their own timesheet, a manager acting on their own leave request at the owner stage, and cases
+  where the parent row is changed from the test's own connection while the request is waiting on it.
+- No schema change, no new dependency.
+
 ## 2026-11-18 — The PIN write and the cafe-access queries each have one home
 
 ### Summary

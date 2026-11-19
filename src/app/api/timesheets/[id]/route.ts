@@ -457,18 +457,30 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!ts) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
 
     const isAdmin = ctx.role === 'manager' || ctx.role === 'owner';
-    if (ts.user_id !== ctx.userId && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
-    if (!isAdmin && ts.status !== 'draft') {
-      throw new ValidationError('Only drafts can be deleted by the owner');
-    }
-    // An approved timesheet is a finalised payroll record — deleting it silently
-    // would erase pay history. Block it for everyone; correcting an approved sheet
-    // is a deliberate operation, not a delete.
-    if (ts.status === 'approved') {
-      throw new ValidationError('Approved timesheets cannot be deleted');
-    }
+    const checkDelete = (t: { user_id: string; status: TimesheetStatus }) => {
+      if (t.user_id !== ctx.userId && !isAdmin) throw new AuthError('forbidden', 'Cannot delete this timesheet');
+      if (!isAdmin && t.status !== 'draft') {
+        throw new ValidationError('Only drafts can be deleted by the owner');
+      }
+      // An approved timesheet is a finalised payroll record — deleting it silently
+      // would erase pay history. Block it for everyone; correcting an approved sheet
+      // is a deliberate operation, not a delete.
+      if (t.status === 'approved') {
+        throw new ValidationError('Approved timesheets cannot be deleted');
+      }
+    };
+    checkDelete(ts);
 
-    await sql`DELETE FROM timesheets WHERE id = ${id} AND cafe_id = ${ctx.cafeId}`;
+    // The status the caller may delete is part of the DELETE itself, so the row is removed
+    // only if it is still in that status when the statement runs.
+    const { rows: removed } = isAdmin
+      ? await sql`DELETE FROM timesheets WHERE id = ${id} AND cafe_id = ${ctx.cafeId} AND status <> 'approved' RETURNING id`
+      : await sql`DELETE FROM timesheets WHERE id = ${id} AND cafe_id = ${ctx.cafeId} AND status = 'draft' RETURNING id`;
+    if (removed.length === 0) {
+      const now = await loadTimesheet(id, ctx.cafeId);
+      if (now) checkDelete(now);
+      return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

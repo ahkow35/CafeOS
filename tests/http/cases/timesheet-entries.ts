@@ -12,7 +12,7 @@ const ACTORS = ['pt', 'staff', 'mgr', 'owner'] as const;
 // Allowed only for the person the timesheet belongs to, and only while it is a draft.
 const EXPECT = (from: Status, i: number): 200 | 201 | 400 | 403 => (i === 0 ? (from === 'draft' ? 200 : 400) : 403);
 
-async function seedEntry(sheetId: string): Promise<string> {
+export async function seedEntry(sheetId: string): Promise<string> {
   const r = await row<{ id: string }>(
     `INSERT INTO timesheet_entries (cafe_id, timesheet_id, entry_date, start_time, end_time, break_hours, total_hours)
      SELECT cafe_id, id, (month_year || '-10')::date, '09:00', '17:00', 0, 8 FROM timesheets WHERE id = $1 RETURNING id`,
