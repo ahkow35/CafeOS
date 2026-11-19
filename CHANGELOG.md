@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-20 — Filters on the leave history page
+
+### What people see
+- The admin Leave history page has three dropdowns above the status tabs: year (the year the
+  leave starts), leave type (annual or medical) and employee. They open on "All", so the page
+  looks as before until one is chosen.
+- The All, Approved and Declined counts follow the chosen filters.
+- When nothing matches, the page says so and offers a Clear filters button.
+- Filters reset when you leave the page. Filtering happens on the screen only; what each role may
+  see is unchanged.
+
 ## 2026-11-19 — One badge for each status on every screen
 
 ### Summary
