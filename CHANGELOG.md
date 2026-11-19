@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-20 — Bottom menu draws once
+
+### What people see
+- Pages no longer redraw on first load because of the bottom menu. The menu now applies the role
+  remembered from an earlier visit straight after the page appears, instead of during the first
+  draw, so the server's page and the browser's first draw match. This removes a brief flicker of
+  the highlighted button.
+
 ## 2026-11-20 — Next.js 16.4.5
 
 ### Summary
